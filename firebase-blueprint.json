@@ -1,0 +1,97 @@
+{
+  "entities": {
+    "Product": {
+      "title": "Product",
+      "description": "Stock of commercial assets",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "category": { "type": "string" },
+        "photo": { "type": "string" },
+        "cost": { "type": "number" },
+        "sale": { "type": "number" },
+        "status": { "type": "string", "enum": ["Disponivel", "Vendido"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "category", "cost", "sale", "status", "createdAt"]
+    },
+    "Sale": {
+      "title": "Sale",
+      "description": "Commercial contract record",
+      "type": "object",
+      "properties": {
+        "productId": { "type": "string" },
+        "productName": { "type": "string" },
+        "client": { "type": "string" },
+        "clientPhone": { "type": "string" },
+        "clientCpf": { "type": "string" },
+        "total": { "type": "number" },
+        "downPayment": { "type": "number" },
+        "profit": { "type": "number" },
+        "installmentsCount": { "type": "number" },
+        "installmentValue": { "type": "number" },
+        "date": { "type": "string", "format": "date" },
+        "status": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["productId", "productName", "client", "total", "installmentsCount", "installmentValue", "date", "status", "createdAt"]
+    },
+    "Installment": {
+      "title": "Installment",
+      "description": "Individual payment cycle for a sale",
+      "type": "object",
+      "properties": {
+        "saleId": { "type": "string" },
+        "client": { "type": "string" },
+        "productName": { "type": "string" },
+        "number": { "type": "number" },
+        "total": { "type": "number" },
+        "value": { "type": "number" },
+        "dueDate": { "type": "string", "format": "date-time" },
+        "status": { "type": "string", "enum": ["Pendente", "Pago"] },
+        "paidAt": { "type": "string", "format": "date-time" },
+        "paymentMethod": { "type": "string" }
+      },
+      "required": ["saleId", "client", "productName", "number", "total", "value", "dueDate", "status"]
+    },
+    "Settings": {
+      "title": "Settings",
+      "description": "System configuration and user profile",
+      "type": "object",
+      "properties": {
+        "userName": { "type": "string" },
+        "userRole": { "type": "string" },
+        "userEmail": { "type": "string" },
+        "pixName": { "type": "string" },
+        "pixKey": { "type": "string" },
+        "pixType": { "type": "string" },
+        "companyName": { "type": "string" },
+        "companyDocument": { "type": "string" },
+        "companyPhone": { "type": "string" },
+        "companyAddress": { "type": "string" },
+        "currency": { "type": "string" },
+        "language": { "type": "string" },
+        "theme": { "type": "string" }
+      },
+      "required": ["userName", "userEmail", "theme"]
+    }
+  },
+  "firestore": {
+    "/products/{productId}": {
+      "schema": "Product",
+      "description": "Stock collection"
+    },
+    "/sales/{saleId}": {
+      "schema": "Sale",
+      "description": "Sales contracts collection"
+    },
+    "/installments/{installmentId}": {
+      "schema": "Installment",
+      "description": "Payment installments collection"
+    },
+    "/settings/config": {
+      "schema": "Settings",
+      "description": "Global settings document"
+    }
+  }
+}
