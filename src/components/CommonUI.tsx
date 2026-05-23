@@ -17,17 +17,30 @@ export function Logo({ className = "", showText = true }: { className?: string, 
   );
 }
 
-export function Topbar({ onOpenSettings, onOpenMobileMenu, viewTitle }: { 
+export function Topbar({ onOpenSettings, onOpenMobileMenu, onToggleDesktopSidebar, desktopSidebarOpen, viewTitle }: { 
   onOpenSettings: () => void; 
   onOpenMobileMenu: () => void;
+  onToggleDesktopSidebar: () => void;
+  desktopSidebarOpen: boolean;
   viewTitle: string;
 }) {
   return (
     <header className="h-16 sm:h-20 bg-black/80 backdrop-blur-md border-b border-line-strong px-4 sm:px-10 flex items-center justify-between sticky top-0 z-40">
       <div className="flex items-center gap-3 sm:gap-4 overflow-hidden">
+        {/* Mobile menu button */}
         <button onClick={onOpenMobileMenu} className="sm:hidden w-10 h-10 rounded-xl border border-line flex items-center justify-center text-gray-400 active:scale-90 transition-transform">
           <Menu size={20} />
         </button>
+
+        {/* Desktop toggle button to fully hide/show sidebar */}
+        <button 
+          onClick={onToggleDesktopSidebar} 
+          className="hidden sm:flex w-10 h-10 rounded-xl border border-line-strong bg-card items-center justify-center text-gray-400 hover:text-gold hover:border-gold/30 transition-all active:scale-90"
+          title={desktopSidebarOpen ? "Ocultar Menu Lateral" : "Exibir Menu Lateral"}
+        >
+          <Menu size={20} />
+        </button>
+
         <h2 className="text-sm sm:text-lg font-black text-white italic uppercase tracking-tight truncate">{viewTitle}</h2>
       </div>
 

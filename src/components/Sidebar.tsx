@@ -12,9 +12,11 @@ interface SidebarProps {
   onLogout: () => void;
   isMobileOpen: boolean;
   setIsMobileOpen: (open: boolean) => void;
+  desktopSidebarOpen: boolean;
+  setDesktopSidebarOpen: (open: boolean) => void;
 }
 
-export function Sidebar({ activeView, setActiveView, collapsed, setCollapsed, settings, onLogout, isMobileOpen, setIsMobileOpen }: SidebarProps) {
+export function Sidebar({ activeView, setActiveView, collapsed, setCollapsed, settings, onLogout, isMobileOpen, setIsMobileOpen, desktopSidebarOpen, setDesktopSidebarOpen }: SidebarProps) {
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'stock', label: 'Estoque', icon: Boxes },
@@ -28,8 +30,15 @@ export function Sidebar({ activeView, setActiveView, collapsed, setCollapsed, se
 
   const content = (
     <div className="flex flex-col h-full bg-black border-r border-line-strong p-4 sm:p-6 overflow-hidden">
-      <div className="flex items-center mb-12 px-2">
+      <div className="flex items-center justify-between mb-12 px-2">
         <Logo showText={!collapsed} />
+        <button 
+          onClick={() => setCollapsed(!collapsed)}
+          className="hidden sm:flex w-8 h-8 rounded-lg border border-line-strong bg-black items-center justify-center text-gray-500 hover:text-gold hover:border-gold/30 transition-all cursor-pointer"
+          title={collapsed ? "Expandir Menu" : "Recolher Menu"}
+        >
+          {collapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
+        </button>
       </div>
 
       <nav className="flex-1 flex flex-col gap-2">
@@ -89,7 +98,7 @@ export function Sidebar({ activeView, setActiveView, collapsed, setCollapsed, se
   return (
     <>
       {/* Desktop Sidebar */}
-      <aside className={`hidden sm:block transition-all duration-300 relative ${collapsed ? 'w-24' : 'w-72'}`}>
+      <aside className={`hidden ${desktopSidebarOpen ? 'sm:block' : 'sm:hidden'} transition-all duration-300 relative ${collapsed ? 'w-24' : 'w-72'}`}>
         {content}
       </aside>
 

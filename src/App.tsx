@@ -31,6 +31,7 @@ export default function App() {
   const [activeView, setActiveView] = useState('dashboard');
   const [activeSettingsTab, setActiveSettingsTab] = useState<string | null>(null);
   const [collapsed, setCollapsed] = useState(false);
+  const [desktopSidebarOpen, setDesktopSidebarOpen] = useState(true);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const [showSaleForm, setShowSaleForm] = useState(false);
   const [saleFormSelectedProductId, setSaleFormSelectedProductId] = useState('');
@@ -483,11 +484,13 @@ export default function App() {
 
   return (
     <div className="flex min-h-screen bg-bg-main text-white">
-      <Sidebar activeView={activeView} setActiveView={setActiveView} collapsed={collapsed} setCollapsed={setCollapsed} settings={settings} isMobileOpen={isMobileOpen} setIsMobileOpen={setIsMobileOpen} onLogout={() => setIsAuthenticated(false)} />
+      <Sidebar activeView={activeView} setActiveView={setActiveView} collapsed={collapsed} setCollapsed={setCollapsed} settings={settings} isMobileOpen={isMobileOpen} setIsMobileOpen={setIsMobileOpen} desktopSidebarOpen={desktopSidebarOpen} setDesktopSidebarOpen={setDesktopSidebarOpen} onLogout={() => setIsAuthenticated(false)} />
       <main className="flex-1 flex flex-col min-w-0">
         <Topbar 
           onOpenSettings={() => setActiveView('settings')} 
           onOpenMobileMenu={() => setIsMobileOpen(true)} 
+          onToggleDesktopSidebar={() => setDesktopSidebarOpen(!desktopSidebarOpen)}
+          desktopSidebarOpen={desktopSidebarOpen}
           viewTitle={activeView === 'reports' ? 'Relatório Mensal' : activeView === 'dashboard' ? 'Sinergia Comercial' : activeView === 'stock' ? 'Controle de Ativos' : activeView === 'sales' ? 'Gestão de Recebíveis' : activeView === 'transactions' ? 'Histórico de Transações' : activeView === 'clients' ? 'Relacionamento' : activeView === 'settings' ? 'Configurações de Sistema' : 'Simulador de Preços'} 
         />
         <div className="p-4 sm:p-8 overflow-x-hidden custom-scrollbar">
@@ -1167,39 +1170,68 @@ export default function App() {
                                             </div>
                                           </div>
                                           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-3">
-                                            {installments.filter(i => i.saleId === sale.id).sort((a,b) => a.number - b.number).map(inst => (
-                                              <div 
-                                                key={inst.id}
-                                                className={`p-4 rounded-2xl border transition-all ${inst.status === 'Pago' ? 'border-[rgba(57,255,20,0.2)] bg-[rgba(57,255,20,0.05)]' : 'border-line-strong bg-[rgba(0,0,0,0.2)] hover:border-[rgba(255,215,0,0.3)]'} flex flex-col gap-3 relative group/inst`}
-                                              >
-                                                <div className="flex items-center justify-between">
-                                                  <span className="text-[10px] font-black text-gray-600 uppercase tracking-tighter">Ciclo {inst.number}</span>
-                                                  <div className={`w-1.5 h-1.5 rounded-full ${inst.status === 'Pago' ? 'bg-green-neon' : 'bg-[rgba(255,215,0,0.4)] animate-pulse'}`} />
+                                            {installments.filter(i => i.saleId === sale.id).sort((a,b) => a.number - b.number).map(inst => {
+                                              const isPaid = inst.status === 'Pago';
+                                              const dueDateObj = new Date(inst.dueDate);
+                                              dueDateObj.setHours(0,0,0,0);
+                                              
+                                              const isOverdue = !isPaid && dueDateObj.getTime() < todayTime.getTime();
+                                              const isDueToday = !isPaid && dueDateObj.getTime() === todayTime.getTime();
+
+                                              let cardStyles = 'border-line-strong bg-[rgba(0,0,0,0.2)] hover:border-[rgba(255,215,0,0.3)]';
+                                              let dotStyle = 'bg-[rgba(255,215,0,0.4)] animate-pulse';
+                                              let cycleLabel = `Ciclo ${inst.number}`;
+                                              let labelStyle = 'text-gray-600';
+
+                                              if (isPaid) {
+                                                cardStyles = 'border-[rgba(57,255,20,0.2)] bg-[rgba(57,255,20,0.05)]';
+                                                dotStyle = 'bg-green-neon';
+                                              } else if (isOverdue) {
+                                                cardStyles = 'border-red-500/30 bg-red-500/5 hover:border-red-500/50';
+                                                dotStyle = 'bg-red-500 animate-pulse';
+                                                cycleLabel = `Ciclo ${inst.number} (Atrasado)`;
+                                                labelStyle = 'text-red-400';
+                                              } else if (isDueToday) {
+                                                cardStyles = 'border-purple-500/40 bg-purple-500/5 hover:border-purple-500/60';
+                                                dotStyle = 'bg-purple-500 animate-bounce';
+                                                cycleLabel = `Ciclo ${inst.number} (Vence Hoje)`;
+                                                labelStyle = 'text-purple-400';
+                                              }
+
+                                              return (
+                                                <div 
+                                                  key={inst.id}
+                                                  className={`p-4 rounded-2xl border transition-all ${cardStyles} flex flex-col gap-3 relative group/inst`}
+                                                >
+                                                  <div className="flex items-center justify-between">
+                                                    <span className={`text-[10px] font-black uppercase tracking-tighter ${labelStyle}`}>{cycleLabel}</span>
+                                                    <div className={`w-1.5 h-1.5 rounded-full ${dotStyle}`} />
+                                                  </div>
+                                                  <div>
+                                                    <p className="text-[13px] font-bold text-white tracking-wide">{money(inst.value)}</p>
+                                                    <p className="text-[9px] font-black text-gray-500 uppercase mt-0.5">{new Date(inst.dueDate).toLocaleDateString('pt-BR')}</p>
+                                                  </div>
+                                                  <div className="absolute inset-0 bg-[rgba(0,0,0,0.8)] flex items-center justify-center p-2 opacity-0 group-hover/inst:opacity-100 transition-all rounded-2xl backdrop-blur-sm">
+                                                    {inst.status === 'Pendente' && (
+                                                      <button 
+                                                        onClick={() => setSelectedInstallmentForPayment(inst)}
+                                                        className="w-full h-full bg-gold text-black rounded-xl text-[10px] font-black uppercase tracking-widest shadow-2xl active:scale-95"
+                                                      >
+                                                        Quitar
+                                                      </button>
+                                                    )}
+                                                    {inst.status === 'Pago' && (
+                                                      <button 
+                                                        onClick={() => setSelectedInstallmentForReceipt(inst)}
+                                                        className="w-full h-full bg-[rgba(255,255,255,0.1)] text-white rounded-xl text-[10px] font-black uppercase tracking-widest border border-[rgba(255,255,255,0.1)]"
+                                                      >
+                                                        Recibo
+                                                      </button>
+                                                    )}
+                                                  </div>
                                                 </div>
-                                                <div>
-                                                  <p className="text-[13px] font-bold text-white tracking-wide">{money(inst.value)}</p>
-                                                  <p className="text-[9px] font-black text-gray-500 uppercase mt-0.5">{new Date(inst.dueDate).toLocaleDateString('pt-BR')}</p>
-                                                </div>
-                                                <div className="absolute inset-0 bg-[rgba(0,0,0,0.8)] flex items-center justify-center p-2 opacity-0 group-hover/inst:opacity-100 transition-all rounded-2xl backdrop-blur-sm">
-                                                  {inst.status === 'Pendente' && (
-                                                    <button 
-                                                      onClick={() => setSelectedInstallmentForPayment(inst)}
-                                                      className="w-full h-full bg-gold text-black rounded-xl text-[10px] font-black uppercase tracking-widest shadow-2xl active:scale-95"
-                                                    >
-                                                      Quitar
-                                                    </button>
-                                                  )}
-                                                  {inst.status === 'Pago' && (
-                                                    <button 
-                                                      onClick={() => setSelectedInstallmentForReceipt(inst)}
-                                                      className="w-full h-full bg-[rgba(255,255,255,0.1)] text-white rounded-xl text-[10px] font-black uppercase tracking-widest border border-[rgba(255,255,255,0.1)]"
-                                                    >
-                                                      Recibo
-                                                    </button>
-                                                  )}
-                                                </div>
-                                              </div>
-                                            ))}
+                                              );
+                                            })}
                                           </div>
                                           <div className="flex justify-end px-2">
                                             <button 
