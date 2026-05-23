@@ -162,26 +162,50 @@ export default function App() {
 
   const handleShareReceipt = async () => {
     const element = document.getElementById('receipt-content');
-    if (!element) return;
+    if (!element || !selectedInstallmentForReceipt) return;
     try {
+      const cleanClientName = selectedInstallmentForReceipt.client.replace(/\s+/g, '_').toUpperCase();
+      const filename = `RECIBO_${cleanClientName}_${selectedInstallmentForReceipt.id.substring(0,8).toUpperCase()}.pdf`;
       const opt: any = {
         margin: [10, 10],
-        filename: 'recibo.pdf',
+        filename: filename,
         image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { scale: 2, useCORS: true },
+        html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff' },
         jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
       };
       const worker = html2pdf().set(opt).from(element);
       const pdfBlob = await worker.output('blob');
-      const file = new File([pdfBlob], `RECIBO_${selectedInstallmentForReceipt.id.substring(0,8)}.pdf`, { type: 'application/pdf' });
+      const file = new File([pdfBlob], filename, { type: 'application/pdf' });
       if (navigator.share && navigator.canShare({ files: [file] })) {
-        await navigator.share({ files: [file], title: 'Recibo Comercial', text: `Recibo de pagamento - ${selectedInstallmentForReceipt.client}` });
+        await navigator.share({ files: [file], title: 'Comprovante de Recebimento', text: `Comprovante de pagamento - ${selectedInstallmentForReceipt.client}` });
       } else {
-        worker.save();
-        showToast('Compartilhamento não suportado. O arquivo foi baixado.');
+        await worker.save();
+        showToast('Compartilhamento direto não suportado. O arquivo foi baixado para envio.');
       }
     } catch (error) {
       showToast('Erro ao processar o compartilhamento.', 'error');
+    }
+  };
+
+  const handleDownloadReceiptPDF = async () => {
+    const element = document.getElementById('receipt-content');
+    if (!element || !selectedInstallmentForReceipt) return;
+    try {
+      showToast('Gerando comprovante em PDF...');
+      const cleanClientName = selectedInstallmentForReceipt.client.replace(/\s+/g, '_').toUpperCase();
+      const filename = `RECIBO_${cleanClientName}_${selectedInstallmentForReceipt.id.substring(0,8).toUpperCase()}.pdf`;
+      const opt: any = {
+        margin: [10, 10],
+        filename: filename,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff' },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+      };
+      await html2pdf().set(opt).from(element).save();
+      showToast('Comprovante em PDF baixado com sucesso!');
+    } catch (error) {
+      console.error(error);
+      showToast('Erro ao gerar PDF do comprovante.', 'error');
     }
   };
 
@@ -382,7 +406,7 @@ export default function App() {
           </div>
 
           <div className="flex flex-col gap-1">
-             <p className="text-[10px] text-zinc-600 font-bold uppercase tracking-wider">© 2026 NEXUS SOLUTIONS</p>
+             <p className="text-[10px] text-zinc-600 font-bold uppercase tracking-wider">© 2026 NEXUS GESTÃO DE VENDAS</p>
           </div>
         </div>
 
@@ -402,7 +426,7 @@ export default function App() {
             <div className="bg-[rgba(15,15,17,0.8)] backdrop-blur-3xl p-8 sm:p-14 border border-[rgba(255,255,255,0.05)] rounded-3xl sm:rounded-[40px] shadow-[0_50px_100px_rgba(0,0,0,0.8)]">
                <div className="mb-8 sm:mb-12">
                   <h3 className="text-xl sm:text-2xl font-black text-white tracking-tight">Acesso Restrito</h3>
-                  <p className="text-gold text-[9px] sm:text-[10px] font-black uppercase tracking-[0.4em] mt-2">NEXUS COMMERCE SOLUTIONS</p>
+                  <p className="text-gold text-[9px] sm:text-[10px] font-black uppercase tracking-[0.4em] mt-2">NEXUS GESTÃO DE VENDAS</p>
                </div>
 
                <form className="space-y-4 sm:y-6" onSubmit={(e) => { e.preventDefault(); setIsAuthenticated(true); }}>
@@ -1386,6 +1410,7 @@ export default function App() {
                                   </strong>
                                 </td>
                                 <td className="p-4 text-center">
+                                  <div className="flex items-center justify-center gap-2">
                                   <a
                                     href={getWhatsAppShareLink(tx)}
                                     target="_blank"
@@ -1395,6 +1420,27 @@ export default function App() {
                                     <MessageCircle size={12} />
                                     <span>WhatsApp</span>
                                   </a>
+                                  <button
+                                    onClick={() => {
+                                      setSelectedInstallmentForReceipt({
+                                        id: tx.id,
+                                        client: tx.client,
+                                        value: tx.value,
+                                        number: tx.installmentDetails?.number || 1,
+                                        total: tx.installmentDetails?.total || 1,
+                                        productName: tx.productName,
+                                        paidAt: tx.date,
+                                        paymentMethod: tx.paymentMethod,
+                                        type: tx.type
+                                      });
+                                    }}
+                                    className="inline-flex items-center justify-center gap-1 h-8 px-2.5 rounded-lg bg-gold/10 hover:bg-gold/20 border border-gold/20 text-gold text-[9px] font-black uppercase tracking-widest transition-all font-sans cursor-pointer"
+                                    title="Visualizar e Baixar Recibo PDF"
+                                  >
+                                    <FileText size={11} />
+                                    <span>Recibo</span>
+                                  </button>
+                                  </div>
                                 </td>
                               </tr>
                             ))}
@@ -2019,44 +2065,159 @@ export default function App() {
             </div>
           )}
 
-          {selectedInstallmentForReceipt && (
-            <div key="modal-receipt" className="fixed inset-0 z-[70] flex items-center justify-center p-0 sm:p-12 overflow-y-auto backdrop-blur-md">
-              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setSelectedInstallmentForReceipt(null)} className="fixed inset-0 bg-[rgba(0,0,0,0.95)]" />
-              <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="relative bg-white w-full max-w-xl p-8 sm:p-20 text-blue-950 font-serif border-t-8 border-gold min-h-screen sm:min-h-0">
-                <div id="receipt-content" className="flex flex-col gap-12">
-                  <div className="flex justify-between items-start">
-                    <div className="flex flex-col italic">
-                      <h2 className="text-3xl font-black text-blue-950 tracking-tighter">NEXUS</h2>
-                      <span className="text-[8px] font-bold text-gray-500 uppercase tracking-widest leading-none">Commerce & Logistics</span>
+          {selectedInstallmentForReceipt && (() => {
+            const correspondingSale = sales.find(s => s.id === selectedInstallmentForReceipt.saleId || (selectedInstallmentForReceipt?.id && selectedInstallmentForReceipt.id.replace('entrada-', '') === s.id));
+            const transactionDate = selectedInstallmentForReceipt.paidAt || selectedInstallmentForReceipt.date || new Date().toISOString();
+            const cleanId = selectedInstallmentForReceipt.id.toUpperCase();
+            
+            return (
+              <div key="modal-receipt" className="fixed inset-0 z-[70] flex items-center justify-center p-4 sm:p-12 overflow-y-auto backdrop-blur-md">
+                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setSelectedInstallmentForReceipt(null)} className="fixed inset-0 bg-[rgba(0,0,0,0.85)]" />
+                <motion.div 
+                  initial={{ opacity: 0, scale: 0.95 }} 
+                  animate={{ opacity: 1, scale: 1 }} 
+                  exit={{ opacity: 0, scale: 0.95 }} 
+                  className="relative bg-white w-full max-w-2xl p-6 sm:p-10 text-zinc-950 font-sans border-t-8 border-gold rounded-3xl shadow-2xl flex flex-col gap-6 max-h-[90vh] overflow-y-auto"
+                >
+                  {/* Action buttons (fixed/sticky or absolute top-right, but outside the printed receipt) */}
+                  <div className="flex flex-wrap sm:flex-nowrap gap-3 items-center justify-between pb-4 border-b border-zinc-100 no-print">
+                     <span className="text-[10px] text-zinc-400 font-extrabold uppercase tracking-widest">Ações do Comprovante</span>
+                     <div className="flex items-center gap-2">
+                        <button 
+                          onClick={handleDownloadReceiptPDF} 
+                          className="h-10 px-4 rounded-xl bg-zinc-900 text-white flex items-center gap-1.5 hover:bg-zinc-800 transition-all text-xs font-bold shadow-lg"
+                        >
+                          <Download size={14} />
+                          <span>Baixar PDF</span>
+                        </button>
+                        <button 
+                          onClick={handleShareReceipt} 
+                          className="h-10 px-4 rounded-xl bg-gold text-black flex items-center gap-1.5 hover:bg-yellow-500 transition-all text-xs font-bold shadow-lg"
+                        >
+                          <Share2 size={14} />
+                          <span>Compartilhar</span>
+                        </button>
+                        <button 
+                          onClick={() => setSelectedInstallmentForReceipt(null)} 
+                          className="w-10 h-10 rounded-xl bg-zinc-100 text-zinc-600 flex items-center justify-center hover:bg-red-500 hover:text-white transition-all shadow"
+                        >
+                          <X size={16} />
+                        </button>
+                     </div>
+                  </div>
+
+                  {/* Document printable container */}
+                  <div id="receipt-content" className="bg-white p-4 sm:p-8 rounded-2xl border border-zinc-150 text-zinc-800 flex flex-col gap-6">
+                    {/* Header */}
+                    <div className="flex flex-col sm:flex-row justify-between items-start gap-4 pb-6 border-b border-zinc-200">
+                      <div className="flex flex-col gap-1">
+                        <span className="text-xs uppercase font-extrabold tracking-widest text-gold">{settings.companyName || 'GESTÃO DE VENDAS'}</span>
+                        <h2 className="text-xl font-black text-zinc-900 tracking-tight">COMPROVANTE DE RECEBIMENTO</h2>
+                        <span className="text-[9px] text-zinc-400 font-bold uppercase">Terminal de Operações Comerciais</span>
+                      </div>
+                      <div className="text-left sm:text-right flex flex-col sm:items-end gap-1">
+                        <span className="px-3 py-1 bg-zinc-100 rounded-lg text-[9px] font-mono text-zinc-750 font-black uppercase tracking-wider block">ID: {cleanId.substring(0, 12)}</span>
+                        <span className="text-[10px] font-bold text-zinc-500 uppercase mt-1">Emitido em: {new Date(transactionDate).toLocaleDateString('pt-BR')} às {new Date(transactionDate).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
+                      </div>
                     </div>
-                    <div className="text-right">
-                       <span className="text-[10px] font-black uppercase text-gold block">Protocolo</span>
-                       <span className="text-lg font-black italic">{selectedInstallmentForReceipt.id.substring(0,8)}</span>
+
+                    {/* Transaction visual amount card */}
+                    <div className="bg-zinc-50 border border-zinc-200/60 rounded-2xl p-6 flex flex-col items-center justify-center text-center">
+                      <span className="text-[10px] text-zinc-400 font-extrabold uppercase tracking-widest">Valor Liquidado</span>
+                      <strong className="text-4xl sm:text-5xl font-black text-zinc-900 font-sans tracking-tight mt-1">{money(selectedInstallmentForReceipt.value)}</strong>
+                      <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-green-50 border border-green-200 text-green-700 rounded-full text-[9px] font-black uppercase tracking-wider mt-4">
+                        <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+                        Transação Aprovada & Conciliada
+                      </div>
+                    </div>
+
+                    {/* Explanatory description card */}
+                    <div className="text-xs sm:text-sm text-zinc-700 leading-relaxed space-y-2 py-2">
+                      <p>
+                        Declaramos para os devidos fins que recebemos com sucesso de 
+                        <strong className="text-zinc-900 font-extrabold uppercase"> {selectedInstallmentForReceipt.client}</strong>, 
+                        o valor integral de <strong className="text-zinc-900 font-bold">{money(selectedInstallmentForReceipt.value)}</strong>.
+                      </p>
+                      <p>
+                        Esta liquidação refere-se ao pagamento da {selectedInstallmentForReceipt.type === 'entrada' ? (
+                          <strong className="text-zinc-900 font-semibold">Entrada Operacional / Sinal</strong>
+                        ) : (
+                          <>
+                            parcela <strong className="text-zinc-900 font-extrabold">Nº {selectedInstallmentForReceipt.number}</strong> de um total de <strong className="text-zinc-900 font-bold">{selectedInstallmentForReceipt.total} parcelas</strong>
+                          </>
+                        )} da transação comercial vinculada ao ativo de investimento / produto: <strong className="italic text-zinc-900 font-semibold">{selectedInstallmentForReceipt.productName || correspondingSale?.productName || 'Ativo Registrado'}</strong>.
+                      </p>
+                    </div>
+
+                    {/* Explicit summary metadata table */}
+                    <div className="border border-zinc-200 rounded-2xl overflow-hidden text-xs">
+                      <div className="bg-zinc-50/50 p-3 sm:p-4 font-black uppercase tracking-wider border-b border-zinc-200 text-zinc-800 flex items-center justify-between">
+                        <span>Especificações da Liquidação</span>
+                        <span className="text-[9px] text-zinc-400 font-bold">Via do Cliente</span>
+                      </div>
+                      <div className="divide-y divide-zinc-200">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 p-3 sm:p-4 gap-1 hover:bg-zinc-50/30 transition-colors">
+                          <span className="text-zinc-500 font-semibold uppercase text-[10px]">Nome do Pagador (Cliente):</span>
+                          <strong className="text-zinc-950 font-bold uppercase">{selectedInstallmentForReceipt.client}</strong>
+                        </div>
+                        {correspondingSale?.clientCpf && (
+                          <div className="grid grid-cols-1 sm:grid-cols-2 p-3 sm:p-4 gap-1 hover:bg-zinc-50/30 transition-colors">
+                            <span className="text-zinc-500 font-semibold uppercase text-[10px]">Documento (CPF / CNPJ):</span>
+                            <span className="text-zinc-950 font-mono font-bold">{correspondingSale.clientCpf}</span>
+                          </div>
+                        )}
+                        {correspondingSale?.clientPhone && (
+                          <div className="grid grid-cols-1 sm:grid-cols-2 p-3 sm:p-4 gap-1 hover:bg-zinc-50/30 transition-colors">
+                            <span className="text-zinc-500 font-semibold uppercase text-[10px]">Telefone de Contato:</span>
+                            <span className="text-zinc-950 font-bold">{correspondingSale.clientPhone}</span>
+                          </div>
+                        )}
+                        {correspondingSale?.clientAddress && (
+                          <div className="grid grid-cols-1 sm:grid-cols-2 p-3 sm:p-4 gap-1 hover:bg-zinc-50/30 transition-colors">
+                            <span className="text-zinc-500 font-semibold uppercase text-[10px]">Endereço Fornecido:</span>
+                            <span className="text-zinc-950 font-medium italic">{correspondingSale.clientAddress}</span>
+                          </div>
+                        )}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 p-3 sm:p-4 gap-1 hover:bg-zinc-50/30 transition-colors">
+                          <span className="text-zinc-500 font-semibold uppercase text-[10px]">Meio de Recebimento Utilizado:</span>
+                          <strong className="text-zinc-950 uppercase font-black">{selectedInstallmentForReceipt.paymentMethod || 'PIX'}</strong>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 p-3 sm:p-4 gap-1 hover:bg-zinc-50/30 transition-colors">
+                          <span className="text-zinc-500 font-semibold uppercase text-[10px]">Vencimento Nominal da Parcela:</span>
+                          <span className="text-zinc-950 font-bold">
+                            {selectedInstallmentForReceipt.dueDate ? new Date(selectedInstallmentForReceipt.dueDate).toLocaleDateString('pt-BR') : new Date(transactionDate).toLocaleDateString('pt-BR')}
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 p-3 sm:p-4 gap-1 hover:bg-zinc-50/30 transition-colors">
+                          <span className="text-zinc-500 font-semibold uppercase text-[10px]">Protocolo de Autenticação Digital:</span>
+                          <span className="text-zinc-900 font-mono tracking-wider font-semibold">{cleanId}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Disclaimer text */}
+                    <p className="text-[10px] text-zinc-400 font-semibold uppercase leading-relaxed text-center px-4 py-2 border border-zinc-100 rounded-xl">
+                      Damos por este recibo plena, geral, expressa e irrevogável quitação do valor recebido e constante neste comprovante físico, para nada mais reivindicar a qualquer título referente a esta parcela específica.
+                    </p>
+
+                    {/* Foot/Signatures details */}
+                    <div className="mt-4 pt-4 border-t border-zinc-200 grid grid-cols-1 sm:grid-cols-2 gap-4 items-end text-xs">
+                      <div>
+                        <span className="block text-[8px] text-zinc-400 font-extrabold uppercase tracking-wider">Emitido por terminal eletrônico</span>
+                        <strong className="block text-zinc-900 font-extrabold uppercase mt-1">{settings.companyName || 'GESTÃO DE VENDAS'}</strong>
+                        <span className="block text-[10px] text-zinc-500">{settings.city || 'São Paulo - SP'}</span>
+                      </div>
+                      <div className="flex flex-col sm:items-end text-left sm:text-right gap-1 font-mono text-[9px] text-zinc-400">
+                        <span>CERTIFICADO DIGITALMENTE</span>
+                        <span>SISTEMA INTEGRADO DE CONCILIAÇÃO</span>
+                        <span>DATA LOG: {new Date(transactionDate).toISOString()}</span>
+                      </div>
                     </div>
                   </div>
-
-                  <div className="text-center py-10 border-y border-gray-100 flex flex-col items-center">
-                    <h3 className="text-6xl font-black text-blue-950 italic tracking-tighter">{money(selectedInstallmentForReceipt.value)}</h3>
-                    <p className="text-[10px] font-bold uppercase text-gray-400 mt-6 tracking-[0.4em]">Quitação de Ciclo Operacional</p>
-                  </div>
-
-                  <div className="space-y-6 text-[15px] leading-relaxed text-gray-800">
-                    <p>Confirmamos o recebimento de <strong className="uppercase border-b border-gray-300 pb-0.5 text-blue-950">{selectedInstallmentForReceipt.client}</strong> referente à liquidação da parcela <strong className="italic text-blue-950">Nº {selectedInstallmentForReceipt.number}/{selectedInstallmentForReceipt.total}</strong> relacionada ao ativo <strong className="text-blue-950 italic">{selectedInstallmentForReceipt.productName}</strong>.</p>
-                    <p>Damos por este instrumento plena e total quitação pelo valor transacionado nesta data.</p>
-                  </div>
-
-                  <div className="pt-20 text-center">
-                    <p className="font-black border-t border-gray-200 mt-4 pt-6 uppercase text-sm tracking-widest text-blue-950">{settings.companyName || 'NEXUS COMMERCE'}</p>
-                    <p className="text-[10px] text-gray-400 mt-3 uppercase font-bold tracking-[0.2em] italic">{new Date().toLocaleDateString('pt-BR')} — {settings.city || 'Brazil'}</p>
-                  </div>
-                </div>
-                <div className="absolute top-8 right-8 flex gap-3 no-print">
-                   <button onClick={handleShareReceipt} className="w-12 h-12 rounded-2xl bg-[rgba(255,215,0,0.1)] text-gold flex items-center justify-center hover:bg-gold hover:text-black transition-all shadow-xl active:scale-90"><Share2 size={20} /></button>
-                   <button onClick={() => setSelectedInstallmentForReceipt(null)} className="w-12 h-12 rounded-2xl bg-black text-white flex items-center justify-center hover:bg-red-600 transition-all shadow-xl active:scale-90"><X size={20} /></button>
-                </div>
-              </motion.div>
-            </div>
-          )}
+                </motion.div>
+              </div>
+            );
+          })()}
 
           {selectedInstallmentForPayment && (
             <div key="modal-payment" className="fixed inset-0 z-[80] flex items-center justify-center p-4">

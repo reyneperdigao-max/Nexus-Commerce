@@ -23,7 +23,7 @@ export function useNexusState() {
     pixName: '',
     pixKey: '',
     pixType: 'Pix',
-    companyName: 'NexusCommerce Solutions',
+    companyName: 'Nexus Commerce',
     companyDocument: '',
     companyPhone: '',
     companyAddress: '',
