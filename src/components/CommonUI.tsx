@@ -1,4 +1,4 @@
-import { Settings as SettingsIcon, Menu, Wallet, ShoppingBag, Boxes, User, Activity, AlertCircle, Calendar, TrendingUp } from 'lucide-react';
+import { Settings as SettingsIcon, Menu, Wallet, ShoppingBag, Boxes, User, Activity, AlertCircle, Calendar, TrendingUp, DollarSign } from 'lucide-react';
 import { Product, Sale, Installment } from '../types';
 
 export function Logo({ className = "", showText = true }: { className?: string, showText?: boolean }) {
@@ -10,7 +10,7 @@ export function Logo({ className = "", showText = true }: { className?: string, 
       {showText && (
         <div className="flex flex-col">
           <h2 className="text-lg sm:text-xl font-black text-white tracking-widest leading-none shrink-0 uppercase">NEXUS <span className="text-white/60">COMMERCE</span></h2>
-          <span className="text-[8px] sm:text-[10px] text-gold font-bold uppercase tracking-[0.3em] mt-1 shrink-0">SOLUTIONS • Ativos</span>
+          <span className="text-[8px] sm:text-[10px] text-gold font-bold uppercase tracking-[0.3em] mt-1 shrink-0">GESTÃO DE VENDAS</span>
         </div>
       )}
     </div>
@@ -43,7 +43,7 @@ export function Topbar({ onOpenSettings, onOpenMobileMenu, viewTitle }: {
   );
 }
 
-export function DashboardStats({ products, sales, installments, onNavigate }: { products: any[], sales: any[], installments: any[], onNavigate: (view: string, filter?: string) => void }) {
+export function DashboardStats({ products, sales, installments, closings = [], onNavigate }: { products: any[], sales: any[], installments: any[], closings?: any[], onNavigate: (view: string, filter?: string) => void }) {
   const money = (val: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
 
   const today = new Date();
@@ -65,6 +65,13 @@ export function DashboardStats({ products, sales, installments, onNavigate }: { 
     return dueDate.getTime() === today.getTime();
   }).length;
 
+  const lastClosingDate = closings.length > 0 
+    ? closings.reduce((latest, c) => c.closedAt > latest ? c.closedAt : latest, '')
+    : '';
+
+  const activeSales = sales.filter(s => s.createdAt > lastClosingDate);
+  const currentProfit = activeSales.reduce((acc, s) => acc + (s.profit || 0), 0);
+
   const stats = [
     { 
       id: 'invested-stat',
@@ -77,6 +84,18 @@ export function DashboardStats({ products, sales, installments, onNavigate }: { 
       view: 'stock',
       filter: 'Todos',
       style: { icon: 'text-blue-500', bg: 'bg-blue-500/10', border: 'border-blue-500/20', text: 'text-blue-400', dot: 'bg-blue-500', glow: 'bg-blue-500' }
+    },
+    { 
+      id: 'profit-stat',
+      label: 'Lucro Líquido (Ciclo)', 
+      value: money(currentProfit), 
+      sub: closings.length > 0 ? 'Desde o último fechamento' : 'Acumulado histórico', 
+      icon: DollarSign, 
+      color: 'yellow',
+      trend: 'Resultado',
+      view: 'reports',
+      filter: 'Todos',
+      style: { icon: 'text-amber-400', bg: 'bg-amber-500/10', border: 'border-amber-500/20', text: 'text-amber-400', dot: 'bg-amber-500', glow: 'bg-amber-500' }
     },
     { 
       id: 'sales-stat',
@@ -145,7 +164,7 @@ export function DashboardStats({ products, sales, installments, onNavigate }: { 
   ];
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 sm:gap-6 px-1">
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 sm:gap-6 px-1">
       {stats.map((stat) => (
         <div 
           key={stat.id} 
@@ -166,7 +185,7 @@ export function DashboardStats({ products, sales, installments, onNavigate }: { 
 
           <div className="relative z-10">
             <span className={`text-[10px] font-bold uppercase tracking-[0.2em] mb-1 block ${stat.severity ? 'text-white' : 'text-white/40'}`}>{stat.label}</span>
-            <strong className={`text-3xl font-black italic tracking-tighter block transition-colors duration-500 group-hover:text-white/90 ${stat.severity ? 'text-white drop-shadow-[0_0_10px_rgba(255,255,255,0.5)]' : 'text-white'}`}>
+            <strong className={`text-3xl font-black block transition-colors duration-500 group-hover:text-white/90 ${stat.severity ? 'text-white' : 'text-zinc-100'}`}>
               {stat.value}
             </strong>
             <div className="flex items-center gap-2 mt-2">

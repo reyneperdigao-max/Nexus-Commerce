@@ -1,4 +1,4 @@
-import { LayoutDashboard, Boxes, ShoppingBag, User, Calculator, LogOut, ChevronLeft, ChevronRight, Settings, Menu, X } from 'lucide-react';
+import { LayoutDashboard, Boxes, ShoppingBag, User, Calculator, LogOut, ChevronLeft, ChevronRight, Settings, Menu, X, Receipt, BarChart3 } from 'lucide-react';
 import { Settings as SettingsType } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
 import { Logo } from './CommonUI';
@@ -19,7 +19,9 @@ export function Sidebar({ activeView, setActiveView, collapsed, setCollapsed, se
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'stock', label: 'Estoque', icon: Boxes },
     { id: 'sales', label: 'Vendas', icon: ShoppingBag },
+    { id: 'transactions', label: 'Transações', icon: Receipt },
     { id: 'clients', label: 'Clientes', icon: User },
+    { id: 'reports', label: 'Relatório', icon: BarChart3 },
     { id: 'simulation', label: 'Simulador', icon: Calculator },
     { id: 'settings', label: 'Ajustes', icon: Settings },
   ];

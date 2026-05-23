@@ -43,6 +43,9 @@ export interface Sale {
   date: string;
   status: 'Ativa' | 'Liquidada';
   createdAt: string;
+  isInterestOnly?: boolean;
+  interestRate?: number;
+  clientAddress?: string;
 }
 
 export interface Settings {
@@ -61,3 +64,13 @@ export interface Settings {
   language: string;
   theme: 'dark' | 'light';
 }
+
+export interface Closing {
+  id: string;
+  closedAt: string;
+  periodName: string;
+  profit: number;
+  totalSales: number;
+  salesCount: number;
+}
+

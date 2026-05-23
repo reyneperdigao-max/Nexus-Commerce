@@ -1,4 +1,4 @@
-import { useState, Fragment, useEffect } from 'react';
+import { useState, Fragment, useEffect, useMemo } from 'react';
 import { useNexusState } from './useNexusState';
 import { Sidebar } from './components/Sidebar';
 import { Logo, Topbar, DashboardStats } from './components/CommonUI';
@@ -9,7 +9,7 @@ import { auth } from './lib/firebase';
 import { signInAnonymously, onAuthStateChanged } from 'firebase/auth';
 
 export default function App() {
-  const { products, sales, installments, settings, setSettings, addProduct, deleteProduct, registerSale, deleteSale, deleteClient, updateProduct, updateSaleFull, payInstallment } = useNexusState();
+  const { products, sales, installments, closings, settings, setSettings, addProduct, deleteProduct, registerSale, deleteSale, deleteClient, updateProduct, updateSaleFull, payInstallment, closeMonthlyRegister } = useNexusState();
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [authReady, setAuthReady] = useState(false);
 
@@ -18,8 +18,18 @@ export default function App() {
     // Persistence will work via relaxed Firestore rules
     setAuthReady(true);
   }, []);
+
+  const lastClosingDate = useMemo(() => {
+    if (!closings || closings.length === 0) return '';
+    return closings.reduce((latest, c) => c.closedAt > latest ? c.closedAt : latest, '');
+  }, [closings]);
+
+  const activeSales = useMemo(() => {
+    return sales.filter(s => s.createdAt > lastClosingDate);
+  }, [sales, lastClosingDate]);
+
   const [activeView, setActiveView] = useState('dashboard');
-  const [activeSettingsTab, setActiveSettingsTab] = useState('profile');
+  const [activeSettingsTab, setActiveSettingsTab] = useState<string | null>(null);
   const [collapsed, setCollapsed] = useState(false);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const [showSaleForm, setShowSaleForm] = useState(false);
@@ -27,7 +37,86 @@ export default function App() {
   const [showAddProduct, setShowAddProduct] = useState(false);
   const [productToEdit, setProductToEdit] = useState<any>(null);
   const [saleToEdit, setSaleToEdit] = useState<any>(null);
+  const [isInterestOnlyForm, setIsInterestOnlyForm] = useState(false);
+  const [interestRateForm, setInterestRateForm] = useState<string | number>(5);
+
+  useEffect(() => {
+    if (saleToEdit) {
+      setIsInterestOnlyForm(saleToEdit.isInterestOnly || false);
+      setInterestRateForm(saleToEdit.interestRate !== undefined ? saleToEdit.interestRate : 5);
+    } else {
+      setIsInterestOnlyForm(false);
+      setInterestRateForm(5);
+    }
+  }, [saleToEdit, showSaleForm]);
+
   const [searchTerm, setSearchTerm] = useState('');
+  const [txSearch, setTxSearch] = useState('');
+  const [txTypeFilter, setTxTypeFilter] = useState<'all' | 'entrada' | 'parcela'>('all');
+  const [txMethodFilter, setTxMethodFilter] = useState<string>('all');
+
+  const transactions = useMemo(() => {
+    const list: any[] = [];
+
+    // Add down payments as transactions
+    sales.forEach(sale => {
+      if (sale.downPayment > 0) {
+        list.push({
+          id: `entrada-${sale.id}`,
+          type: 'entrada',
+          client: sale.client,
+          clientPhone: sale.clientPhone,
+          productName: sale.productName,
+          value: sale.downPayment,
+          date: sale.createdAt || sale.date || new Date().toISOString(),
+          paymentMethod: 'Pix',
+          label: 'Valor de Entrada'
+        });
+      }
+    });
+
+    // Add paid installments as transactions
+    installments.forEach(inst => {
+      if (inst.status === 'Pago') {
+        const correspondingSale = sales.find(s => s.id === inst.saleId);
+        list.push({
+          id: inst.id,
+          type: 'parcela',
+          client: inst.client,
+          clientPhone: correspondingSale?.clientPhone || '',
+          productName: inst.productName,
+          value: inst.value,
+          date: inst.paidAt || inst.dueDate || new Date().toISOString(),
+          paymentMethod: inst.paymentMethod || 'Pix',
+          installmentDetails: {
+            number: inst.number,
+            total: inst.total
+          },
+          label: `Parcela ${inst.number}/${inst.total}`
+        });
+      }
+    });
+
+    // Sort by date descending
+    return list.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  }, [sales, installments]);
+
+  const filteredTransactions = useMemo(() => {
+    return transactions.filter(tx => {
+      const matchesSearch = 
+        tx.client.toLowerCase().includes(txSearch.toLowerCase()) ||
+        tx.productName.toLowerCase().includes(txSearch.toLowerCase()) ||
+        tx.id.toLowerCase().includes(txSearch.toLowerCase()) ||
+        tx.paymentMethod.toLowerCase().includes(txSearch.toLowerCase()) ||
+        tx.label.toLowerCase().includes(txSearch.toLowerCase());
+      
+      const matchesType = txTypeFilter === 'all' || tx.type === txTypeFilter;
+      const matchesMethod = txMethodFilter === 'all' || tx.paymentMethod === txMethodFilter;
+      
+      return matchesSearch && matchesType && matchesMethod;
+    });
+  }, [transactions, txSearch, txTypeFilter, txMethodFilter]);
+
   const [filterDay, setFilterDay] = useState<string>('');
   const [filterStatus, setFilterStatus] = useState<'Todos' | 'Atrasados' | 'Hoje'>('Todos');
   const [previewPhoto, setPreviewPhoto] = useState<string | null>(null);
@@ -176,6 +265,43 @@ export default function App() {
     window.open(`https://wa.me/${sale.clientPhone.replace(/\D/g, '')}?text=${encodeURIComponent(text)}`, '_blank');
   };
 
+  const getWhatsAppShareLink = (tx: any) => {
+    const valueStr = money(tx.value);
+    const dateStr = new Date(tx.date).toLocaleDateString('pt-BR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+    
+    const typeLabel = tx.type === 'entrada' ? 'Valor de Entrada' : `Parcela ${tx.installmentDetails?.number}/${tx.installmentDetails?.total}`;
+
+    const text = `*COMPROVANTE DE RECEBIMENTO* ✅\n` +
+                 `----------------------------------------\n` +
+                 `Olá, *${tx.client}*!\n\n` +
+                 `Confirmamos com sucesso o recebimento do seguinte pagamento:\n\n` +
+                 `• *Operação:* ${typeLabel}\n` +
+                 `• *Ativo/Produto:* ${tx.productName}\n` +
+                 `• *Valor Pago:* ${valueStr}\n` +
+                 `• *Data/Hora:* ${dateStr}\n` +
+                 `• *Meio de Pagamento:* ${tx.paymentMethod}\n\n` +
+                 `----------------------------------------\n` +
+                 `Comprovante emitido por: ${settings.companyName || 'Nexus Commerce'}\n` +
+                 `Obrigado!`;
+
+    const encodedText = encodeURIComponent(text);
+    const cleanPhone = tx.clientPhone ? tx.clientPhone.replace(/\D/g, '') : '';
+    let targetPhone = cleanPhone;
+    if (targetPhone) {
+      if (targetPhone.length <= 11 && !targetPhone.startsWith('55')) {
+        targetPhone = '55' + targetPhone;
+      }
+      return `https://wa.me/${targetPhone}?text=${encodedText}`;
+    }
+    return `https://wa.me/?text=${encodedText}`;
+  };
+
   const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
   const showToast = (msg: string, type: 'success' | 'error' = 'success') => {
     setToast({ msg, type });
@@ -256,12 +382,7 @@ export default function App() {
           </div>
 
           <div className="flex flex-col gap-1">
-             <p className="text-[9px] text-zinc-700 font-bold uppercase tracking-[0.4em]">© 2026 NEXUS COMMERCE SOLUTIONS • V2.4.0-PRO</p>
-             <div className="flex items-center gap-4 mt-2">
-                <span className="text-[10px] font-mono text-zinc-800">SÃO PAULO • BRASIL</span>
-                <div className="w-1.5 h-1.5 rounded-full bg-[rgba(255,215,0,0.2)]" />
-                <span className="text-[10px] font-mono text-zinc-800 italic">CONEXÃO SEGURA ATIVA</span>
-             </div>
+             <p className="text-[10px] text-zinc-600 font-bold uppercase tracking-wider">© 2026 NEXUS SOLUTIONS</p>
           </div>
         </div>
 
@@ -343,7 +464,7 @@ export default function App() {
         <Topbar 
           onOpenSettings={() => setActiveView('settings')} 
           onOpenMobileMenu={() => setIsMobileOpen(true)} 
-          viewTitle={activeView === 'dashboard' ? 'Sinergia Comercial' : activeView === 'stock' ? 'Controle de Ativos' : activeView === 'sales' ? 'Gestão de Recebíveis' : activeView === 'clients' ? 'Relacionamento' : activeView === 'settings' ? 'Configurações de Sistema' : 'Simulador de Preços'} 
+          viewTitle={activeView === 'reports' ? 'Relatório Mensal' : activeView === 'dashboard' ? 'Sinergia Comercial' : activeView === 'stock' ? 'Controle de Ativos' : activeView === 'sales' ? 'Gestão de Recebíveis' : activeView === 'transactions' ? 'Histórico de Transações' : activeView === 'clients' ? 'Relacionamento' : activeView === 'settings' ? 'Configurações de Sistema' : 'Simulador de Preços'} 
         />
         <div className="p-4 sm:p-8 overflow-x-hidden custom-scrollbar">
           <AnimatePresence mode="wait">
@@ -354,6 +475,7 @@ export default function App() {
                     products={products} 
                     sales={sales} 
                     installments={installments} 
+                    closings={closings}
                     onNavigate={(view, filter) => {
                       setActiveView(view);
                       if (filter) setFilterStatus(filter as any);
@@ -490,11 +612,11 @@ export default function App() {
                                   </div>
                                   <div className="p-3 sm:p-4 bg-[rgba(0,0,0,0.4)] border border-line shadow-sm rounded-[20px] sm:rounded-[24px]">
                                     <span className="text-[8px] sm:text-[9px] font-black text-gray-600 block mb-1 uppercase tracking-widest">Liquidado</span>
-                                    <strong className="text-lg sm:text-xl font-black text-green-neon">{money(paid)}</strong>
+                                    <strong className="text-lg sm:text-xl font-bold text-green-neon">{money(paid)}</strong>
                                   </div>
                                   <div className="col-span-2 p-4 sm:p-5 bg-[rgba(0,0,0,0.6)] border border-[rgba(255,215,0,0.1)] shadow-sm rounded-[20px] sm:rounded-[24px] mt-2">
                                      <span className="text-[9px] sm:text-[10px] font-black text-gray-500 block mb-2 uppercase tracking-[0.2em] text-center">Capital em Movimento</span>
-                                     <strong className="text-xl sm:text-2xl font-black text-white block text-center italic">{money(paid + pend)}</strong>
+                                     <strong className="text-xl sm:text-2xl font-bold text-white block text-center">{money(paid + pend)}</strong>
                                   </div>
                                 </>
                               );
@@ -543,11 +665,11 @@ export default function App() {
                                 {sales.filter(s => s.client === selectedClient).map(sale => (
                                   <tr key={sale.id} className="group hover:bg-[rgba(255,255,255,0.01)] transition-colors">
                                     <td className="p-4 sm:p-5">
-                                      <strong className="text-white font-black block text-xs sm:text-sm uppercase italic truncate max-w-[120px]">{sale.productName}</strong>
+                                      <strong className="text-white font-bold block text-xs sm:text-sm uppercase truncate max-w-[120px]">{sale.productName}</strong>
                                       <span className="text-[8px] sm:text-[9px] text-gray-600 font-bold uppercase">ID: {sale.id.substring(0, 6)}</span>
                                     </td>
-                                    <td className="p-4 sm:p-5 font-black text-white text-xs sm:text-sm">{money(sale.total)}</td>
-                                    <td className="p-4 sm:p-5 font-black text-green-neon text-[11px] sm:text-sm">{money(sale.profit)}</td>
+                                    <td className="p-4 sm:p-5 font-bold text-white text-xs sm:text-sm">{money(sale.total)}</td>
+                                    <td className="p-4 sm:p-5 font-bold text-green-neon text-[11px] sm:text-sm">{money(sale.profit)}</td>
                                     <td className="p-4 sm:p-5">
                                        <div className="flex items-center gap-2">
                                           <div className="h-1 flex-1 bg-[rgba(255,255,255,0.05)] rounded-full overflow-hidden border border-line-strong min-w-[50px]">
@@ -732,11 +854,14 @@ export default function App() {
                           client: f.client.value, 
                           clientPhone: f.clientPhone.value, 
                           clientCpf: f.clientCpf.value, 
+                          clientAddress: f.clientAddress?.value || "",
                           installments: Number(f.installments.value), 
                           firstDueDate: f.date.value, 
-                          percentageAdjustment: Number(f.percentage.value), 
+                          percentageAdjustment: 0, 
                           manualSalePrice: Number(f.manualSalePrice.value), 
-                          downPayment: Number(f.downPayment.value) 
+                          downPayment: Number(f.downPayment.value),
+                          isInterestOnly: isInterestOnlyForm,
+                          interestRate: isInterestOnlyForm ? Number(f.interestRate?.value || 0) : 0
                         };
 
                         if (saleToEdit) {
@@ -781,6 +906,11 @@ export default function App() {
                            </div>
                         </div>
 
+                        <div className="flex flex-col gap-2">
+                           <label className="text-[9px] sm:text-[10px] font-black text-gray-500 uppercase ml-3">Endereço do Comprador</label>
+                           <input name="clientAddress" defaultValue={saleToEdit?.clientAddress || ''} placeholder="Ex: Av. Paulista, 1000, Apto 12 - São Paulo / SP" className="h-12 sm:h-14 bg-[rgba(0,0,0,0.4)] border border-line-strong rounded-xl sm:rounded-2xl px-5 sm:px-6 outline-none focus:border-gold transition-all font-bold text-xs sm:text-sm" />
+                        </div>
+
                         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
                            <div className="flex flex-col gap-2">
                               <label className="text-[9px] sm:text-[10px] font-black text-gray-500 uppercase ml-3">Preço Final</label>
@@ -807,8 +937,38 @@ export default function App() {
                         </div>
 
                         <div className="flex flex-col gap-2">
-                           <label className="text-[9px] sm:text-[10px] font-black text-gray-500 uppercase ml-3">Rentabilidade Adicional (%)</label>
-                           <input name="percentage" type="number" defaultValue="0" step="0.01" className="h-12 sm:h-14 bg-[rgba(0,0,0,0.4)] border border-line-strong rounded-xl sm:rounded-2xl px-5 sm:px-6 outline-none focus:border-gold transition-all font-black text-green-neon text-xs sm:text-sm" placeholder="0.00" />
+                           <label className="text-[9px] sm:text-[10px] font-black text-gray-500 uppercase ml-3">Modalidade de Recebimento</label>
+                           <input name="percentage" className="hidden" />
+                           <select 
+                             value={isInterestOnlyForm ? "interest_only" : "standard"}
+                             onChange={(e) => setIsInterestOnlyForm(e.target.value === "interest_only")}
+                             className="h-12 sm:h-14 bg-[rgba(0,0,0,0.4)] border border-line-strong rounded-xl sm:rounded-2xl px-5 sm:px-6 font-bold outline-none focus:border-gold transition-all text-xs sm:text-sm cursor-pointer"
+                           >
+                             <option value="standard" className="bg-black">Venda Padrão (Amortização normal)</option>
+                             <option value="interest_only" className="bg-black text-gold font-bold">Venda por Juros (Pagar somente os juros do total)</option>
+                           </select>
+
+                           {isInterestOnlyForm && (
+                             <div className="flex flex-col gap-2 mt-4 animate-view-enter">
+                               <label className="text-[9px] sm:text-[10px] font-black text-gold uppercase ml-3">Taxa de Juros Mensal (%)</label>
+                               <div className="relative">
+                                 <input 
+                                   name="interestRate" 
+                                   type="number" 
+                                   step="0.01" 
+                                   required 
+                                   value={interestRateForm} 
+                                   onChange={(e) => setInterestRateForm(e.target.value)} 
+                                   placeholder="0,00" 
+                                   className="w-full h-12 sm:h-14 bg-[rgba(255,215,0,0.02)] border border-[rgba(255,215,0,0.2)] rounded-xl sm:rounded-2xl px-5 sm:px-6 pl-10 sm:pl-12 outline-none focus:border-gold transition-all font-black text-gold italic text-xs sm:text-sm" 
+                                 />
+                                 <span className="absolute left-5 sm:left-6 top-1/2 -translate-y-1/2 text-gold opacity-50 font-black italic">%</span>
+                               </div>
+                               <span className="text-[10px] text-gray-500 font-bold uppercase ml-3 mt-1 leading-relaxed">
+                                 As parcelas do contrato serão equivalentes aos juros calculados sobre o preço do ativo, sem quitação do principal.
+                               </span>
+                             </div>
+                           )}
                         </div>
 
                         <div className="flex flex-col gap-3 mt-4 sm:mt-6">
@@ -870,7 +1030,12 @@ export default function App() {
                                     <tr className="group hover:bg-[rgba(255,255,255,0.03)] transition-all duration-300">
                                        <td className="p-6">
                                           <div className="flex flex-col">
-                                            <strong className="text-white font-black text-sm italic uppercase">{sale.client}</strong>
+                                             <strong className="text-white font-bold text-sm uppercase">{sale.client}</strong>
+                                             {sale.clientAddress && (
+                                                <span className="text-[10px] text-gray-400 mt-0.5 font-medium truncate max-w-[250px] block" title={sale.clientAddress}>
+                                                  📍 {sale.clientAddress}
+                                                </span>
+                                             )}
                                             <span className="text-[9px] text-gray-500 font-bold uppercase mt-1">Protocal ID: {sale.id.substring(0, 8)}</span>
                                           </div>
                                        </td>
@@ -879,13 +1044,20 @@ export default function App() {
                                             <div className="w-8 h-8 rounded-lg bg-[rgba(255,215,0,0.1)] text-gold flex items-center justify-center border border-[rgba(255,215,0,0.1)] shrink-0">
                                               <ShoppingBag size={14} />
                                             </div>
-                                            <span className="text-gray-300 text-[13px] font-bold truncate max-w-[140px] uppercase tracking-tighter italic">{sale.productName}</span>
+                                            <span className="text-gray-300 text-[13px] font-semibold truncate max-w-[140px] uppercase">{sale.productName}</span>
                                           </div>
                                        </td>
                                        <td className="p-6">
                                           <div className="flex flex-col">
-                                             <strong className="font-black text-white italic text-lg">{money(sale.total)}</strong>
-                                             <span className="text-[9px] text-gray-600 font-bold uppercase font-mono">{sale.installmentsCount}x {money(sale.installmentValue)}</span>
+                                             <strong className="font-bold text-white text-lg">{money(sale.total)}</strong>
+                                             <div className="flex items-center gap-1.5 mt-0.5">
+                                                 <span className="text-[9px] text-gray-600 font-bold uppercase">{sale.installmentsCount}x {money(sale.installmentValue)}</span>
+                                                 {sale.isInterestOnly && (
+                                                    <span className="px-1.5 py-0.5 rounded bg-[rgba(255,215,0,0.1)] text-gold border border-[rgba(255,215,0,0.2)] text-[8px] font-black uppercase tracking-wider">
+                                                       Apenas Juros ({sale.interestRate}%)
+                                                    </span>
+                                                 )}
+                                              </div>
                                           </div>
                                        </td>
                                        <td className="p-6">
@@ -981,7 +1153,7 @@ export default function App() {
                                                   <div className={`w-1.5 h-1.5 rounded-full ${inst.status === 'Pago' ? 'bg-green-neon' : 'bg-[rgba(255,215,0,0.4)] animate-pulse'}`} />
                                                 </div>
                                                 <div>
-                                                  <p className="text-[13px] font-black text-white italic tracking-tighter">{money(inst.value)}</p>
+                                                  <p className="text-[13px] font-bold text-white tracking-wide">{money(inst.value)}</p>
                                                   <p className="text-[9px] font-black text-gray-500 uppercase mt-0.5">{new Date(inst.dueDate).toLocaleDateString('pt-BR')}</p>
                                                 </div>
                                                 <div className="absolute inset-0 bg-[rgba(0,0,0,0.8)] flex items-center justify-center p-2 opacity-0 group-hover/inst:opacity-100 transition-all rounded-2xl backdrop-blur-sm">
@@ -1026,6 +1198,350 @@ export default function App() {
                       )}
                     </div>
                   )}
+                </div>
+              )}
+
+              {activeView === 'transactions' && (
+                <div className="flex flex-col gap-4 sm:gap-8 animate-view-enter">
+                  {/* Top Summary Cards */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
+                    <div className="bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.05)] rounded-[20px] sm:rounded-[24px] p-6 flex flex-col gap-4 relative overflow-hidden group hover:border-[rgba(255,255,255,0.08)] transition-all">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest block font-sans">Acumulado Entradas</span>
+                        <div className="w-8 h-8 rounded-lg bg-[rgba(255,215,0,0.05)] text-gold flex items-center justify-center border border-[rgba(255,215,0,0.1)]">
+                          <Wallet size={16} />
+                        </div>
+                      </div>
+                      <div>
+                        <strong className="text-2xl sm:text-3xl font-bold text-white tracking-tight block font-sans">
+                          {money(transactions.filter(t => t.type === 'entrada').reduce((acc, t) => acc + t.value, 0))}
+                        </strong>
+                        <span className="text-[10px] text-gray-500 font-medium block mt-1">Somas de valores de entrada em caixa</span>
+                      </div>
+                    </div>
+
+                    <div className="bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.05)] rounded-[20px] sm:rounded-[24px] p-6 flex flex-col gap-4 relative overflow-hidden group hover:border-[rgba(255,255,255,0.08)] transition-all">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest block font-sans">Acumulado Parcelas</span>
+                        <div className="w-8 h-8 rounded-lg bg-[rgba(34,197,94,0.05)] text-green-500 flex items-center justify-center border border-[rgba(34,197,94,0.1)]">
+                          <DollarSign size={16} />
+                        </div>
+                      </div>
+                      <div>
+                        <strong className="text-2xl sm:text-3xl font-bold text-white tracking-tight block font-sans">
+                          {money(transactions.filter(t => t.type === 'parcela').reduce((acc, t) => acc + t.value, 0))}
+                        </strong>
+                        <span className="text-[10px] text-gray-500 font-medium block mt-1">Somas de parcelas recebidas liquidadas</span>
+                      </div>
+                    </div>
+
+                    <div className="bg-[rgba(255,215,0,0.02)] border border-[rgba(255,215,0,0.08)] rounded-[20px] sm:rounded-[24px] p-6 flex flex-col gap-4 relative overflow-hidden group hover:border-[rgba(255,215,0,0.15)] transition-all">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-black text-gold/80 uppercase tracking-widest block font-sans">Total Transacionado</span>
+                        <div className="w-8 h-8 rounded-lg bg-[rgba(255,215,0,0.05)] text-gold flex items-center justify-center border border-[rgba(255,215,0,0.15)]">
+                          <BadgeDollarSign size={16} />
+                        </div>
+                      </div>
+                      <div>
+                        <strong className="text-2xl sm:text-3xl font-bold text-gold tracking-tight block font-sans">
+                          {money(transactions.reduce((acc, t) => acc + t.value, 0))}
+                        </strong>
+                        <span className="text-[10px] text-gold/60 font-medium block mt-1">Fluxo total conciliado no sistema</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Filter & Lists Card */}
+                  <div className="glass-card border border-[rgba(255,255,255,0.05)] rounded-2xl sm:rounded-[32px] p-4 sm:p-8 flex flex-col gap-6 sm:gap-8">
+                    <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                      <div>
+                        <h3 className="text-lg sm:text-xl font-bold text-white uppercase tracking-wider font-sans">Histórico de Fluxo</h3>
+                        <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest mt-1">Exibindo {filteredTransactions.length} de {transactions.length} transações registradas</p>
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-3">
+                        {/* Type Toggle buttons */}
+                        <div className="flex bg-[rgba(0,0,0,0.3)] p-1 rounded-xl border border-line-strong">
+                          <button
+                            onClick={() => setTxTypeFilter('all')}
+                            className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${
+                              txTypeFilter === 'all'
+                                ? 'bg-gold text-black italic font-sans'
+                                : 'text-gray-400 hover:text-white font-sans'
+                            }`}
+                          >
+                            Todos
+                          </button>
+                          <button
+                            onClick={() => setTxTypeFilter('entrada')}
+                            className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${
+                              txTypeFilter === 'entrada'
+                                ? 'bg-gold text-black italic font-sans'
+                                : 'text-gray-400 hover:text-white font-sans'
+                            }`}
+                          >
+                            Entradas
+                          </button>
+                          <button
+                            onClick={() => setTxTypeFilter('parcela')}
+                            className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${
+                              txTypeFilter === 'parcela'
+                                ? 'bg-gold text-black italic font-sans'
+                                : 'text-gray-400 hover:text-white font-sans'
+                            }`}
+                          >
+                            Parcelas
+                          </button>
+                        </div>
+
+                        {/* Payment Method Selector */}
+                        <select
+                          value={txMethodFilter}
+                          onChange={(e) => setTxMethodFilter(e.target.value)}
+                          className="h-10 bg-[rgba(0,0,0,0.3)] border border-line-strong rounded-xl px-4 text-[10px] font-black uppercase tracking-wider text-white outline-none focus:border-gold transition-all cursor-pointer font-sans"
+                        >
+                          <option value="all" className="bg-black text-white">Meio de Pago (Todos)</option>
+                          <option value="Pix" className="bg-black text-white">Pix</option>
+                          <option value="Cartão de Crédito" className="bg-black text-white">Cartão de Crédito</option>
+                          <option value="Cartão de Débito" className="bg-black text-white">Cartão de Débito</option>
+                          <option value="Dinheiro" className="bg-black text-white">Dinheiro</option>
+                          <option value="Transferência" className="bg-black text-white">Transferência</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    {/* Search Field */}
+                    <div className="relative group">
+                      <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-500 group-focus-within:text-gold transition-colors" size={16} />
+                      <input
+                        type="text"
+                        value={txSearch}
+                        onChange={(e) => setTxSearch(e.target.value)}
+                        placeholder="Buscar por cliente, ativo de referência, método ou ID da transação..."
+                        className="w-full h-12 bg-[rgba(0,0,0,0.3)] border border-line-strong rounded-xl pl-12 pr-6 outline-none focus:border-gold transition-all text-sm placeholder:text-gray-600 text-white font-sans"
+                      />
+                    </div>
+
+                    {/* Transactions List */}
+                    {filteredTransactions.length === 0 ? (
+                      <div className="flex flex-col items-center justify-center p-12 sm:p-20 text-center gap-4 bg-[rgba(0,0,0,0.2)] rounded-2xl border border-dashed border-line-strong">
+                        <AlertCircle size={36} className="text-gray-600 animate-pulse" />
+                        <div>
+                          <p className="text-white font-bold uppercase text-xs tracking-wider font-sans">Nenhuma transação encontrada</p>
+                          <p className="text-[10px] text-gray-500 uppercase mt-1 font-sans">Altere os filtros de busca para conferir outros resultados</p>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="overflow-x-auto w-full custom-scrollbar">
+                        <table className="w-full border-collapse">
+                          <thead>
+                            <tr className="border-b border-line-strong text-left">
+                              <th className="p-4 text-[9px] font-black text-gray-500 uppercase tracking-widest font-sans">Cliente / ID</th>
+                              <th className="p-4 text-[9px] font-black text-gray-500 uppercase tracking-widest font-sans">Tipo / Operação</th>
+                              <th className="p-4 text-[9px] font-black text-gray-500 uppercase tracking-widest font-sans">Ativo / Produto</th>
+                              <th className="p-4 text-[9px] font-black text-gray-500 uppercase tracking-widest font-sans">Meio de Pago</th>
+                              <th className="p-4 text-[9px] font-black text-gray-500 uppercase tracking-widest font-sans">Data & Hora</th>
+                              <th className="p-4 text-[9px] font-black text-gray-500 uppercase tracking-widest font-sans text-right">Valor Recebido</th>
+                              <th className="p-4 text-[9px] font-black text-gray-500 uppercase tracking-widest font-sans text-center">Ações</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {filteredTransactions.map((tx) => (
+                              <tr key={tx.id} className="border-b border-line-strong/40 hover:bg-[rgba(255,255,255,0.01)] transition-colors">
+                                <td className="p-4">
+                                  <div className="flex flex-col">
+                                    <strong className="text-white font-bold text-sm uppercase font-sans">{tx.client}</strong>
+                                    <span className="text-[8px] text-gray-500 font-bold tracking-widest uppercase mt-0.5 font-sans">ID: {tx.id.substring(0, 8)}</span>
+                                  </div>
+                                </td>
+                                <td className="p-4">
+                                  <span className={`px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider font-sans ${
+                                    tx.type === 'entrada'
+                                      ? 'bg-gold/10 border border-gold/25 text-gold'
+                                      : 'bg-green-neon/10 border border-green-neon/25 text-green-neon'
+                                  }`}>
+                                    {tx.label}
+                                  </span>
+                                </td>
+                                <td className="p-4">
+                                  <span className="text-gray-300 text-xs font-semibold uppercase font-sans">{tx.productName}</span>
+                                </td>
+                                <td className="p-4">
+                                  <span className="text-gray-400 text-xs font-medium font-sans">{tx.paymentMethod}</span>
+                                </td>
+                                <td className="p-4">
+                                  <span className="text-gray-400 text-xs font-sans">
+                                    {new Date(tx.date).toLocaleDateString('pt-BR', {
+                                      day: '2-digit',
+                                      month: '2-digit',
+                                      year: 'numeric',
+                                      hour: '2-digit',
+                                      minute: '2-digit'
+                                    })}
+                                  </span>
+                                </td>
+                                <td className="p-4 text-right">
+                                  <strong className="text-green-neon text-base font-bold font-sans">
+                                    + {money(tx.value)}
+                                  </strong>
+                                </td>
+                                <td className="p-4 text-center">
+                                  <a
+                                    href={getWhatsAppShareLink(tx)}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center justify-center gap-1.5 h-8 px-3 rounded-lg bg-[#25D366]/10 hover:bg-[#25D366]/20 border border-[#25D366]/20 text-[#25D366] text-[9px] font-black uppercase tracking-widest transition-all font-sans"
+                                  >
+                                    <MessageCircle size={12} />
+                                    <span>WhatsApp</span>
+                                  </a>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {activeView === 'reports' && (
+                <div className="flex flex-col gap-6 sm:gap-8 animate-view-enter">
+                  <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-1">
+                     <div>
+                        <h2 className="text-xl sm:text-3xl font-black tracking-tight text-white italic uppercase">Relatório de Resultados</h2>
+                        <p className="text-[9px] sm:text-[10px] text-gray-500 font-bold uppercase tracking-[0.3em] mt-1">Dados Consolidados do Ciclo Comercial Aberto</p>
+                     </div>
+                  </div>
+
+                  {/* Bento Grid dos Dados Ativos do Ciclo Atual */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+                    <div className="glass-card p-6 border border-zinc-850 flex flex-col justify-between h-[150px] relative overflow-hidden group">
+                      <div className="absolute right-3 top-3 opacity-5 text-white"><DollarSign size={80} /></div>
+                      <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider">Lucro do Ciclo Atual</span>
+                      <strong className="text-3xl font-black text-gold">{money(activeSales.reduce((acc, s) => acc + (s.profit || 0), 0))}</strong>
+                      <span className="text-[9px] text-zinc-400">Total acumulado desde o último fechamento</span>
+                    </div>
+
+                    <div className="glass-card p-6 border border-zinc-850 flex flex-col justify-between h-[150px] relative overflow-hidden group">
+                      <div className="absolute right-3 top-3 opacity-5 text-white"><ShoppingBag size={80} /></div>
+                      <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider">Vendas no Ciclo</span>
+                      <strong className="text-3xl font-black text-white">{activeSales.length} Uni.</strong>
+                      <span className="text-[9px] text-zinc-400">Contratos fechados e faturados</span>
+                    </div>
+
+                    <div className="glass-card p-6 border border-zinc-850 flex flex-col justify-between h-[150px] relative overflow-hidden group">
+                      <div className="absolute right-3 top-3 opacity-5 text-white"><Activity size={80} /></div>
+                      <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider">Volume de Negócios</span>
+                      <strong className="text-3xl font-black text-green-neon">{money(activeSales.reduce((acc, s) => acc + (s.total || 0), 0))}</strong>
+                      <span className="text-[9px] text-zinc-400">Faturamento total contratualizado</span>
+                    </div>
+
+                    <div className="glass-card p-6 border border-zinc-850 flex flex-col justify-between h-[150px] relative overflow-hidden group">
+                      <div className="absolute right-3 top-3 opacity-5 text-white"><Wallet size={80} /></div>
+                      <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider">Valor em Entradas</span>
+                      <strong className="text-3xl font-black text-blue-400">{money(activeSales.reduce((acc, s) => acc + (s.downPayment || 0), 0))}</strong>
+                      <span className="text-[9px] text-zinc-400">Capital imediato em tesouraria</span>
+                    </div>
+                  </div>
+
+                  {/* Seção de Fechamento de Caixa */}
+                  <div className="glass-card p-6 border border-amber-500/20 bg-amber-500/[0.02] rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-6">
+                    <div className="flex flex-col gap-2">
+                      <div className="flex items-center gap-2">
+                        <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+                        <h3 className="text-sm font-black text-amber-200 uppercase tracking-wider">Consolidar Período e Fechar Caixa</h3>
+                      </div>
+                      <p className="text-xs text-amber-100/60 max-w-xl">
+                        Ao realizar o fechamento do caixa mensal, o montante de lucro ativo de <strong className="text-gold font-bold">{money(activeSales.reduce((acc, s) => acc + (s.profit || 0), 0))}</strong> e as informações deste ciclo serão arquivados. O card de lucros do dashboard será reiniciado em zero para iniciar um novo ciclo comercial.
+                      </p>
+                    </div>
+                    <div className="flex gap-3 shrink-0 items-center">
+                      <input 
+                        type="text"
+                        placeholder="Ex: Maio de 2026"
+                        id="closingPeriodInput"
+                        className="h-11 px-4 bg-black/60 border border-zinc-700 rounded-xl outline-none text-xs font-semibold text-white focus:border-gold min-w-[150px]"
+                      />
+                      <button
+                        onClick={() => {
+                          const inputEl = document.getElementById('closingPeriodInput') as HTMLInputElement;
+                          const periodVal = inputEl?.value?.trim() || `Ciclo - ${new Date().toLocaleDateString('pt-BR')}`;
+                          const currentActiveProfit = activeSales.reduce((acc, s) => acc + (s.profit || 0), 0);
+                          const currentActiveRevenue = activeSales.reduce((acc, s) => acc + (s.total || 0), 0);
+                          const currentActiveCount = activeSales.length;
+
+                          if (currentActiveCount === 0) {
+                            showToast('Nenhuma operação ativa para ser fechada neste ciclo!');
+                            return;
+                          }
+                          if (confirm(`Confirmar encerramento de período? O lucro ativo de ${money(currentActiveProfit)} será zerado e arquivado para iniciar um novo ciclo.`)) {
+                            closeMonthlyRegister(periodVal, currentActiveProfit, currentActiveRevenue, currentActiveCount);
+                            if (inputEl) inputEl.value = '';
+                            showToast('Encerramento efetuado com absoluto sucesso!');
+                          }
+                        }}
+                        className="h-11 px-6 bg-amber-500 hover:bg-amber-600 text-black font-black uppercase text-[10px] sm:text-xs tracking-wider rounded-xl transition-all shadow-lg active:scale-95"
+                      >
+                        Fechar Caixa
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Histórico de Fechamentos */}
+                  <div className="glass-card border border-line-strong overflow-hidden">
+                    <div className="p-6 border-b border-line-strong flex justify-between items-center">
+                      <div>
+                        <h3 className="text-lg font-black italic uppercase text-white">Ciclos Consolidados (Arquivados)</h3>
+                        <p className="text-[9px] text-gray-500 font-bold uppercase tracking-wider mt-0.5">Histórico completo de períodos encerrados</p>
+                      </div>
+                      <span className="px-3 py-1 rounded bg-zinc-800 text-zinc-300 text-[10px] font-black uppercase tracking-widest">{closings?.length || 0} Fechamentos</span>
+                    </div>
+
+                    {!closings || closings.length === 0 ? (
+                      <div className="p-12 text-center text-gray-500 uppercase font-black text-xs tracking-widest">
+                        Nenhum encerramento de caixa arquivado até o momento.
+                      </div>
+                    ) : (
+                      <div className="overflow-x-auto custom-scrollbar">
+                        <table className="w-full text-left min-w-[700px]">
+                          <thead>
+                            <tr className="border-b border-line text-[10px] uppercase text-zinc-500 font-black bg-white/2">
+                              <th className="p-5 font-black tracking-widest">Período Consolidado</th>
+                              <th className="p-5 font-black tracking-widest text-center">Data de Fechamento</th>
+                              <th className="p-5 font-black tracking-widest text-center">Quantidade de Vendas</th>
+                              <th className="p-5 font-black tracking-widest text-center">Capital Movimentado</th>
+                              <th className="p-5 font-black tracking-widest text-green-neon text-right">Lucro Líquido Arquivado</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-zinc-900">
+                            {closings
+                              .sort((a, b) => b.closedAt.localeCompare(a.closedAt))
+                              .map((c) => (
+                                <tr key={c.id} className="hover:bg-white/[0.01] transition-colors">
+                                  <td className="p-5 font-black text-sm text-white italic uppercase">
+                                    📁 {c.periodName}
+                                  </td>
+                                  <td className="p-5 text-xs text-zinc-400 font-bold uppercase text-center">
+                                    {new Date(c.closedAt).toLocaleString('pt-BR')}
+                                  </td>
+                                  <td className="p-5 text-sm text-zinc-200 font-bold text-center">
+                                    {c.salesCount} venda(s)
+                                  </td>
+                                  <td className="p-5 text-sm text-zinc-200 font-bold text-center">
+                                    {money(c.totalSales || 0)}
+                                  </td>
+                                  <td className="p-5 text-sm font-black text-green-neon text-right">
+                                    {money(c.profit || 0)}
+                                  </td>
+                                </tr>
+                              ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
 
@@ -1115,11 +1631,11 @@ export default function App() {
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-8 mb-8 sm:mb-16">
                               <div className="p-6 sm:p-10 border border-[rgba(255,255,255,0.05)] rounded-2xl sm:rounded-[40px] bg-[rgba(0,0,0,0.6)] shadow-2xl relative overflow-hidden group/card text-center sm:text-left">
                                 <span className="text-[9px] sm:text-[10px] uppercase font-black text-gray-500 block mb-2 sm:mb-3 tracking-[0.3em]">Custo Mensal</span>
-                                <strong className="text-3xl sm:text-5xl text-gold italic font-black tracking-tighter block">{money(pmt)}</strong>
+                                <strong className="text-3xl sm:text-5xl text-gold font-bold block">{money(pmt)}</strong>
                               </div>
                               <div className="p-6 sm:p-10 border border-[rgba(255,255,255,0.05)] rounded-2xl sm:rounded-[40px] bg-[rgba(0,0,0,0.6)] shadow-2xl relative overflow-hidden group/card text-center sm:text-left">
                                 <span className="text-[9px] sm:text-[10px] uppercase font-black text-gray-500 block mb-2 sm:mb-3 tracking-[0.3em]">Total Quitação</span>
-                                <strong className="text-3xl sm:text-5xl text-green-neon italic font-black tracking-tighter block">{money(pmt * n)}</strong>
+                                <strong className="text-3xl sm:text-5xl text-green-neon font-bold block">{money(pmt * n)}</strong>
                               </div>
                             </div>
 
@@ -1147,162 +1663,197 @@ export default function App() {
 
               {activeView === 'settings' && (
                 <div className="flex flex-col gap-6 sm:gap-8 animate-view-enter h-full">
-                  <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-6 sm:gap-8">
-                    {/* Settings Navigation Sidebar */}
-                    <div className="flex flex-row lg:flex-col gap-2 overflow-x-auto pb-2 sm:pb-0 custom-scrollbar shrink-0">
-                       {[
-                          { id: 'profile', label: 'Operador', icon: User, desc: 'Perfil e acesso' },
-                          { id: 'finance', label: 'Financeiro', icon: Wallet, desc: 'PIX e chaves' },
-                          { id: 'system', label: 'Sistema', icon: ShieldCheck, desc: 'Segurança e resets' },
-                       ].map((tab) => (
+                  {activeSettingsTab === null ? (
+                    /* Elegant master choices layout appearing by themselves */
+                    <div className="space-y-8 animate-view-enter">
+                      <div className="text-center md:text-left">
+                        <h3 className="text-2xl sm:text-3xl font-black italic uppercase text-zinc-100 tracking-tight logo-title">Ajustes da Conta</h3>
+                        <p className="text-[9px] sm:text-[10px] text-zinc-500 font-bold uppercase mt-1 tracking-[0.3em]">Selecione uma categoria para configurar seu ecossistema Nexus Private</p>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 sm:gap-8">
+                        {[
+                          { id: 'profile', label: 'Operador', icon: User, desc: 'Configure seus dados pessoais, foto de identificação e conta do sistema.', labelHighlight: 'Identidade' },
+                          { id: 'finance', label: 'Financeiro', icon: Wallet, desc: 'Cadastre nomes de favorecido, chaves de recebimento e chaves PIX de liquidez.', labelHighlight: 'Liquidez' },
+                          { id: 'system', label: 'Sistema', icon: ShieldCheck, desc: 'Controle a segurança do banco, reset de registros locais e preferências do operador.', labelHighlight: 'Segurança' },
+                        ].map((option) => (
                           <button
-                             key={tab.id}
-                             onClick={() => setActiveSettingsTab(tab.id)}
-                             className={`flex items-center gap-3 sm:gap-4 p-3 sm:p-5 rounded-2xl sm:rounded-[24px] text-left transition-all duration-300 group border min-w-[140px] lg:min-w-0 ${activeSettingsTab === tab.id ? 'bg-white text-black border-white shadow-xl' : 'bg-[rgba(0,0,0,0.4)] text-gray-500 border-[rgba(255,255,255,0.05)] hover:border-[rgba(255,255,255,0.1)]'}`}
+                            key={option.id}
+                            onClick={() => setActiveSettingsTab(option.id)}
+                            className="bg-[rgba(5,5,5,0.8)] hover:bg-[rgba(15,15,15,0.95)] border border-zinc-900 hover:border-gold/30 rounded-[32px] p-8 text-left transition-all duration-300 group relative overflow-hidden group/card shadow-2xl flex flex-col justify-between min-h-[250px] cursor-pointer"
                           >
-                             <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl flex items-center justify-center shrink-0 transition-colors ${activeSettingsTab === tab.id ? 'bg-black text-gold' : 'bg-[rgba(255,255,255,0.05)] text-gray-600 group-hover:text-gold'}`}>
-                                <tab.icon size={18} />
-                             </div>
-                             <div className="flex flex-col overflow-hidden">
-                                <span className={`text-[10px] sm:text-[11px] font-black uppercase tracking-widest leading-none ${activeSettingsTab === tab.id ? 'text-black' : 'text-gray-400'}`}>{tab.label}</span>
-                             </div>
+                            {/* Inner ambient glow on hover */}
+                            <div className="absolute top-0 right-0 w-32 h-32 bg-[rgba(255,215,0,0.01)] group-hover/card:bg-[rgba(255,215,0,0.04)] rounded-full -mr-16 -mt-16 blur-2xl transition-all duration-500 pointer-events-none" />
+                            
+                            <div className="flex justify-between items-start">
+                              <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.05)] text-gray-500 group-hover/card:text-gold group-hover/card:border-gold/30 group-hover/card:bg-gold/5 flex items-center justify-center transition-all duration-500 shrink-0">
+                                <option.icon size={22} className="sm:size-26" />
+                              </div>
+                              <span className="text-[8px] sm:text-[9px] font-black uppercase text-gold/60 tracking-widest bg-gold/5 border border-gold/10 px-3 py-1 rounded-full group-hover/card:border-gold/30 transition-all duration-500 leading-none">{option.labelHighlight}</span>
+                            </div>
+
+                            <div className="mt-8 space-y-2">
+                              <h4 className="text-lg sm:text-xl font-black uppercase tracking-wide text-zinc-100 italic shrink-0 leading-none group-hover/card:text-white transition-colors logo-title">
+                                {option.label}
+                              </h4>
+                              <p className="text-[11px] sm:text-xs text-zinc-500 leading-relaxed font-semibold">
+                                {option.desc}
+                              </p>
+                            </div>
                           </button>
-                       ))}
+                        ))}
+                      </div>
                     </div>
+                  ) : (
+                    /* Detailed view of the configuration when selected */
+                    <div className="space-y-6 animate-view-enter">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                        <button
+                          onClick={() => setActiveSettingsTab(null)}
+                          className="group flex items-center gap-3 px-6 h-12 bg-zinc-950/80 hover:bg-zinc-900 border border-zinc-900 rounded-xl text-[10px] font-black uppercase tracking-widest text-zinc-400 hover:text-white hover:border-gold/30 transition-all duration-300 w-fit cursor-pointer"
+                        >
+                          <ArrowLeft size={14} className="group-hover:-translate-x-1 transition-transform" />
+                          Voltar aos Ajustes
+                        </button>
+                        
+                        <div className="flex items-center gap-2 text-gold/80 text-[10px] tracking-widest uppercase bg-gold/5 px-3 py-1 border border-gold/10 rounded-full">
+                           Ajuste Ativo: {activeSettingsTab === 'profile' ? 'Operador' : activeSettingsTab === 'finance' ? 'Financeiro' : 'Sistema'}
+                        </div>
+                      </div>
 
-                    {/* Settings Content Area */}
-                    <div className="animate-view-enter">
-                       <div className="glass-card p-6 sm:p-10 border border-[rgba(255,255,255,0.05)] relative overflow-hidden min-h-[400px] sm:min-h-[500px]">
-                          {/* Background Glow */}
-                          <div className="absolute top-0 right-0 w-64 h-64 bg-[rgba(255,215,0,0.05)] rounded-full -mr-32 -mt-32 blur-3xl pointer-events-none" />
-                          
-                          {activeSettingsTab === 'profile' && (
-                             <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="space-y-10">
-                                <div>
-                                   <h3 className="text-2xl font-black italic uppercase text-white tracking-tighter">Dados de Operador</h3>
-                                   <p className="text-[10px] text-zinc-500 font-bold uppercase mt-1 tracking-[0.3em]">Configure suas informações de identificação</p>
-                                </div>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                                   <div className="flex flex-col gap-2">
-                                      <label className="text-[10px] font-black text-zinc-600 uppercase ml-3 tracking-widest">Nome Completo</label>
-                                      <input value={settings.userName} onChange={(e) => setSettings({...settings, userName: e.target.value})} className="h-16 bg-black border border-zinc-800 rounded-2xl px-6 font-black text-white italic outline-none focus:border-gold transition-all" />
-                                   </div>
-                                   <div className="flex flex-col gap-2 md:col-span-2">
-                                      <label className="text-[10px] font-black text-zinc-600 uppercase ml-3 tracking-widest">Foto de Perfil</label>
-                                      <div className="flex items-center gap-6">
-                                         <div className="w-24 h-24 rounded-2xl bg-black border border-zinc-800 flex items-center justify-center overflow-hidden shrink-0 relative group/avatar">
-                                            {settings.profilePhoto ? (
-                                               <img src={settings.profilePhoto} alt="Avatar" className="w-full h-full object-cover" />
-                                            ) : (
-                                               <User size={32} className="text-zinc-700" />
-                                            )}
-                                            <label className="absolute inset-0 bg-[rgba(0,0,0,0.6)] opacity-0 group-hover/avatar:opacity-100 transition-opacity flex items-center justify-center cursor-pointer">
-                                               <ImageIcon size={20} className="text-white" />
-                                               <input 
-                                                  id="profile-upload"
-                                                  type="file" 
-                                                  accept="image/*" 
-                                                  className="hidden" 
-                                                  onChange={(e) => {
-                                                     const file = e.target.files?.[0];
-                                                     if (file) {
-                                                        const reader = new FileReader();
-                                                        reader.onloadend = () => {
-                                                           setSettings({ ...settings, profilePhoto: reader.result as string });
-                                                        };
-                                                        reader.readAsDataURL(file);
-                                                     }
-                                                  }} 
-                                               />
-                                            </label>
-                                         </div>
-                                         <div className="flex flex-col gap-2">
-                                            <p className="text-[10px] text-zinc-500 font-bold uppercase">Escolha uma foto da biblioteca do seu dispositivo</p>
-                                            <button 
-                                               onClick={() => document.getElementById('profile-upload')?.click()}
-                                               className="h-10 px-6 bg-[rgba(255,215,0,0.1)] border border-[rgba(255,215,0,0.2)] text-gold rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-gold hover:text-black transition-all text-left w-fit"
-                                            >
-                                               Escolher Foto
-                                            </button>
-                                         </div>
-                                      </div>
-                                   </div>
-                                </div>
-                             </motion.div>
-                          )}
+                      <div className="glass-card p-6 sm:p-10 border border-[rgba(255,255,255,0.05)] relative overflow-hidden min-h-[400px]">
+                        {/* Background Glow */}
+                        <div className="absolute top-0 right-0 w-64 h-64 bg-[rgba(255,215,0,0.05)] rounded-full -mr-32 -mt-32 blur-3xl pointer-events-none" />
+                        
+                        {activeSettingsTab === 'profile' && (
+                           <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="space-y-10">
+                              <div>
+                                 <h3 className="text-2xl font-black italic uppercase text-white tracking-tighter logo-title">Dados de Operador</h3>
+                                 <p className="text-[10px] text-zinc-500 font-bold uppercase mt-1 tracking-[0.3em]">Configure suas informações de identificação</p>
+                              </div>
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                 <div className="flex flex-col gap-2">
+                                    <label className="text-[10px] font-black text-zinc-600 uppercase ml-3 tracking-widest">Nome Completo</label>
+                                    <input value={settings.userName} onChange={(e) => setSettings({...settings, userName: e.target.value})} className="h-16 bg-black border border-zinc-800 rounded-2xl px-6 font-black text-white italic outline-none focus:border-gold transition-all" />
+                                 </div>
+                                 <div className="flex flex-col gap-2 md:col-span-2">
+                                    <label className="text-[10px] font-black text-zinc-600 uppercase ml-3 tracking-widest">Foto de Perfil</label>
+                                    <div className="flex items-center gap-6">
+                                       <div className="w-24 h-24 rounded-2xl bg-black border border-zinc-800 flex items-center justify-center overflow-hidden shrink-0 relative group/avatar">
+                                          {settings.profilePhoto ? (
+                                             <img src={settings.profilePhoto} alt="Avatar" className="w-full h-full object-cover" />
+                                          ) : (
+                                             <User size={32} className="text-zinc-700" />
+                                          )}
+                                          <label className="absolute inset-0 bg-[rgba(0,0,0,0.6)] opacity-0 group-hover/avatar:opacity-100 transition-opacity flex items-center justify-center cursor-pointer">
+                                             <ImageIcon size={20} className="text-white" />
+                                             <input 
+                                                id="profile-upload"
+                                                type="file" 
+                                                accept="image/*" 
+                                                className="hidden" 
+                                                onChange={(e) => {
+                                                   const file = e.target.files?.[0];
+                                                   if (file) {
+                                                      const reader = new FileReader();
+                                                      reader.onloadend = () => {
+                                                         setSettings({ ...settings, profilePhoto: reader.result as string });
+                                                      };
+                                                      reader.readAsDataURL(file);
+                                                   }
+                                                }} 
+                                             />
+                                          </label>
+                                       </div>
+                                       <div className="flex flex-col gap-2">
+                                          <p className="text-[10px] text-zinc-500 font-bold uppercase">Escolha uma foto da biblioteca do seu dispositivo</p>
+                                          <button 
+                                             type="button"
+                                             onClick={() => document.getElementById('profile-upload')?.click()}
+                                             className="h-10 px-6 bg-[rgba(255,215,0,0.1)] border border-[rgba(255,215,0,0.2)] text-gold rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-gold hover:text-black transition-all text-left w-fit cursor-pointer"
+                                          >
+                                             Escolher Foto
+                                          </button>
+                                       </div>
+                                    </div>
+                                 </div>
+                              </div>
+                           </motion.div>
+                        )}
 
-                          {activeSettingsTab === 'finance' && (
-                             <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="space-y-10">
-                                <div>
-                                   <h3 className="text-2xl font-black italic uppercase text-white tracking-tighter">Fluxo de Caixa</h3>
-                                   <p className="text-[10px] text-zinc-500 font-bold uppercase mt-1 tracking-[0.3em]">Configurações de recebimento instantâneo</p>
-                                </div>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                                   <div className="flex flex-col gap-2">
-                                      <label className="text-[10px] font-black text-zinc-600 uppercase ml-3 tracking-widest">Nome do Favorecido</label>
-                                      <input value={settings.pixName} onChange={(e) => setSettings({...settings, pixName: e.target.value})} className="h-16 bg-black border border-zinc-800 rounded-2xl px-6 font-black text-white italic outline-none focus:border-gold transition-all" />
-                                   </div>
-                                   <div className="flex flex-col gap-2">
-                                      <label className="text-[10px] font-black text-zinc-600 uppercase ml-3 tracking-widest">Tipo de Chave</label>
-                                      <select value={settings.pixType} onChange={(e) => setSettings({...settings, pixType: e.target.value})} className="h-16 bg-black border border-zinc-800 rounded-2xl px-6 font-black text-white italic outline-none focus:border-gold transition-all appearance-none cursor-pointer">
-                                         <option value="CPF">CPF</option>
-                                         <option value="CNPJ">CNPJ</option>
-                                         <option value="E-mail">E-mail</option>
-                                         <option value="Telefone">Telefone</option>
-                                         <option value="Chave Aleatória">Chave Aleatória</option>
-                                      </select>
-                                   </div>
-                                   <div className="flex flex-col gap-2 md:col-span-2">
-                                      <label className="text-[10px] font-black text-zinc-600 uppercase ml-3 tracking-widest">Chave PIX Operacional</label>
-                                      <input value={settings.pixKey} onChange={(e) => setSettings({...settings, pixKey: e.target.value})} placeholder="Seu pix para recebimento" className="h-16 bg-black border border-zinc-800 rounded-2xl px-6 font-black text-white italic outline-none focus:border-gold transition-all" />
-                                   </div>
-                                </div>
-                             </motion.div>
-                          )}
+                        {activeSettingsTab === 'finance' && (
+                           <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="space-y-10">
+                              <div>
+                                 <h3 className="text-2xl font-black italic uppercase text-white tracking-tighter logo-title">Fluxo de Caixa</h3>
+                                 <p className="text-[10px] text-zinc-500 font-bold uppercase mt-1 tracking-[0.3em]">Configurações de recebimento instantâneo</p>
+                              </div>
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                 <div className="flex flex-col gap-2">
+                                    <label className="text-[10px] font-black text-zinc-600 uppercase ml-3 tracking-widest">Nome do Favorecido</label>
+                                    <input value={settings.pixName} onChange={(e) => setSettings({...settings, pixName: e.target.value})} className="h-16 bg-black border border-zinc-800 rounded-2xl px-6 font-black text-white italic outline-none focus:border-gold transition-all" />
+                                 </div>
+                                 <div className="flex flex-col gap-2">
+                                    <label className="text-[10px] font-black text-zinc-600 uppercase ml-3 tracking-widest">Tipo de Chave</label>
+                                    <select value={settings.pixType} onChange={(e) => setSettings({...settings, pixType: e.target.value})} className="h-16 bg-black border border-zinc-800 rounded-2xl px-6 font-black text-white italic outline-none focus:border-gold transition-all appearance-none cursor-pointer">
+                                       <option value="CPF">CPF</option>
+                                       <option value="CNPJ">CNPJ</option>
+                                       <option value="E-mail">E-mail</option>
+                                       <option value="Telefone">Telefone</option>
+                                       <option value="Chave Aleatória">Chave Aleatória</option>
+                                    </select>
+                                 </div>
+                                 <div className="flex flex-col gap-2 md:col-span-2">
+                                    <label className="text-[10px] font-black text-zinc-600 uppercase ml-3 tracking-widest">Chave PIX Operacional</label>
+                                    <input value={settings.pixKey} onChange={(e) => setSettings({...settings, pixKey: e.target.value})} placeholder="Seu pix para recebimento" className="h-16 bg-black border border-zinc-800 rounded-2xl px-6 font-black text-white italic outline-none focus:border-gold transition-all" />
+                                 </div>
+                              </div>
+                           </motion.div>
+                        )}
 
-                          {activeSettingsTab === 'system' && (
-                             <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="space-y-10">
-                                <div>
-                                   <h3 className="text-2xl font-black italic uppercase text-white tracking-tighter">Segurança e Dados</h3>
-                                   <p className="text-[10px] text-zinc-500 font-bold uppercase mt-1 tracking-[0.3em]">Manutenção e integridade do sistema</p>
-                                </div>
-                                <div className="space-y-6">
-                                   <div className="p-8 border border-[rgba(255,255,255,0.05)] rounded-3xl bg-[rgba(255,255,255,0.02)] flex items-center justify-between">
-                                      <div className="flex flex-col gap-1">
-                                         <span className="text-sm font-black text-white italic uppercase">Tema Nexus Dark</span>
-                                         <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest">Interface otimizada para performance</span>
-                                      </div>
-                                      <div className="w-14 h-7 bg-gold rounded-full flex items-center px-1">
-                                         <div className="w-5 h-5 bg-black rounded-full shadow-lg ml-auto" />
-                                      </div>
-                                   </div>
+                        {activeSettingsTab === 'system' && (
+                           <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="space-y-10">
+                              <div>
+                                 <h3 className="text-2xl font-black italic uppercase text-white tracking-tighter logo-title">Segurança e Dados</h3>
+                                 <p className="text-[10px] text-zinc-500 font-bold uppercase mt-1 tracking-[0.3em]">Manutenção e integridade do sistema</p>
+                              </div>
+                              <div className="space-y-6">
+                                 <div className="p-8 border border-[rgba(255,255,255,0.05)] rounded-3xl bg-[rgba(255,255,255,0.02)] flex items-center justify-between">
+                                    <div className="flex flex-col gap-1">
+                                       <span className="text-sm font-black text-white italic uppercase logo-title">Tema Nexus Dark</span>
+                                       <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest">Interface otimizada para performance</span>
+                                    </div>
+                                    <div className="w-14 h-7 bg-gold rounded-full flex items-center px-1">
+                                       <div className="w-5 h-5 bg-black rounded-full shadow-lg ml-auto" />
+                                    </div>
+                                 </div>
 
-                                   <div className="p-8 border border-[rgba(239,68,68,0.1)] rounded-3xl bg-red-500/[0.02] flex flex-col gap-6">
-                                      <div className="flex flex-col gap-1">
-                                         <span className="text-sm font-black text-red-500 italic uppercase">Zona de Perigo</span>
-                                         <span className="text-[10px] text-zinc-700 font-bold uppercase tracking-widest">Ações irreversíveis no banco de dados</span>
-                                      </div>
-                                      <button 
-                                         onClick={() => {
-                                            openConfirm('Reset Total', 'Deseja realmente apagar todos os registros de ativos e clientes?', () => {
-                                               localStorage.clear();
-                                               window.location.reload();
-                                            });
-                                         }}
-                                         className="h-14 w-full bg-[rgba(239,68,68,0.1)] hover:bg-[rgba(239,68,68,0.2)] text-red-500 border border-[rgba(239,68,68,0.2)] rounded-2xl font-black uppercase text-[10px] tracking-widest transition-all"
-                                      >
-                                         Deletar Todos os Dados Locais
-                                      </button>
-                                   </div>
-                                </div>
-                             </motion.div>
-                          )}
-                       </div>
+                                 <div className="p-8 border border-[rgba(239,68,68,0.1)] rounded-3xl bg-red-500/[0.02] flex flex-col gap-6">
+                                    <div className="flex flex-col gap-1">
+                                       <span className="text-sm font-black text-red-500 italic uppercase logo-title">Zona de Perigo</span>
+                                       <span className="text-[10px] text-zinc-700 font-bold uppercase tracking-widest">Ações irreversíveis no banco de dados</span>
+                                    </div>
+                                    <button 
+                                       onClick={() => {
+                                          openConfirm('Reset Total', 'Deseja realmente apagar todos os registros de ativos e clientes?', () => {
+                                             localStorage.clear();
+                                             window.location.reload();
+                                          });
+                                       }}
+                                       type="button"
+                                       className="h-14 w-full bg-[rgba(239,68,68,0.1)] hover:bg-[rgba(239,68,68,0.2)] text-red-500 border border-[rgba(239,68,68,0.2)] rounded-2xl font-black uppercase text-[10px] tracking-widest transition-all cursor-pointer"
+                                    >
+                                       Deletar Todos os Dados Locais
+                                    </button>
+                                 </div>
+                              </div>
+                           </motion.div>
+                        )}
+                      </div>
                     </div>
-                  </div>
+                  )}
 
                   <div className="flex justify-end pt-4">
-                     <button onClick={() => { setActiveView('dashboard'); showToast('Nexus sincronizado com sucesso.'); }} className="h-16 px-12 bg-white text-black rounded-2xl font-black uppercase text-xs shadow-2xl hover:bg-gold transition-all active:scale-95 flex items-center gap-3">
+                     <button onClick={() => { setActiveView('dashboard'); showToast('Nexus sincronizado com sucesso.'); }} className="h-16 px-12 bg-white text-black rounded-2xl font-black uppercase text-xs shadow-2xl hover:bg-gold transition-all active:scale-95 flex items-center gap-3 cursor-pointer">
                         <Zap size={18} />
                         Sincronizar Nexus
                      </button>
@@ -1405,7 +1956,7 @@ export default function App() {
                       </div>
                       <div className="space-y-2 text-xs leading-relaxed text-zinc-800 px-2">
                         <p><strong>VENDEDOR(A):</strong> {settings.companyName || settings.userName.toUpperCase()}, através deste terminal.</p>
-                        <p><strong>COMPRADOR(A):</strong> {selectedSaleForContract.client.toUpperCase()}, CPF {selectedSaleForContract.clientCpf || 'N/A'}, telefone {selectedSaleForContract.clientPhone || 'N/A'}, devidamente qualificado no registro desta transação.</p>
+                        <p><strong>COMPRADOR(A):</strong> {selectedSaleForContract.client.toUpperCase()}, CPF {selectedSaleForContract.clientCpf || 'N/A'}, telefone {selectedSaleForContract.clientPhone || 'N/A'}{selectedSaleForContract.clientAddress ? `, residente no endereço: ${selectedSaleForContract.clientAddress}` : ''}, devidamente qualificado no registro desta transação.</p>
                       </div>
                     </div>
 
@@ -1417,11 +1968,11 @@ export default function App() {
                       </div>
                       <div className="space-y-2 text-xs leading-relaxed text-zinc-800 px-2">
                         <p>O presente contrato tem por objeto a alienação de: <strong>{selectedSaleForContract.productName.toUpperCase()}</strong>.</p>
-                        <p>Valor total da transação: <strong>{money(selectedSaleForContract.total)}</strong>.</p>
+                        <p>Valor total da transação: <strong>{money(selectedSaleForContract.total)}</strong>.{selectedSaleForContract.isInterestOnly && " (Operação vinculada à modalidade de Venda por Juros - cobrança limitada à taxa de rendibilidade mensal sobre o principal)"}</p>
                         
                         <div className="mt-3 border-2 border-black rounded-xl p-4 text-center bg-zinc-50">
                            <strong className="text-base font-bold uppercase tracking-tight text-black">
-                            {selectedSaleForContract.installmentsCount} Parcelas de {money(selectedSaleForContract.installmentValue)} — Vencimento Todo Dia {selectedSaleForContract.date ? new Date(selectedSaleForContract.date).getUTCDate() : (installments.find(i => i.saleId === selectedSaleForContract.id)?.dueDate ? new Date(installments.find(i => i.saleId === selectedSaleForContract.id)!.dueDate).getUTCDate() : '—')}
+                            {selectedSaleForContract.isInterestOnly ? `${selectedSaleForContract.installmentsCount} Parcelas (Apenas Juros de ${money(selectedSaleForContract.installmentValue)}) [${selectedSaleForContract.interestRate}% a.m.]` : `${selectedSaleForContract.installmentsCount} Parcelas de ${money(selectedSaleForContract.installmentValue)}`} — Vencimento Todo Dia {selectedSaleForContract.date ? new Date(selectedSaleForContract.date).getUTCDate() : (installments.find(i => i.saleId === selectedSaleForContract.id)?.dueDate ? new Date(installments.find(i => i.saleId === selectedSaleForContract.id)!.dueDate).getUTCDate() : '—')}
                            </strong>
                         </div>
                       </div>

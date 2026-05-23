@@ -1,3 +1,4 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap');
 @import "tailwindcss";
 
 @theme {
@@ -45,12 +46,25 @@
   --color-red-500: #ef4444;
   --color-red-600: #dc2626;
 
-  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Inter", "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "Inter", ui-monospace, monospace;
 }
 
 @layer base {
   body {
-    @apply bg-bg-main text-white font-sans antialiased;
+    @apply bg-bg-main text-white font-sans antialiased selection:bg-gold/30 selection:text-white;
+  }
+
+  h1, h2, h3, h4, h5, h6, .logo-title {
+    font-family: var(--font-sans) !important;
+    letter-spacing: -0.02em !important;
+  }
+
+  /* Prevent automatic mobile safari/chrome browser zoom during typing */
+  @media screen and (max-width: 768px) {
+    input, select, textarea, button select, input[type="text"], input[type="number"] {
+      font-size: 16px !important;
+    }
   }
 }
 

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Product, Sale, Installment, Settings } from './types';
-import { db, handleFirestoreError, OperationType } from './lib/firebase';
+import { Product, Sale, Installment, Settings, Closing } from './types';
+import { db, handleFirestoreError, OperationType, cleanData } from './lib/firebase';
 import { 
   collection, 
   onSnapshot, 
@@ -15,6 +15,7 @@ export function useNexusState() {
   const [products, setProducts] = useState<Product[]>([]);
   const [sales, setSales] = useState<Sale[]>([]);
   const [installments, setInstallments] = useState<Installment[]>([]);
+  const [closings, setClosings] = useState<Closing[]>([]);
   const [settings, setSettings] = useState<Settings>({
     userName: 'Administrador',
     userRole: 'CEO / Diretor Comercial',
@@ -51,6 +52,12 @@ export function useNexusState() {
       if (err.code !== 'permission-denied') handleFirestoreError(err, OperationType.LIST, 'installments');
     });
 
+    const unsubClosings = onSnapshot(collection(db, 'closings'), (snapshot) => {
+      setClosings(snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Closing)));
+    }, (err) => {
+      if (err.code !== 'permission-denied') handleFirestoreError(err, OperationType.LIST, 'closings');
+    });
+
     const unsubSettings = onSnapshot(doc(db, 'settings', 'config'), (doc) => {
       if (doc.exists()) {
         setSettings(doc.data() as Settings);
@@ -63,13 +70,14 @@ export function useNexusState() {
       unsubProducts();
       unsubSales();
       unsubInstallments();
+      unsubClosings();
       unsubSettings();
     };
   }, []);
 
   const saveSettings = async (newSettings: Settings) => {
     try {
-      await setDoc(doc(db, 'settings', 'config'), newSettings);
+      await setDoc(doc(db, 'settings', 'config'), cleanData(newSettings));
       setSettings(newSettings);
     } catch (err) {
       handleFirestoreError(err, OperationType.UPDATE, 'settings/config');
@@ -84,7 +92,7 @@ export function useNexusState() {
       createdAt: new Date().toISOString()
     };
     try {
-      await setDoc(doc(db, 'products', id), newProduct);
+      await setDoc(doc(db, 'products', id), cleanData(newProduct));
     } catch (err) {
       handleFirestoreError(err, OperationType.CREATE, `products/${id}`);
     }
@@ -100,7 +108,7 @@ export function useNexusState() {
 
   const updateProduct = async (id: string, updates: Partial<Product>) => {
     try {
-      await updateDoc(doc(db, 'products', id), updates);
+      await updateDoc(doc(db, 'products', id), cleanData(updates));
     } catch (err) {
       handleFirestoreError(err, OperationType.UPDATE, `products/${id}`);
     }
@@ -111,11 +119,14 @@ export function useNexusState() {
     client: string;
     clientPhone: string;
     clientCpf: string;
+    clientAddress?: string;
     installments: number;
     firstDueDate: string;
     percentageAdjustment: number;
     manualSalePrice: number;
     downPayment: number;
+    isInterestOnly?: boolean;
+    interestRate?: number;
   }) => {
     const product = products.find(p => p.id === data.productId);
     if (!product) return;
@@ -123,8 +134,15 @@ export function useNexusState() {
     const salePrice = data.manualSalePrice || product.sale;
     const adjustAmount = (salePrice * data.percentageAdjustment) / 100;
     const finalTotal = salePrice + adjustAmount;
-    const remainingToFinance = finalTotal - data.downPayment;
-    const installmentValue = remainingToFinance / data.installments;
+    
+    let installmentValue = 0;
+    if (data.isInterestOnly) {
+      installmentValue = finalTotal * ((data.interestRate || 0) / 100);
+    } else {
+      const remainingToFinance = finalTotal - data.downPayment;
+      installmentValue = remainingToFinance / data.installments;
+    }
+    
     const profit = finalTotal - product.cost;
 
     const saleId = crypto.randomUUID();
@@ -135,6 +153,7 @@ export function useNexusState() {
       client: data.client,
       clientPhone: data.clientPhone,
       clientCpf: data.clientCpf,
+      clientAddress: data.clientAddress || '',
       total: finalTotal,
       downPayment: data.downPayment,
       profit: profit,
@@ -142,11 +161,13 @@ export function useNexusState() {
       installmentValue: installmentValue,
       date: data.firstDueDate,
       status: 'Ativa',
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
+      isInterestOnly: data.isInterestOnly || false,
+      interestRate: data.interestRate || 0
     };
 
     const batch = writeBatch(db);
-    batch.set(doc(db, 'sales', saleId), newSale);
+    batch.set(doc(db, 'sales', saleId), cleanData(newSale));
     batch.update(doc(db, 'products', product.id), { status: 'Vendido' });
 
     const [y, m, d] = data.firstDueDate.split('-').map(Number);
@@ -155,7 +176,7 @@ export function useNexusState() {
       if (dueDate.getDate() !== d) dueDate.setDate(0);
       
       const instId = crypto.randomUUID();
-      batch.set(doc(db, 'installments', instId), {
+      batch.set(doc(db, 'installments', instId), cleanData({
         id: instId,
         saleId: saleId,
         client: data.client,
@@ -165,7 +186,7 @@ export function useNexusState() {
         value: installmentValue,
         dueDate: dueDate.toISOString(),
         status: 'Pendente'
-      });
+      }));
     }
 
     try {
@@ -220,11 +241,49 @@ export function useNexusState() {
 
   const payInstallment = async (id: string, paymentMethod: string) => {
     try {
-      await updateDoc(doc(db, 'installments', id), {
+      const inst = installments.find(i => i.id === id);
+      if (!inst) return;
+      const correspondingSale = sales.find(s => s.id === inst.saleId);
+
+      const batch = writeBatch(db);
+
+      batch.update(doc(db, 'installments', id), cleanData({
         status: 'Pago',
         paidAt: new Date().toISOString(),
         paymentMethod
-      });
+      }));
+
+      if (correspondingSale?.isInterestOnly) {
+        // Automatically renew for 30 days
+        const baseDate = inst.dueDate ? new Date(inst.dueDate) : new Date();
+        const nextDueDate = new Date(baseDate.getFullYear(), baseDate.getMonth() + 1, baseDate.getDate(), 12);
+        
+        if (nextDueDate.getDate() !== baseDate.getDate()) {
+          nextDueDate.setDate(0);
+        }
+
+        const instId = crypto.randomUUID();
+        const nextNumber = inst.number + 1;
+        const newTotal = Math.max(correspondingSale.installmentsCount, nextNumber);
+
+        batch.update(doc(db, 'sales', correspondingSale.id), {
+          installmentsCount: newTotal
+        });
+
+        batch.set(doc(db, 'installments', instId), cleanData({
+          id: instId,
+          saleId: correspondingSale.id,
+          client: inst.client,
+          productName: inst.productName,
+          number: nextNumber,
+          total: newTotal,
+          value: inst.value,
+          dueDate: nextDueDate.toISOString(),
+          status: 'Pendente'
+        }));
+      }
+
+      await batch.commit();
     } catch (err) {
       handleFirestoreError(err, OperationType.UPDATE, `installments/${id}`);
     }
@@ -234,11 +293,14 @@ export function useNexusState() {
     client: string;
     clientPhone: string;
     clientCpf: string;
+    clientAddress?: string;
     installments: number;
     firstDueDate: string;
     percentageAdjustment: number;
     manualSalePrice: number;
     downPayment: number;
+    isInterestOnly?: boolean;
+    interestRate?: number;
   }) => {
     const sale = sales.find(s => s.id === id);
     if (!sale) return;
@@ -249,8 +311,14 @@ export function useNexusState() {
     const salePrice = data.manualSalePrice || product.sale;
     const adjustAmount = (salePrice * data.percentageAdjustment) / 100;
     const finalTotal = salePrice + adjustAmount;
-    const remainingToFinance = finalTotal - data.downPayment;
-    const installmentValue = remainingToFinance / data.installments;
+    
+    let installmentValue = 0;
+    if (data.isInterestOnly) {
+      installmentValue = finalTotal * ((data.interestRate || 0) / 100);
+    } else {
+      const remainingToFinance = finalTotal - data.downPayment;
+      installmentValue = remainingToFinance / data.installments;
+    }
     const profit = finalTotal - product.cost;
 
     const batch = writeBatch(db);
@@ -259,19 +327,24 @@ export function useNexusState() {
       client: data.client,
       clientPhone: data.clientPhone,
       clientCpf: data.clientCpf,
+      clientAddress: data.clientAddress || '',
       total: finalTotal,
       downPayment: data.downPayment,
       profit: profit,
       installmentsCount: data.installments,
       installmentValue: installmentValue,
       date: data.firstDueDate,
+      isInterestOnly: data.isInterestOnly || false,
+      interestRate: data.interestRate || 0
     };
 
-    batch.update(doc(db, 'sales', id), updatedSale);
+    batch.update(doc(db, 'sales', id), cleanData(updatedSale));
 
     const needsRegen = sale.installmentsCount !== data.installments || 
                        sale.total !== finalTotal || 
-                       sale.date !== data.firstDueDate;
+                       sale.date !== data.firstDueDate ||
+                       sale.isInterestOnly !== data.isInterestOnly ||
+                       sale.interestRate !== data.interestRate;
 
     if (needsRegen) {
       // Delete old
@@ -285,7 +358,7 @@ export function useNexusState() {
         if (dueDate.getDate() !== d) dueDate.setDate(0);
         
         const instId = crypto.randomUUID();
-        batch.set(doc(db, 'installments', instId), {
+        batch.set(doc(db, 'installments', instId), cleanData({
           id: instId,
           saleId: id,
           client: data.client,
@@ -295,11 +368,11 @@ export function useNexusState() {
           value: installmentValue,
           dueDate: dueDate.toISOString(),
           status: 'Pendente'
-        });
+        }));
       }
     } else {
       installments.filter(i => i.saleId === id).forEach(i => {
-        batch.update(doc(db, 'installments', i.id), { client: data.client });
+        batch.update(doc(db, 'installments', i.id), cleanData({ client: data.client }));
       });
     }
 
@@ -310,10 +383,28 @@ export function useNexusState() {
     }
   };
 
+  const closeMonthlyRegister = async (periodName: string, profit: number, totalSales: number, salesCount: number) => {
+    const id = crypto.randomUUID();
+    const newClosing: Closing = {
+      id,
+      closedAt: new Date().toISOString(),
+      periodName,
+      profit,
+      totalSales,
+      salesCount
+    };
+    try {
+      await setDoc(doc(db, 'closings', id), cleanData(newClosing));
+    } catch (err) {
+      handleFirestoreError(err, OperationType.CREATE, `closings/${id}`);
+    }
+  };
+
   return {
     products,
     sales,
     installments,
+    closings,
     settings,
     setSettings: saveSettings,
     addProduct,
@@ -324,6 +415,7 @@ export function useNexusState() {
     updateProduct,
     setInstallments,
     deleteSale,
-    deleteClient
+    deleteClient,
+    closeMonthlyRegister
   };
 }
