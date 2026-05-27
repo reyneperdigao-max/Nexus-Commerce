@@ -88,6 +88,7 @@ export function useNexusState() {
     const id = crypto.randomUUID();
     const newProduct: Product = {
       ...p,
+      quantity: p.quantity !== undefined ? p.quantity : 1,
       id,
       createdAt: new Date().toISOString()
     };
@@ -166,9 +167,21 @@ export function useNexusState() {
       interestRate: data.interestRate || 0
     };
 
+    const currentQty = product.quantity !== undefined ? product.quantity : 1;
     const batch = writeBatch(db);
     batch.set(doc(db, 'sales', saleId), cleanData(newSale));
-    batch.update(doc(db, 'products', product.id), { status: 'Vendido' });
+    
+    if (currentQty > 1) {
+      batch.update(doc(db, 'products', product.id), { 
+        quantity: currentQty - 1,
+        status: 'Disponivel'
+      });
+    } else {
+      batch.update(doc(db, 'products', product.id), { 
+        quantity: 0,
+        status: 'Vendido'
+      });
+    }
 
     const [y, m, d] = data.firstDueDate.split('-').map(Number);
     for (let i = 1; i <= data.installments; i++) {
@@ -201,7 +214,12 @@ export function useNexusState() {
     const batch = writeBatch(db);
     
     if (sale) {
-      batch.update(doc(db, 'products', sale.productId), { status: 'Disponivel' });
+      const p = products.find(prod => prod.id === sale.productId);
+      const currentQty = p && p.quantity !== undefined ? p.quantity : 0;
+      batch.update(doc(db, 'products', sale.productId), { 
+        quantity: currentQty + 1,
+        status: 'Disponivel' 
+      });
     }
     
     batch.delete(doc(db, 'sales', id));
@@ -223,7 +241,12 @@ export function useNexusState() {
     const batch = writeBatch(db);
     
     clientSales.forEach(s => {
-      batch.update(doc(db, 'products', s.productId), { status: 'Disponivel' });
+      const p = products.find(prod => prod.id === s.productId);
+      const currentQty = p && p.quantity !== undefined ? p.quantity : 0;
+      batch.update(doc(db, 'products', s.productId), { 
+        quantity: currentQty + 1,
+        status: 'Disponivel' 
+      });
       batch.delete(doc(db, 'sales', s.id));
     });
 

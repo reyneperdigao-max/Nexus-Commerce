@@ -3,7 +3,7 @@ import { useNexusState } from './useNexusState';
 import { Sidebar } from './components/Sidebar';
 import { Logo, Topbar, DashboardStats } from './components/CommonUI';
 import { AnimatePresence, motion } from 'motion/react';
-import { Boxes, Plus, X, Search, ImagePlus, User, Wallet, ShoppingBag, ArrowLeft, ArrowRight, BadgeDollarSign, Activity, Zap, History, ChevronDown, Pencil, FileText, Download, DollarSign, Share2, Calculator, Package, MessageCircle, ShieldCheck, Lock, Mail, Image as ImageIcon, AlertCircle, Calendar } from 'lucide-react';
+import { Boxes, Plus, X, Search, ImagePlus, User, Wallet, ShoppingBag, ArrowLeft, ArrowRight, BadgeDollarSign, Activity, Zap, History, ChevronDown, Pencil, FileText, Download, DollarSign, Share2, Calculator, Package, MessageCircle, ShieldCheck, Lock, Mail, Image as ImageIcon, AlertCircle, Calendar, Camera, Trash2, Minus } from 'lucide-react';
 import html2pdf from 'html2pdf.js';
 import { auth } from './lib/firebase';
 import { signInAnonymously, onAuthStateChanged } from 'firebase/auth';
@@ -260,7 +260,7 @@ export default function App() {
     const date = new Date().toLocaleDateString('pt-BR');
     const i = simRate / 100;
     const pmt = i === 0 ? simValue / simInstallments : (simValue * i * Math.pow(1 + i, simInstallments)) / (Math.pow(1 + i, simInstallments) - 1);
-    const productText = simProductName ? `💎 *Ativo:* ${simProductName}\n` : '';
+    const productText = simProductName ? `💎 *Produto:* ${simProductName}\n` : '';
     const text = `*SIMULAÇÃO - ${date}*\n\n${productText}📦 *Parcelas:* ${simInstallments}x\n💰 *Valor:* ${money(pmt)}\n📊 *Total:* ${money(pmt * simInstallments)}`;
     window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
   };
@@ -307,7 +307,7 @@ export default function App() {
                  `Olá, *${tx.client}*!\n\n` +
                  `Confirmamos com sucesso o recebimento do seguinte pagamento:\n\n` +
                  `• *Operação:* ${typeLabel}\n` +
-                 `• *Ativo/Produto:* ${tx.productName}\n` +
+                 `• *Produto:* ${tx.productName}\n` +
                  `• *Valor Pago:* ${valueStr}\n` +
                  `• *Data/Hora:* ${dateStr}\n` +
                  `• *Meio de Pagamento:* ${tx.paymentMethod}\n\n` +
@@ -390,7 +390,7 @@ export default function App() {
              <motion.div initial={{ opacity: 0, x: -30 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 1 }}>
                 <h1 className="text-7xl font-black text-white leading-tight tracking-tighter">
                    A Nova Era do<br />
-                   <span className="bg-gradient-to-r from-blue-400 via-blue-500 to-indigo-600 bg-clip-text text-transparent">Comércio de Ativos</span>
+                   <span className="bg-gradient-to-r from-blue-400 via-blue-500 to-indigo-600 bg-clip-text text-transparent">Comércio de Produtos</span>
                 </h1>
                 
                 <div className="mt-16 grid grid-cols-2 gap-12">
@@ -491,7 +491,7 @@ export default function App() {
           onOpenMobileMenu={() => setIsMobileOpen(true)} 
           onToggleDesktopSidebar={() => setDesktopSidebarOpen(!desktopSidebarOpen)}
           desktopSidebarOpen={desktopSidebarOpen}
-          viewTitle={activeView === 'reports' ? 'Relatório Mensal' : activeView === 'dashboard' ? 'Sinergia Comercial' : activeView === 'stock' ? 'Controle de Ativos' : activeView === 'sales' ? 'Gestão de Recebíveis' : activeView === 'transactions' ? 'Histórico de Transações' : activeView === 'clients' ? 'Relacionamento' : activeView === 'settings' ? 'Configurações de Sistema' : 'Simulador de Preços'} 
+          viewTitle={activeView === 'reports' ? 'Relatório Mensal' : activeView === 'dashboard' ? 'Sinergia Comercial' : activeView === 'stock' ? 'Estoque de Produtos' : activeView === 'sales' ? 'Gestão de Recebíveis' : activeView === 'transactions' ? 'Histórico de Transações' : activeView === 'clients' ? 'Relacionamento' : activeView === 'settings' ? 'Configurações de Sistema' : 'Simulador de Preços'} 
         />
         <div className="p-4 sm:p-8 overflow-x-hidden custom-scrollbar">
           <AnimatePresence mode="wait">
@@ -551,7 +551,7 @@ export default function App() {
                         onClick={() => setActiveView('stock')}
                         className="cursor-pointer group/header hover:opacity-80 transition-opacity"
                       >
-                        <h3 className="text-base sm:text-lg font-black italic uppercase text-white tracking-widest">Ativos em Destaque</h3>
+                        <h3 className="text-base sm:text-lg font-black italic uppercase text-white tracking-widest">Produtos em Destaque</h3>
                         <p className="text-[9px] sm:text-[10px] text-gray-500 font-bold uppercase mt-1">Produtos com maior tração</p>
                       </div>
                       <div className="grid grid-cols-2 gap-3 sm:gap-4">
@@ -681,7 +681,7 @@ export default function App() {
                             <table className="w-full text-left min-w-[500px]">
                               <thead>
                                 <tr className="border-b border-line text-[9px] sm:text-[11px] uppercase text-gray-500 font-black">
-                                  <th className="p-4 sm:p-5">Ativo</th>
+                                  <th className="p-4 sm:p-5">Produto</th>
                                   <th className="p-4 sm:p-5">Valor</th>
                                   <th className="p-4 sm:p-5">Lucro</th>
                                   <th className="p-4 sm:p-5">Progresso</th>
@@ -760,7 +760,7 @@ export default function App() {
                 <div className="flex flex-col gap-8 animate-view-enter">
                   <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-1">
                     <div>
-                      <h2 className="text-xl sm:text-3xl font-black tracking-tight text-white italic uppercase">Estoque de Ativos</h2>
+                      <h2 className="text-xl sm:text-3xl font-black tracking-tight text-white italic uppercase">Estoque de Produtos</h2>
                     </div>
                     <div className="flex flex-col sm:flex-row items-center gap-2 w-full sm:w-auto">
                       <div className="relative group w-full sm:w-64">
@@ -773,95 +773,247 @@ export default function App() {
                           className="w-full h-11 bg-[rgba(0,0,0,0.4)] border border-line-strong rounded-xl sm:rounded-[14px] pl-11 pr-4 outline-none focus:border-gold transition-all font-bold text-[11px] sm:text-xs"
                         />
                       </div>
-                      <button onClick={() => setShowAddProduct(true)} className="h-11 px-6 bg-gold text-black rounded-xl sm:rounded-[14px] font-black uppercase text-[10px] sm:text-xs flex items-center gap-2 hover:brightness-110 active:scale-95 transition-all shrink-0 w-full sm:w-auto justify-center">
+                      <button 
+                        onClick={() => { setShowAddProduct(true); setProductToEdit(null); setPreviewPhoto(null); }} 
+                        className="h-11 px-6 bg-gold text-black rounded-xl sm:rounded-[14px] font-black uppercase text-[10px] sm:text-xs flex items-center gap-2 hover:brightness-110 active:scale-95 transition-all shrink-0 w-full sm:w-auto justify-center cursor-pointer"
+                      >
                         <Plus size={18} />
-                        Novo Ativo
+                        Novo Produto
                       </button>
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
-                    {filteredProducts.map(p => (
-                      <div key={p.id} className="glass-card group overflow-hidden flex flex-col border border-line-strong hover:border-[rgba(255,215,0,0.3)] transition-all duration-300">
-                        <div className="aspect-[16/10] bg-[#050505] relative overflow-hidden flex items-center justify-center border-b border-[rgba(18,18,18,0.3)]">
-                           {p.photo ? (
-                             <img src={p.photo} alt={p.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" />
-                           ) : (
-                             <div className="w-full h-full flex items-center justify-center text-[rgba(255,215,0,0.1)] bg-gradient-to-br from-[rgba(255,215,0,0.05)] to-transparent">
-                               <Package size={48} />
-                             </div>
-                           )}
-                           <div className="absolute top-4 left-4 z-10">
-                             <span className={`px-3 py-1 rounded-[10px] text-[9px] font-black uppercase tracking-widest border shadow-lg ${p.status === 'Disponivel' ? 'bg-green-soft text-green-neon border-[rgba(57,255,20,0.2)]' : 'bg-gold-soft text-gold border-[rgba(255,215,0,0.2)]'}`}>
-                               {p.status === 'Disponivel' ? 'Em Estoque' : 'Vendido'}
-                             </span>
-                           </div>
-                           
-                           {/* Overlay de ações rapidas no hover */}
-                           <div className="absolute inset-0 bg-[rgba(0,0,0,0.6)] flex items-center justify-center gap-3 transition-all duration-300 opacity-0 group-hover:opacity-100 z-20">
-                              <button 
-                                onClick={() => {
-                                  setProductToEdit(p);
-                                  setShowAddProduct(true);
-                                  setPreviewPhoto(p.photo || null);
-                                }}
-                                className="w-10 h-10 rounded-xl bg-white text-black hover:bg-gold transition-colors flex items-center justify-center shadow-2xl active:scale-90"
-                                title="Editar"
-                              >
-                                <Pencil size={18} />
-                              </button>
-                              <button 
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  openConfirm(
-                                    'Excluir Ativo',
-                                    'Deseja realmente remover este item do inventário?',
-                                    () => {
-                                      deleteProduct(p.id);
-                                      showToast('Item removido do estoque.');
-                                    }
-                                  );
-                                }}
-                                className="w-10 h-10 rounded-xl bg-red-600 text-white hover:bg-red-500 transition-colors flex items-center justify-center shadow-2xl active:scale-90"
-                                title="Excluir"
-                              >
-                                <X size={18} />
-                              </button>
-                           </div>
-                        </div>
+                  {/* PRO TABULAR / ROW LEDGER STOCK */}
+                  <div className="glass-card border border-line-strong overflow-hidden bg-black/40 backdrop-blur-md">
+                    <div className="overflow-x-auto custom-scrollbar">
+                      <table className="w-full border-collapse text-left min-w-[900px]">
+                        <thead>
+                          <tr className="border-b border-line-strong bg-black/80 text-[10px] font-black uppercase text-gray-400 tracking-[0.2em] h-14">
+                            <th className="p-4 pl-6">Produto / Modelo (Edição em Linha)</th>
+                            <th className="p-4 text-center w-40">Categoria</th>
+                            <th className="p-4 text-center w-36">Custo Real (R$)</th>
+                            <th className="p-4 text-center w-36">Valor Saída (R$)</th>
+                            <th className="p-4 text-center w-48">Estoque (Qtd)</th>
+                            <th className="p-4 text-center w-36">Estado</th>
+                            <th className="p-4 pr-6 text-right w-32">Ações</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-[rgba(255,255,255,0.05)] text-gray-300">
+                          {filteredProducts.length === 0 ? (
+                            <tr>
+                              <td colSpan={7} className="p-16 text-center">
+                                <div className="flex flex-col items-center gap-3">
+                                  <Package size={48} className="text-gray-600 animate-pulse" />
+                                  <h4 className="text-sm font-black uppercase tracking-widest text-white italic">Nenhum Produto Localizado</h4>
+                                  <p className="text-[11px] text-gray-500 font-bold uppercase mt-1">Refine seus termos de busca ou cadastre um novo produto.</p>
+                                </div>
+                              </td>
+                            </tr>
+                          ) : (
+                            filteredProducts.map(p => {
+                              const qty = p.quantity !== undefined ? p.quantity : 1;
+                              const isVendido = qty <= 0 || p.status === 'Vendido';
 
-                        <div className="p-5 flex flex-col flex-1">
-                          <div className="flex-1">
-                            <span className="text-[10px] font-black text-[rgba(255,215,0,0.6)] uppercase tracking-[0.2em]">{p.category}</span>
-                            <h3 className="text-lg font-black text-white italic tracking-tight truncate mt-1 uppercase">{p.name}</h3>
-                          </div>
+                              const handleIncrement = () => {
+                                const newQty = qty + 1;
+                                const newStatus = newQty > 0 ? 'Disponivel' : 'Vendido';
+                                updateProduct(p.id, { quantity: newQty, status: newStatus as any });
+                                showToast(`Estoque de "${p.name}" atualizado para ${newQty}.`);
+                              };
 
-                          <div className="mt-6 space-y-3">
-                            <div className="flex items-center justify-between">
-                               <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Custo Real</span>
-                               <span className="text-sm font-black text-gray-400">{money(p.cost)}</span>
-                            </div>
-                            <div className="flex items-center justify-between pt-2 border-t border-[rgba(18,18,18,0.3)]">
-                               <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Valor Saída</span>
-                               <span className="text-xl font-black text-gold italic">{money(p.sale)}</span>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
+                              const handleDecrement = () => {
+                                if (qty <= 0) return;
+                                const newQty = qty - 1;
+                                const newStatus = newQty > 0 ? 'Disponivel' : 'Vendido';
+                                updateProduct(p.id, { quantity: newQty, status: newStatus as any });
+                                showToast(`Estoque de "${p.name}" atualizado para ${newQty}.`);
+                              };
 
-                    <button 
-                      onClick={() => { setShowAddProduct(true); setProductToEdit(null); setPreviewPhoto(null); }}
-                      className="border border-dashed border-line-strong rounded-[32px] p-8 flex flex-col items-center justify-center gap-4 text-center group hover:border-[rgba(255,215,0,0.4)] hover:bg-[rgba(255,215,0,0.05)] transition-all duration-300 min-h-[350px]"
-                    >
-                      <div className="w-16 h-16 rounded-2xl bg-gold-soft text-gold grid place-items-center group-hover:scale-110 transition-transform shadow-lg border border-[rgba(255,215,0,0.1)]">
-                        <Plus size={32} />
-                      </div>
-                      <div>
-                        <h4 className="text-sm font-black uppercase tracking-widest text-white italic">Novo Ativo</h4>
-                        <p className="text-[11px] text-gray-500 font-bold uppercase mt-1 tracking-wider leading-relaxed">Clique para adicionar<br/>ao inventário comercial</p>
-                      </div>
-                    </button>
+                              const handleQtyChange = (valStr: string) => {
+                                const newQty = Math.max(0, parseInt(valStr) || 0);
+                                const newStatus = newQty > 0 ? 'Disponivel' : 'Vendido';
+                                updateProduct(p.id, { quantity: newQty, status: newStatus as any });
+                              };
+
+                              return (
+                                <tr key={p.id} className="hover:bg-white/[0.02] transition-colors group/row h-16">
+                                  {/* PRODUTO INFO & NAME INLINE */}
+                                  <td className="p-4 pl-6">
+                                    <div className="flex items-center gap-3">
+                                      <div className="relative group/avatar w-11 h-11 rounded-xl border border-line-strong bg-[#050505] overflow-hidden flex items-center justify-center shrink-0">
+                                        {p.photo ? (
+                                          <img src={p.photo} alt={p.name} className="w-full h-full object-cover group-hover/avatar:scale-110 transition-transform duration-300" />
+                                        ) : (
+                                          <Package size={20} className="text-gray-600 group-hover/avatar:text-gold transition-colors" />
+                                        )}
+                                        <button 
+                                          onClick={() => {
+                                            setProductToEdit(p);
+                                            setShowAddProduct(true);
+                                            setPreviewPhoto(p.photo || null);
+                                          }}
+                                          className="absolute inset-0 bg-black/75 opacity-0 group-hover/avatar:opacity-100 flex items-center justify-center text-white transition-opacity duration-200 cursor-pointer"
+                                          title="Alterar Imagem"
+                                        >
+                                          <Camera size={14} className="text-gold" />
+                                        </button>
+                                      </div>
+                                      <div className="flex-1 max-w-[280px]">
+                                        <input 
+                                          type="text" 
+                                          defaultValue={p.name} 
+                                          onBlur={(e) => {
+                                            const newName = e.target.value.trim();
+                                            if (newName && newName !== p.name) {
+                                              updateProduct(p.id, { name: newName });
+                                              showToast(`Nome atualizado para "${newName}"`);
+                                            }
+                                          }}
+                                          className="bg-transparent border border-transparent hover:border-[rgba(255,215,0,0.2)] focus:border-gold focus:bg-black/60 text-sm font-bold text-white uppercase italic tracking-tight py-1.5 px-3 rounded-lg w-full transition-all outline-none"
+                                          placeholder="Nome do Produto"
+                                        />
+                                      </div>
+                                    </div>
+                                  </td>
+
+                                  {/* CATEGORY SELECTOR */}
+                                  <td className="p-4 text-center">
+                                    <select 
+                                      value={p.category} 
+                                      onChange={(e) => {
+                                        updateProduct(p.id, { category: e.target.value });
+                                        showToast(`Categoria de "${p.name}" alterada para ${e.target.value}`);
+                                      }}
+                                      className="h-9 w-full max-w-[130px] bg-zinc-900 border border-line-strong rounded-lg px-2 text-xs font-bold text-gray-300 focus:border-gold outline-none cursor-pointer"
+                                    >
+                                      <option value="Celular">Celular</option>
+                                      <option value="Eletrônico">Eletrônico</option>
+                                      <option value="Hardware">Hardware</option>
+                                      <option value="Acessório">Acessório</option>
+                                    </select>
+                                  </td>
+
+                                  {/* REAL COST INLINE */}
+                                  <td className="p-4 text-center">
+                                    <div className="flex items-center gap-1 bg-zinc-950 border border-line-strong rounded-lg px-2.5 h-9 w-28 mx-auto focus-within:border-gold/50 transition-colors">
+                                      <span className="text-[10px] text-gray-500 font-bold">R$</span>
+                                      <input 
+                                        type="number" 
+                                        step="0.01" 
+                                        defaultValue={p.cost} 
+                                        onBlur={(e) => {
+                                          const val = parseFloat(e.target.value) || 0;
+                                          if (val !== p.cost) {
+                                            updateProduct(p.id, { cost: val });
+                                            showToast(`Custo de "${p.name}" atualizado.`);
+                                          }
+                                        }}
+                                        className="bg-transparent text-xs font-bold text-gray-300 outline-none w-full min-w-0"
+                                      />
+                                    </div>
+                                  </td>
+
+                                  {/* SALE PRICE INLINE */}
+                                  <td className="p-4 text-center">
+                                    <div className="flex items-center gap-1 bg-zinc-950 border border-[rgba(255,215,0,0.15)] rounded-lg px-2.5 h-9 w-28 mx-auto focus-within:border-gold transition-colors">
+                                      <span className="text-[10px] text-gold font-bold">R$</span>
+                                      <input 
+                                        type="number" 
+                                        step="0.01" 
+                                        defaultValue={p.sale} 
+                                        onBlur={(e) => {
+                                          const val = parseFloat(e.target.value) || 0;
+                                          if (val !== p.sale) {
+                                            updateProduct(p.id, { sale: val });
+                                            showToast(`Preço de "${p.name}" atualizado.`);
+                                          }
+                                        }}
+                                        className="bg-transparent text-xs font-black text-gold outline-none w-full min-w-0"
+                                      />
+                                    </div>
+                                  </td>
+
+                                  {/* STOCK QUANTITY MULTI COUNTER */}
+                                  <td className="p-4">
+                                    <div className="flex items-center justify-center gap-1.5 w-36 mx-auto">
+                                      <button 
+                                        onClick={handleDecrement}
+                                        disabled={qty <= 0}
+                                        className="w-8 h-8 rounded-lg bg-[rgba(255,255,255,0.05)] border border-line-strong hover:bg-[rgba(239,68,68,0.1)] hover:border-red-500/30 text-gray-400 hover:text-red-400 disabled:opacity-30 disabled:pointer-events-none transition-all cursor-pointer flex items-center justify-center shrink-0"
+                                        title="Diminuir Estoque"
+                                      >
+                                        <Minus size={12} />
+                                      </button>
+                                      <input 
+                                        type="number"
+                                        value={qty}
+                                        onChange={(e) => handleQtyChange(e.target.value)}
+                                        onBlur={() => showToast(`Estoque de "${p.name}" atualizado.`)}
+                                        className="w-12 h-8 bg-black/60 border border-line-strong rounded-lg text-center font-black text-xs text-white focus:border-gold focus:outline-none [-moz-appearance:_textfield] [&::-webkit-outer-spin-button]:m-0 [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:m-0 [&::-webkit-inner-spin-button]:appearance-none"
+                                      />
+                                      <button 
+                                        onClick={handleIncrement}
+                                        className="w-8 h-8 rounded-lg bg-[rgba(255,255,255,0.05)] border border-line-strong hover:bg-[rgba(57,255,20,0.1)] hover:border-green-neon/30 text-gray-400 hover:text-green-neon transition-all cursor-pointer flex items-center justify-center shrink-0"
+                                        title="Aumentar Estoque"
+                                      >
+                                        <Plus size={12} />
+                                      </button>
+                                    </div>
+                                  </td>
+
+                                  {/* STATE DYNAMIC BADGE */}
+                                  <td className="p-4 text-center">
+                                    {isVendido ? (
+                                      <span className="px-2.5 py-1 rounded-[8px] text-[8px] sm:text-[9px] font-black uppercase tracking-wider bg-red-500/10 text-red-400 border border-red-500/20 shadow-sm">
+                                        Vendido
+                                      </span>
+                                    ) : (
+                                      <span className="px-2.5 py-1 rounded-[8px] text-[8px] sm:text-[9px] font-black uppercase tracking-wider bg-green-soft text-green-neon border border-[rgba(57,255,20,0.2)] shadow-sm">
+                                        Disponível
+                                      </span>
+                                    )}
+                                  </td>
+
+                                  {/* QUICK ACTIONS ROW */}
+                                  <td className="p-4 pr-6 text-right">
+                                    <div className="flex items-center justify-end gap-2">
+                                      <button 
+                                        onClick={() => {
+                                          setProductToEdit(p);
+                                          setShowAddProduct(true);
+                                          setPreviewPhoto(p.photo || null);
+                                        }}
+                                        className="w-8 h-8 rounded-lg border border-line-strong text-gray-400 hover:text-gold hover:border-gold/30 flex items-center justify-center transition-all cursor-pointer active:scale-90 bg-black"
+                                        title="Editar Detalhes"
+                                      >
+                                        <Pencil size={13} />
+                                      </button>
+                                      <button 
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          openConfirm(
+                                            'Excluir Produto',
+                                            `Deseja realmente remover o modelo "${p.name}" do inventário comercial?`,
+                                            () => {
+                                              deleteProduct(p.id);
+                                              showToast('Produto removido do inventário.');
+                                            }
+                                          );
+                                        }}
+                                        className="w-8 h-8 rounded-lg border border-line-strong text-gray-500 hover:text-red-500 hover:border-red-500/30 flex items-center justify-center transition-all cursor-pointer active:scale-90 bg-black"
+                                        title="Remover"
+                                      >
+                                        <Trash2 size={13} />
+                                      </button>
+                                    </div>
+                                  </td>
+                                </tr>
+                              );
+                            })
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
                 </div>
               )}
@@ -1373,7 +1525,7 @@ export default function App() {
                         type="text"
                         value={txSearch}
                         onChange={(e) => setTxSearch(e.target.value)}
-                        placeholder="Buscar por cliente, ativo de referência, método ou ID da transação..."
+                        placeholder="Buscar por cliente, produto de referência, método ou ID da transação..."
                         className="w-full h-12 bg-[rgba(0,0,0,0.3)] border border-line-strong rounded-xl pl-12 pr-6 outline-none focus:border-gold transition-all text-sm placeholder:text-gray-600 text-white font-sans"
                       />
                     </div>
@@ -1394,7 +1546,7 @@ export default function App() {
                             <tr className="border-b border-line-strong text-left">
                               <th className="p-4 text-[9px] font-black text-gray-500 uppercase tracking-widest font-sans">Cliente / ID</th>
                               <th className="p-4 text-[9px] font-black text-gray-500 uppercase tracking-widest font-sans">Tipo / Operação</th>
-                              <th className="p-4 text-[9px] font-black text-gray-500 uppercase tracking-widest font-sans">Ativo / Produto</th>
+                              <th className="p-4 text-[9px] font-black text-gray-500 uppercase tracking-widest font-sans">Produto</th>
                               <th className="p-4 text-[9px] font-black text-gray-500 uppercase tracking-widest font-sans">Meio de Pago</th>
                               <th className="p-4 text-[9px] font-black text-gray-500 uppercase tracking-widest font-sans">Data & Hora</th>
                               <th className="p-4 text-[9px] font-black text-gray-500 uppercase tracking-widest font-sans text-right">Valor Recebido</th>
@@ -1493,7 +1645,7 @@ export default function App() {
                      </div>
                   </div>
 
-                  {/* Bento Grid dos Dados Ativos do Ciclo Atual */}
+                  {/* Bento Grid dos Dados Atuais do Ciclo */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
                     <div className="glass-card p-6 border border-zinc-850 flex flex-col justify-between h-[150px] relative overflow-hidden group">
                       <div className="absolute right-3 top-3 opacity-5 text-white"><DollarSign size={80} /></div>
@@ -1532,7 +1684,7 @@ export default function App() {
                         <h3 className="text-sm font-black text-amber-200 uppercase tracking-wider">Consolidar Período e Fechar Caixa</h3>
                       </div>
                       <p className="text-xs text-amber-100/60 max-w-xl">
-                        Ao realizar o fechamento do caixa mensal, o montante de lucro ativo de <strong className="text-gold font-bold">{money(activeSales.reduce((acc, s) => acc + (s.profit || 0), 0))}</strong> e as informações deste ciclo serão arquivados. O card de lucros do dashboard será reiniciado em zero para iniciar um novo ciclo comercial.
+                        Ao realizar o fechamento do caixa mensal, o montante de lucro atual de <strong className="text-gold font-bold">{money(activeSales.reduce((acc, s) => acc + (s.profit || 0), 0))}</strong> e as informações deste ciclo serão arquivados. O card de lucros do dashboard será reiniciado em zero para iniciar um novo ciclo comercial.
                       </p>
                     </div>
                     <div className="flex gap-3 shrink-0 items-center">
@@ -1554,7 +1706,7 @@ export default function App() {
                             showToast('Nenhuma operação ativa para ser fechada neste ciclo!');
                             return;
                           }
-                          if (confirm(`Confirmar encerramento de período? O lucro ativo de ${money(currentActiveProfit)} será zerado e arquivado para iniciar um novo ciclo.`)) {
+                          if (confirm(`Confirmar encerramento de período? O lucro atual de ${money(currentActiveProfit)} será zerado e arquivado para iniciar um novo ciclo.`)) {
                             closeMonthlyRegister(periodVal, currentActiveProfit, currentActiveRevenue, currentActiveCount);
                             if (inputEl) inputEl.value = '';
                             showToast('Encerramento efetuado com absoluto sucesso!');
@@ -1946,22 +2098,34 @@ export default function App() {
         <AnimatePresence>
           {showAddProduct && (
             <div key="modal-add-product" className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6"><motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => { setShowAddProduct(false); setProductToEdit(null); setPreviewPhoto(null); }} className="absolute inset-0 bg-[rgba(0,0,0,0.9)] backdrop-blur-xl" /><motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="relative glass-card w-full max-w-xl p-6 sm:p-12 bg-black">
-              <h3 className="text-xl sm:text-2xl font-black mb-6 sm:mb-8 italic uppercase text-center">{productToEdit ? 'Editar Ativo' : 'Novo Ativo'}</h3>
+              <h3 className="text-xl sm:text-2xl font-black mb-6 sm:mb-8 italic uppercase text-center">{productToEdit ? 'Editar Produto' : 'Novo Produto'}</h3>
               <form className="space-y-4 sm:space-y-6" onSubmit={(e) => {
                 e.preventDefault(); const f = e.target as any; const file = f.photo.files[0];
                 const handleSuccess = (photoUrl?: string) => { 
+                  const qtyVal = Number(f.quantity.value);
+                  const newStatus = qtyVal > 0 ? 'Disponivel' : 'Vendido';
                   if (productToEdit) {
                     updateProduct(productToEdit.id, {
                       name: f.name.value,
                       cost: Number(f.cost.value),
                       sale: Number(f.sale.value),
                       category: f.category.value,
+                      quantity: qtyVal,
+                      status: newStatus as any,
                       photo: photoUrl || previewPhoto || undefined
                     });
-                    showToast('Ativo atualizado.');
+                    showToast('Produto atualizado.');
                   } else {
-                    addProduct({ name: f.name.value, cost: Number(f.cost.value), sale: Number(f.sale.value), category: f.category.value, status: 'Disponivel', photo: photoUrl }); 
-                    showToast('Ativo cadastrado.');
+                    addProduct({ 
+                      name: f.name.value, 
+                      cost: Number(f.cost.value), 
+                      sale: Number(f.sale.value), 
+                      category: f.category.value, 
+                      quantity: qtyVal,
+                      status: newStatus as any, 
+                      photo: photoUrl 
+                    }); 
+                    showToast('Produto cadastrado.');
                   }
                   setShowAddProduct(false); setProductToEdit(null); setPreviewPhoto(null); 
                 };
@@ -1969,12 +2133,12 @@ export default function App() {
               }}>
                 <div className="flex flex-col gap-2">
                   <label className="text-[9px] sm:text-[10px] font-black text-gray-500 uppercase ml-2">Modelo</label>
-                  <input name="name" required defaultValue={productToEdit?.name || ''} placeholder="Nome do Modelo" className="w-full h-12 sm:h-14 bg-zinc-900 border border-line-strong rounded-xl px-5 font-bold outline-none focus:border-gold text-xs sm:text-sm" />
+                  <input name="name" required defaultValue={productToEdit?.name || ''} placeholder="Nome do Modelo" className="w-full h-12 sm:h-14 bg-zinc-900 border border-line-strong rounded-xl px-5 font-bold outline-none focus:border-gold text-xs sm:text-sm text-white" />
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="flex flex-col gap-2">
                     <label className="text-[9px] sm:text-[10px] font-black text-gray-500 uppercase ml-2">Categoria</label>
-                    <select name="category" defaultValue={productToEdit?.category || 'Celular'} className="h-12 sm:h-14 bg-zinc-900 border border-line-strong rounded-xl px-4 sm:px-5 text-xs sm:text-sm"><option>Celular</option><option>Eletrônico</option><option>Hardware</option><option>Acessório</option></select>
+                    <select name="category" defaultValue={productToEdit?.category || 'Celular'} className="h-12 sm:h-14 bg-zinc-900 border border-line-strong rounded-xl px-4 sm:px-5 text-xs sm:text-sm text-white"><option>Celular</option><option>Eletrônico</option><option>Hardware</option><option>Acessório</option></select>
                   </div>
                   <div className="flex flex-col gap-2">
                     <label className="text-[9px] sm:text-[10px] font-black text-gray-500 uppercase ml-2">Imagem</label>
@@ -1986,12 +2150,16 @@ export default function App() {
                 <div className="grid grid-cols-2 gap-4">
                   <div className="flex flex-col gap-2">
                     <label className="text-[9px] sm:text-[10px] font-black text-gray-500 uppercase ml-2">Custo</label>
-                    <input name="cost" type="number" step="0.01" required defaultValue={productToEdit?.cost || ''} placeholder="R$" className="h-12 sm:h-14 bg-zinc-900 border border-line-strong rounded-xl px-5 text-xs sm:text-sm" />
+                    <input name="cost" type="number" step="0.01" required defaultValue={productToEdit?.cost || ''} placeholder="R$" className="h-12 sm:h-14 bg-zinc-900 border border-line-strong rounded-xl px-5 text-xs sm:text-sm text-white" />
                   </div>
                   <div className="flex flex-col gap-2">
                     <label className="text-[9px] sm:text-[10px] font-black text-gray-500 uppercase ml-2">Venda</label>
-                    <input name="sale" type="number" step="0.01" required defaultValue={productToEdit?.sale || ''} placeholder="R$" className="h-12 sm:h-14 bg-zinc-900 border border-line-strong rounded-xl px-5 text-gold text-xs sm:text-sm" />
+                    <input name="sale" type="number" step="0.01" required defaultValue={productToEdit?.sale || ''} placeholder="R$" className="h-12 sm:h-14 bg-zinc-900 border border-line-strong rounded-xl px-5 text-gold text-xs sm:text-sm font-bold" />
                   </div>
+                </div>
+                <div className="flex flex-col gap-2">
+                  <label className="text-[9px] sm:text-[10px] font-black text-gray-500 uppercase ml-2">Quantidade em Estoque</label>
+                  <input name="quantity" type="number" min="0" required defaultValue={productToEdit?.quantity !== undefined ? productToEdit.quantity : 1} className="w-full h-12 sm:h-14 bg-zinc-900 border border-line-strong rounded-xl px-5 font-bold outline-none focus:border-gold text-xs sm:text-sm text-white" />
                 </div>
                 <button type="submit" className="w-full h-14 sm:h-16 bg-gold text-black rounded-2xl sm:rounded-3xl font-black uppercase text-[10px] sm:text-xs mt-2 sm:mt-4 shadow-2xl hover:brightness-110 active:scale-95 transition-all">{productToEdit ? 'Salvar' : 'Cadastrar'}</button>
                 <button type="button" onClick={() => { setShowAddProduct(false); setProductToEdit(null); setPreviewPhoto(null); }} className="w-full h-10 text-gray-500 font-bold uppercase text-[9px] sm:text-[10px] tracking-widest">Cancelar</button>
@@ -2177,7 +2345,7 @@ export default function App() {
                           <>
                             parcela <strong className="text-zinc-900 font-extrabold">Nº {selectedInstallmentForReceipt.number}</strong> de um total de <strong className="text-zinc-900 font-bold">{selectedInstallmentForReceipt.total} parcelas</strong>
                           </>
-                        )} da transação comercial vinculada ao ativo de investimento / produto: <strong className="italic text-zinc-900 font-semibold">{selectedInstallmentForReceipt.productName || correspondingSale?.productName || 'Ativo Registrado'}</strong>.
+                        )} da transação comercial vinculada ao produto de investimento: <strong className="italic text-zinc-900 font-semibold">{selectedInstallmentForReceipt.productName || correspondingSale?.productName || 'Produto Registrado'}</strong>.
                       </p>
                     </div>
 

@@ -12,6 +12,7 @@ export interface Product {
   status: 'Disponivel' | 'Vendido';
   photo?: string;
   createdAt: string;
+  quantity?: number;
 }
 
 export interface Installment {
