@@ -9,7 +9,7 @@ import { auth } from './lib/firebase';
 import { signInAnonymously, onAuthStateChanged } from 'firebase/auth';
 
 export default function App() {
-  const { products, sales, installments, closings, settings, setSettings, addProduct, deleteProduct, registerSale, deleteSale, deleteClient, updateProduct, updateSaleFull, payInstallment, closeMonthlyRegister } = useNexusState();
+  const { products, sales, installments, closings, settings, setSettings, addProduct, deleteProduct, registerSale, deleteSale, deleteClient, updateProduct, updateSaleFull, payInstallment, amortizeSale, closeMonthlyRegister } = useNexusState();
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [authReady, setAuthReady] = useState(false);
 
@@ -126,6 +126,10 @@ export default function App() {
   const [selectedInstallmentForPayment, setSelectedInstallmentForPayment] = useState<any>(null);
   const [paymentMethod, setPaymentMethod] = useState<'Pix' | 'Cartão de Crédito' | 'Cartão de Débito' | 'Dinheiro' | 'Transferência'>('Pix');
   const [selectedInstallmentForReceipt, setSelectedInstallmentForReceipt] = useState<any>(null);
+  const [selectedSaleForAmortization, setSelectedSaleForAmortization] = useState<any>(null);
+  const [amortizationAmount, setAmortizationAmount] = useState<string>('');
+  const [amortizationMethod, setAmortizationMethod] = useState<'Pix' | 'Dinheiro' | 'Cartão' | 'Transferência'>('Pix');
+  const [expandedSaleId, setExpandedSaleId] = useState<string | null>(null);
 
   const [confirmModal, setConfirmModal] = useState<{
     show: boolean;
@@ -159,6 +163,24 @@ export default function App() {
     setSelectedInstallmentForPayment(null);
     setSelectedInstallmentForReceipt(installment);
     showToast('Pagamento confirmado com sucesso!');
+  };
+
+  const handleConfirmAmortization = async () => {
+    if (!selectedSaleForAmortization || !amortizationAmount) return;
+    const amountVal = Number(amortizationAmount);
+    if (isNaN(amountVal) || amountVal <= 0) {
+      showToast('Por favor, informe um valor de amortização válido maior que zero.');
+      return;
+    }
+    if (amountVal > selectedSaleForAmortization.total) {
+      showToast(`O valor da amortização não pode ser maior que o saldo atual de ${money(selectedSaleForAmortization.total)}.`);
+      return;
+    }
+    
+    await amortizeSale(selectedSaleForAmortization.id, amountVal, amortizationMethod);
+    setSelectedSaleForAmortization(null);
+    setAmortizationAmount('');
+    showToast('Amortização realizada com sucesso!');
   };
 
   const handleShareReceipt = async () => {
@@ -667,61 +689,332 @@ export default function App() {
 
                       {/* Histórico Comercial do Cliente */}
                       <div className="flex flex-col gap-4 sm:gap-6">
-                        <section className="glass-card overflow-hidden">
-                          <div className="p-4 sm:p-6 border-b border-line flex items-center justify-between">
-                            <div>
-                              <h3 className="text-base sm:text-lg font-black tracking-tight flex items-center gap-2">
-                                <History size={18} className="text-gold" /> Histórico Comercial
+                        <div className="flex items-center justify-between border-b border-line pb-4 px-1">
+                           <div>
+                              <h3 className="text-base sm:text-lg font-black tracking-tight flex items-center gap-2 uppercase italic text-white">
+                                 <History size={18} className="text-gold" /> Carteira de Contratos
                               </h3>
-                            </div>
-                            <span className="pill text-[8px] sm:text-[10px]">Total: {sales.filter(s => s.client === selectedClient).length}</span>
-                          </div>
-                          
-                          <div className="overflow-x-auto custom-scrollbar">
-                            <table className="w-full text-left min-w-[500px]">
-                              <thead>
-                                <tr className="border-b border-line text-[9px] sm:text-[11px] uppercase text-gray-500 font-black">
-                                  <th className="p-4 sm:p-5">Produto</th>
-                                  <th className="p-4 sm:p-5">Valor</th>
-                                  <th className="p-4 sm:p-5">Lucro</th>
-                                  <th className="p-4 sm:p-5">Progresso</th>
-                                  <th className="p-4 sm:p-5 text-right">Ação</th>
-                                </tr>
-                              </thead>
-                              <tbody className="divide-y divide-[rgba(18,18,18,0.3)]">
-                                {sales.filter(s => s.client === selectedClient).map(sale => (
-                                  <tr key={sale.id} className="group hover:bg-[rgba(255,255,255,0.01)] transition-colors">
-                                    <td className="p-4 sm:p-5">
-                                      <strong className="text-white font-bold block text-xs sm:text-sm uppercase truncate max-w-[120px]">{sale.productName}</strong>
-                                      <span className="text-[8px] sm:text-[9px] text-gray-600 font-bold uppercase">ID: {sale.id.substring(0, 6)}</span>
-                                    </td>
-                                    <td className="p-4 sm:p-5 font-bold text-white text-xs sm:text-sm">{money(sale.total)}</td>
-                                    <td className="p-4 sm:p-5 font-bold text-green-neon text-[11px] sm:text-sm">{money(sale.profit)}</td>
-                                    <td className="p-4 sm:p-5">
-                                       <div className="flex items-center gap-2">
-                                          <div className="h-1 flex-1 bg-[rgba(255,255,255,0.05)] rounded-full overflow-hidden border border-line-strong min-w-[50px]">
-                                             <div 
-                                                className="h-full bg-gold" 
-                                                style={{ width: `${(installments.filter(i => i.saleId === sale.id && i.status === 'Pago').length / sale.installmentsCount) * 100}%` }}
-                                             />
+                              <p className="text-[9px] text-gray-500 font-bold uppercase mt-1">Histórico de compromissos e regularidade de liquidação</p>
+                           </div>
+                           <span className="pill text-[9px] font-black uppercase tracking-wider">Total: {sales.filter(s => s.client === selectedClient).length}</span>
+                        </div>
+
+                        <div className="flex flex-col gap-4">
+                           {sales.filter(s => s.client === selectedClient).map(sale => {
+                              const isExpanded = expandedSaleId === sale.id;
+                              return (
+                                 <div 
+                                    key={sale.id} 
+                                    className={`glass-card overflow-hidden border transition-all duration-300 ${
+                                       isExpanded 
+                                          ? 'border-gold bg-[rgba(0,0,0,0.6)] shadow-[0_15px_40px_rgba(0,0,0,0.6)]' 
+                                          : 'border-white/5 bg-[rgba(0,0,0,0.3)] hover:border-white/15'
+                                    }`}
+                                 >
+                                    {/* Capa/Header do Compromisso */}
+                                    <button 
+                                       type="button"
+                                       onClick={() => setExpandedSaleId(isExpanded ? null : sale.id)}
+                                       className="w-full text-left p-6 flex items-center justify-between focus:outline-none focus-within:ring-1 focus-within:ring-gold"
+                                    >
+                                       <div className="flex items-center gap-4">
+                                          <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-black italic shadow-inner ${
+                                             isExpanded 
+                                                ? 'bg-gold text-black shadow-lg text-xs' 
+                                                : 'bg-white/5 text-gray-400 border border-white/10 text-xs'
+                                          }`}>
+                                             {sale.productName.charAt(0).toUpperCase()}
                                           </div>
-                                          <span className="text-[8px] font-black text-gray-500 uppercase">{installments.filter(i => i.saleId === sale.id && i.status === 'Pago').length}/{sale.installmentsCount}</span>
+                                          <div>
+                                             <h3 className="text-base sm:text-lg font-black text-white italic uppercase tracking-tight">
+                                                {sale.productName}
+                                             </h3>
+                                             {!isExpanded && (
+                                                <span className="text-[9px] text-gray-500 font-bold uppercase tracking-widest block mt-0.5">
+                                                   Clique para Ver Compromisso Completo
+                                                </span>
+                                             )}
+                                          </div>
                                        </div>
-                                    </td>
-                                    <td className="p-4 sm:p-5 text-right">
-                                         <button 
-                                            onClick={() => setSelectedSaleForContract(sale)}
-                                            className="h-8 w-8 sm:h-9 sm:w-9 bg-[rgba(255,255,255,0.05)] border border-line rounded-lg sm:rounded-xl flex items-center justify-center hover:border-gold hover:text-gold transition-all ml-auto"
-                                         >
-                                            <FileText size={14} />
-                                         </button>
-                                    </td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                          </div>
-                        </section>
+                                       <div className="flex items-center gap-4">
+                                          {!isExpanded && (
+                                             <div className="flex items-center gap-4">
+                                                {/* Progresso de parcelas */}
+                                                <div className="hidden sm:flex items-center gap-2">
+                                                   <span className="text-[9px] text-gray-500 font-extrabold uppercase">Quitação:</span>
+                                                   <span className="text-[9px] text-white font-extrabold">{installments.filter(i => i.saleId === sale.id && i.status === 'Pago').length}/{sale.installmentsCount}</span>
+                                                </div>
+                                                <div className="flex items-center gap-2">
+                                                   <span className={`w-2 h-2 rounded-full ${sale.status === 'Ativa' ? 'bg-gold animate-pulse' : 'bg-green-neon'}`} />
+                                                   <span className={`text-[9.5px] font-black uppercase tracking-widest ${sale.status === 'Ativa' ? 'text-gold' : 'text-green-neon'}`}>
+                                                      {sale.status === 'Ativa' ? 'Operacional' : 'Liquidado'}
+                                                   </span>
+                                                </div>
+                                             </div>
+                                          )}
+                                          <ChevronDown 
+                                             size={20} 
+                                             className={`text-gray-400 transition-transform duration-300 ${isExpanded ? 'rotate-180 text-gold' : ''}`} 
+                                          />
+                                       </div>
+                                    </button>
+
+                                    {/* Informações Completas (Exibidas apenas quando clicado) */}
+                                    {isExpanded && (
+                                       <div className="border-t border-line px-6 sm:px-10 py-8 flex flex-col gap-8 animate-view-enter">
+                                          
+                                          {/* Painel de Informações do Ativo & Financeiro */}
+                                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                             
+                                             {/* Detalhes do Cliente e Instrumento */}
+                                             <div className="flex flex-col gap-4 p-5 sm:p-6 bg-black/40 rounded-2xl border border-line-strong">
+                                                <h4 className="text-[10px] font-black uppercase text-gold tracking-widest pr-2 border-b border-line pb-2">
+                                                   I. Identificação do Compromisso
+                                                </h4>
+                                                <div className="flex flex-col gap-2.5">
+                                                   <div className="flex flex-col">
+                                                      <span className="text-[9px] text-gray-500 font-bold uppercase">Nome do Comprador</span>
+                                                      <strong className="text-white text-sm font-semibold uppercase">{sale.client}</strong>
+                                                   </div>
+                                                   {sale.clientAddress && (
+                                                      <div className="flex flex-col">
+                                                         <span className="text-[9px] text-gray-500 font-bold uppercase">Endereço</span>
+                                                         <span className="text-xs text-gray-300 leading-relaxed font-semibold">{sale.clientAddress}</span>
+                                                      </div>
+                                                   )}
+                                                   <div className="flex flex-col">
+                                                      <span className="text-[9px] text-gray-500 font-bold uppercase">Protocol ID</span>
+                                                      <span className="text-[10px] text-gray-400 font-mono font-bold mt-0.5">{sale.id}</span>
+                                                   </div>
+                                                </div>
+                                             </div>
+
+                                             {/* Detalhes do Ativo */}
+                                             <div className="flex flex-col gap-4 p-5 sm:p-6 bg-black/40 rounded-2xl border border-line-strong">
+                                                <h4 className="text-[10px] font-black uppercase text-gold tracking-widest pr-2 border-b border-line pb-2">
+                                                   II. Detalhes do Ativo Objeto
+                                                </h4>
+                                                <div className="flex flex-col gap-2.5">
+                                                   <div className="flex flex-col">
+                                                      <span className="text-[9px] text-gray-500 font-bold uppercase">Instrumento / Ativo</span>
+                                                      <div className="flex items-center gap-2 mt-1">
+                                                         <div className="w-6 h-6 rounded-lg bg-[rgba(255,215,0,0.1)] text-gold flex items-center justify-center border border-[rgba(255,215,0,0.1)]">
+                                                            <ShoppingBag size={12} />
+                                                         </div>
+                                                         <strong className="text-white text-sm font-semibold uppercase">{sale.productName}</strong>
+                                                      </div>
+                                                   </div>
+                                                   <div className="flex flex-col">
+                                                      <span className="text-[9px] text-gray-500 font-bold uppercase">Status / Ciclo Atual</span>
+                                                      <div className="flex items-center gap-2 mt-1">
+                                                         <span className={`w-2 h-2 rounded-full ${sale.status === 'Ativa' ? 'bg-gold animate-pulse' : 'bg-green-neon'}`} />
+                                                         <span className={`text-[10px] font-black uppercase tracking-widest ${sale.status === 'Ativa' ? 'text-gold' : 'text-green-neon'}`}>
+                                                            {sale.status === 'Ativa' ? 'Operacional' : 'Liquidado'}
+                                                         </span>
+                                                      </div>
+                                                   </div>
+                                                </div>
+                                             </div>
+
+                                             {/* Aspectos Financeiros */}
+                                             <div className="flex flex-col gap-4 p-5 sm:p-6 bg-black/40 rounded-2xl border border-line-strong md:col-span-2 lg:col-span-1">
+                                                <h4 className="text-[10px] font-black uppercase text-gold tracking-widest pr-2 border-b border-line pb-2">
+                                                   III. Aspectos Financeiros & Retorno
+                                                </h4>
+                                                <div className="flex flex-col gap-3">
+                                                   <div className="flex items-center justify-between">
+                                                      <div className="flex flex-col">
+                                                         <span className="text-[9px] text-gray-500 font-bold uppercase">Valor da Transação</span>
+                                                         <strong className="text-white text-lg font-bold">{money(sale.total)}</strong>
+                                                      </div>
+                                                      <div className="flex flex-col text-right">
+                                                         <span className="text-[9px] text-gray-500 font-bold uppercase">Projeção ROI</span>
+                                                         <strong className="text-green-neon text-lg font-bold">+{money(sale.profit)}</strong>
+                                                      </div>
+                                                   </div>
+                                                   <div className="flex flex-col border-t border-line/50 pt-2">
+                                                      <span className="text-[9px] text-gray-500 font-bold uppercase">Modalidade</span>
+                                                      <div className="flex items-center gap-1.5 mt-1">
+                                                         <span className="text-[11px] text-gray-300 font-bold uppercase">{sale.installmentsCount}x de {money(sale.installmentValue)}</span>
+                                                         {sale.isInterestOnly && (
+                                                            <span className="px-1.5 py-0.5 rounded bg-[rgba(255,215,0,0.1)] text-gold border border-[rgba(255,215,0,0.2)] text-[8px] font-black uppercase tracking-wider">
+                                                               Apenas Juros ({sale.interestRate}%)
+                                                            </span>
+                                                         )}
+                                                      </div>
+                                                   </div>
+                                                </div>
+                                             </div>
+
+                                          </div>
+
+                                          {/* Barra de Ações do Contrato */}
+                                          <div className="flex flex-wrap items-center justify-between gap-4 p-5 bg-black/20 rounded-2xl border border-line-strong">
+                                             <div className="flex items-center gap-3">
+                                                <div className="w-2.5 h-2.5 rounded-full bg-gold/50 animate-pulse" />
+                                                <span className="text-xs font-black uppercase text-gray-400 tracking-widest">Painel de Controle Administrativo</span>
+                                             </div>
+                                             <div className="flex flex-wrap items-center gap-2">
+                                                {sale.isInterestOnly && sale.status === 'Ativa' && (
+                                                   <button 
+                                                      onClick={() => {
+                                                         setSelectedSaleForAmortization(sale);
+                                                         setAmortizationAmount('');
+                                                      }}
+                                                      className="h-10 px-4 rounded-xl border border-[rgba(255,190,0,0.3)] bg-[rgba(255,190,0,0.05)] text-amber-200 hover:bg-gold hover:text-black hover:border-gold transition-all flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest active:scale-95 cursor-pointer"
+                                                      title="Amortizar Valor"
+                                                   >
+                                                      <Minus size={12} />
+                                                      Amortizar
+                                                   </button>
+                                                )}
+                                                <button 
+                                                   onClick={() => setSelectedSaleForContract(sale)} 
+                                                   className="h-10 px-4 rounded-xl border border-line bg-white/5 text-gray-400 hover:text-gold hover:border-[rgba(255,215,0,0.3)] hover:bg-[rgba(255,215,0,0.05)] transition-all flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest"
+                                                   title="Ver Contrato"
+                                                >
+                                                   <FileText size={14} />
+                                                   Visualizar Contrato
+                                                </button>
+                                                <button 
+                                                   onClick={(e) => { 
+                                                      e.stopPropagation(); 
+                                                      setSelectedSaleForContract(sale);
+                                                      setTimeout(() => {
+                                                         const element = document.getElementById('contract-content');
+                                                         if (element) {
+                                                            const opt = {
+                                                               margin: [10, 10],
+                                                               filename: `CONTRATO_${sale.client.replace(/\s+/g, '_').toUpperCase()}.pdf`,
+                                                               image: { type: 'jpeg', quality: 0.98 },
+                                                               html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff' },
+                                                               jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+                                                            };
+                                                            // @ts-ignore
+                                                            html2pdf().set(opt).from(element).save();
+                                                            showToast('Baixando contrato...');
+                                                         }
+                                                      }, 300);
+                                                   }} 
+                                                   className="h-10 px-4 rounded-xl border border-line bg-white/5 text-gray-400 hover:text-green-neon hover:border-[rgba(57,255,20,0.3)] hover:bg-[rgba(57,255,20,0.05)] transition-all flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest"
+                                                   title="Baixar PDF"
+                                                >
+                                                   <Download size={14} />
+                                                   Salvar PDF
+                                                </button>
+                                                <button 
+                                                   onClick={() => {
+                                                      setSaleToEdit(sale);
+                                                      setShowSaleForm(true);
+                                                   }}
+                                                   className="h-10 px-4 rounded-xl border border-line bg-white/5 text-gray-400 hover:text-gold hover:border-[rgba(255,215,0,0.3)] hover:bg-[rgba(255,215,0,0.05)] transition-all flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest"
+                                                   title="Editar Venda"
+                                                >
+                                                   <Pencil size={14} />
+                                                   Editar
+                                                </button>
+                                                <button 
+                                                   onClick={() => openConfirm('Estornar Operação', 'Deseja anular este registro comercial?', () => deleteSale(sale.id))} 
+                                                   className="h-10 px-4 rounded-xl border border-line bg-white/5 text-gray-400 hover:text-red-500 hover:border-[rgba(239,68,68,0.3)] hover:bg-red-500/5 transition-all flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest"
+                                                >
+                                                   <X size={14} />
+                                                   Estornar
+                                                </button>
+                                             </div>
+                                          </div>
+
+                                          {/* Cronograma de Liquidação */}
+                                          <div className="flex flex-col gap-4">
+                                             <div className="flex items-center justify-between border-l-2 border-[rgba(255,215,0,0.4)] pl-4 py-1">
+                                                <div>
+                                                   <h4 className="text-[11px] font-black uppercase text-gray-300 tracking-widest">Cronograma de Liquidação</h4>
+                                                   <p className="text-[9px] text-gray-600 font-bold uppercase mt-1">Ciclos de Pagamento e Quitação</p>
+                                                </div>
+                                             </div>
+                                             
+                                             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-3">
+                                                {installments.filter(i => i.saleId === sale.id).sort((a,b) => a.number - b.number).map(inst => {
+                                                   const isPaid = inst.status === 'Pago';
+                                                   const dueDateObj = new Date(inst.dueDate);
+                                                   dueDateObj.setHours(0,0,0,0);
+                                                   
+                                                   const isOverdue = !isPaid && dueDateObj.getTime() < todayTime.getTime();
+                                                   const isDueToday = !isPaid && dueDateObj.getTime() === todayTime.getTime();
+
+                                                   let cardStyles = 'border-line-strong bg-black/30 hover:border-[rgba(255,215,0,0.3)]';
+                                                   let dotStyle = 'bg-[rgba(255,215,0,0.4)] animate-pulse';
+                                                   let cycleLabel = `Ciclo ${inst.number}`;
+                                                   let labelStyle = 'text-gray-500';
+
+                                                   if (isPaid) {
+                                                      cardStyles = 'border-[rgba(57,255,20,0.2)] bg-[rgba(57,255,20,0.05)]';
+                                                      dotStyle = 'bg-green-neon';
+                                                      labelStyle = 'text-green-500';
+                                                   } else if (isOverdue) {
+                                                      cardStyles = 'border-red-500/30 bg-red-500/5 hover:border-red-500/50';
+                                                      dotStyle = 'bg-red-500 animate-pulse';
+                                                      cycleLabel = `Ciclo ${inst.number} (Atrasado)`;
+                                                      labelStyle = 'text-red-400';
+                                                   } else if (isDueToday) {
+                                                      cardStyles = 'border-purple-500/40 bg-purple-500/5 hover:border-purple-500/60';
+                                                      dotStyle = 'bg-purple-500 animate-bounce';
+                                                      cycleLabel = `Ciclo ${inst.number} (Vence Hoje)`;
+                                                      labelStyle = 'text-purple-400';
+                                                   }
+
+                                                   return (
+                                                      <div 
+                                                         key={inst.id}
+                                                         className={`p-4 rounded-2xl border transition-all ${cardStyles} flex flex-col gap-3 relative group/inst`}
+                                                      >
+                                                         <div className="flex items-center justify-between">
+                                                            <span className={`text-[10px] font-black uppercase tracking-tighter ${labelStyle}`}>{cycleLabel}</span>
+                                                            <div className={`w-1.5 h-1.5 rounded-full ${dotStyle}`} />
+                                                         </div>
+                                                         <div>
+                                                            <p className="text-[13px] font-bold text-white tracking-wide">{money(inst.value)}</p>
+                                                            <p className="text-[9px] font-black text-gray-500 uppercase mt-0.5">{new Date(inst.dueDate).toLocaleDateString('pt-BR')}</p>
+                                                         </div>
+                                                         <div className="absolute inset-0 bg-[rgba(0,0,0,0.8)] flex items-center justify-center p-2 opacity-0 group-hover/inst:opacity-100 transition-all rounded-2xl backdrop-blur-sm">
+                                                            {inst.status === 'Pendente' && (
+                                                               <button 
+                                                                  onClick={() => setSelectedInstallmentForPayment(inst)}
+                                                                  className="w-full h-full bg-gold text-black rounded-xl text-[10px] font-black uppercase tracking-widest shadow-2xl active:scale-95 px-1 font-extrabold"
+                                                               >
+                                                                  Quitar
+                                                               </button>
+                                                            )}
+                                                            {inst.status === 'Pago' && (
+                                                               <button 
+                                                                  onClick={() => setSelectedInstallmentForReceipt(inst)}
+                                                                  className="w-full h-full bg-[rgba(255,255,255,0.1)] text-white rounded-xl text-[9px] font-black uppercase tracking-widest border border-[rgba(255,255,255,0.1)] px-1 font-extrabold"
+                                                               >
+                                                                  Recibo
+                                                               </button>
+                                                            )}
+                                                         </div>
+                                                      </div>
+                                                   );
+                                                })}
+                                             </div>
+
+                                             <div className="flex justify-end p-2 mt-2">
+                                                <button 
+                                                   onClick={() => shareSaleTableWhatsApp(sale)}
+                                                   className="h-10 px-6 bg-[rgba(34,197,94,0.1)] border border-[rgba(34,197,94,0.2)] text-green-500 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-green-500 hover:text-black transition-all flex items-center gap-2"
+                                                >
+                                                   <MessageCircle size={14} />
+                                                   Compartilhar Tabela WhatsApp
+                                                </button>
+                                             </div>
+                                          </div>
+
+                                       </div>
+                                    )}
+                                 </div>
+                              );
+                           })}
+                        </div>
                       </div>
                     </div>
                   ) : (
@@ -1111,7 +1404,7 @@ export default function App() {
                            </div>
                            <div className="flex flex-col gap-2">
                               <label className="text-[9px] sm:text-[10px] font-black text-gray-500 uppercase ml-3">1º Vencimento</label>
-                              <input name="date" type="date" required defaultValue={saleToEdit?.date ? new Date(saleToEdit.date).toISOString().split('T')[0] : ''} className="h-12 sm:h-14 bg-[rgba(0,0,0,0.4)] border border-line-strong rounded-xl sm:rounded-2xl px-5 sm:px-6 outline-none focus:border-gold transition-all font-bold text-xs sm:text-sm" />
+                              <input name="date" type="date" required defaultValue={saleToEdit?.date ? new Date(saleToEdit.date).toISOString().split('T')[0] : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]} className="h-12 sm:h-14 bg-[rgba(0,0,0,0.4)] border border-line-strong rounded-xl sm:rounded-2xl px-5 sm:px-6 outline-none focus:border-gold transition-all font-bold text-xs sm:text-sm" />
                            </div>
                         </div>
 
@@ -1161,7 +1454,7 @@ export default function App() {
                       </form>
                     </motion.div>
                   ) : (
-                    <div className="flex flex-col gap-4 sm:gap-8">
+                    <div className="flex flex-col gap-4 sm:gap-8 animate-view-enter">
                       <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-1">
                         <div className="w-full sm:w-auto">
                            <h2 className="text-xl sm:text-3xl font-black tracking-tight text-white italic uppercase">Gestão de Recebíveis</h2>
@@ -1172,7 +1465,58 @@ export default function App() {
                         </button>
                       </div>
 
-                      {filteredSales.length === 0 && filterStatus !== 'Todos' ? (
+                      {/* Segmento de Status de Filtro */}
+                      <div className="flex items-center justify-between border-b border-line pb-4 flex-wrap gap-4">
+                         <div className="flex bg-[rgba(0,0,0,0.4)] border border-line-strong rounded-xl sm:rounded-2xl p-1 gap-1">
+                            <button 
+                               type="button"
+                               onClick={() => setFilterStatus('Todos')}
+                               className={`h-9 px-5 rounded-lg text-[10px] sm:text-xs font-black uppercase tracking-wider transition-all cursor-pointer ${filterStatus === 'Todos' ? 'bg-gold text-black font-extrabold shadow-lg shadow-gold/10' : 'text-gray-400 hover:text-white'}`}
+                            >
+                               Todos ({sales.length})
+                            </button>
+                            <button 
+                               type="button"
+                               onClick={() => setFilterStatus('Atrasados')}
+                               className={`h-9 px-5 rounded-lg text-[10px] sm:text-xs font-black uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5 ${filterStatus === 'Atrasados' ? 'bg-red-500 text-white font-extrabold shadow-lg shadow-red-500/20' : 'text-red-400 hover:bg-red-500/5'}`}
+                            >
+                               Atrasados ({
+                                  sales.filter(s => {
+                                     const sInsts = installments.filter(i => i.saleId === s.id && i.status === 'Pendente');
+                                     return sInsts.some(i => {
+                                        const d = new Date(i.dueDate);
+                                        d.setHours(0,0,0,0);
+                                        return d.getTime() < todayTime.getTime();
+                                     });
+                                  }).length
+                               })
+                            </button>
+                            <button 
+                               type="button"
+                               onClick={() => setFilterStatus('Hoje')}
+                               className={`h-9 px-5 rounded-lg text-[10px] sm:text-xs font-black uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5 ${filterStatus === 'Hoje' ? 'bg-purple-500 text-white font-extrabold shadow-lg shadow-purple-500/20' : 'text-purple-400 hover:bg-purple-500/5'}`}
+                            >
+                               Vence Hoje ({
+                                  sales.filter(s => {
+                                     const sInsts = installments.filter(i => i.saleId === s.id && i.status === 'Pendente');
+                                     return sInsts.some(i => {
+                                        const d = new Date(i.dueDate);
+                                        d.setHours(0,0,0,0);
+                                        return d.getTime() === todayTime.getTime();
+                                     });
+                                  }).length
+                               })
+                            </button>
+                         </div>
+                         
+                         {searchTerm && (
+                            <div className="text-gray-400 text-[10px] sm:text-xs font-black uppercase">
+                               Busca por: <span className="text-gold italic">"{searchTerm}"</span>
+                            </div>
+                         )}
+                      </div>
+
+                      {filteredSales.length === 0 ? (
                         <div className={`glass-card p-20 border flex flex-col items-center justify-center text-center gap-6 animate-pulse ${filterStatus === 'Atrasados' ? 'border-red-500/30 bg-red-500/5' : 'border-purple-500/30 bg-purple-500/5'}`}>
                            <div className={`w-20 h-20 rounded-3xl grid place-items-center mb-2 ${filterStatus === 'Atrasados' ? 'bg-red-500 text-white shadow-[0_0_50px_rgba(239,68,68,0.3)]' : 'bg-purple-500 text-white shadow-[0_0_50px_rgba(168,85,247,0.3)]'}`}>
                               {filterStatus === 'Atrasados' ? <AlertCircle size={40} /> : <Calendar size={40} />}
@@ -1190,219 +1534,280 @@ export default function App() {
                            </button>
                         </div>
                       ) : (
-                        <section className="glass-card overflow-hidden border border-line-strong">
-                        <div className="overflow-x-auto custom-scrollbar">
-                           <table className="w-full min-w-[1000px] text-left">
-                              <thead>
-                                 <tr className="border-b border-line text-[11px] uppercase text-gray-500 font-black">
-                                    <th className="p-6 font-black tracking-widest">Contrato / Cliente</th>
-                                    <th className="p-6 font-black tracking-widest">Instrumento</th>
-                                    <th className="p-6 font-black tracking-widest">Valor Operacional</th>
-                                    <th className="p-6 font-black tracking-widest text-green-neon">Margem Lucro</th>
-                                    <th className="p-6 font-black tracking-widest">Status / Ciclo</th>
-                                    <th className="p-6 font-black tracking-widest text-right">Controle</th>
-                                 </tr>
-                              </thead>
-                              <tbody className="divide-y divide-[rgba(18,18,18,0.3)]">
-                                 {filteredSales.map(sale => (
-                                    <Fragment key={sale.id}>
-                                    <tr className="group hover:bg-[rgba(255,255,255,0.03)] transition-all duration-300">
-                                       <td className="p-6">
-                                          <div className="flex flex-col">
-                                             <strong className="text-white font-bold text-sm uppercase">{sale.client}</strong>
-                                             {sale.clientAddress && (
-                                                <span className="text-[10px] text-gray-400 mt-0.5 font-medium truncate max-w-[250px] block" title={sale.clientAddress}>
-                                                  📍 {sale.clientAddress}
-                                                </span>
+                        <div className="glass-card border border-line-strong overflow-hidden bg-black/40 backdrop-blur-md">
+                           <div className="overflow-x-auto custom-scrollbar">
+                              <table className="w-full border-collapse text-left min-w-[1000px]">
+                                 <thead>
+                                    <tr className="border-b border-line-strong bg-black/80 text-[10px] font-black uppercase text-gray-400 tracking-[0.2em] h-14">
+                                       <th className="p-4 pl-6">Comprador / Operação</th>
+                                       <th className="p-4 text-center">Ativo Objeto</th>
+                                       <th className="p-4 text-center">Valor Total</th>
+                                       <th className="p-4 text-center">Margem Lucro</th>
+                                       <th className="p-4 text-center">Quitação / Ciclos</th>
+                                       <th className="p-4 text-center">Estado</th>
+                                       <th className="p-4 pr-6 text-right w-64">Ações</th>
+                                    </tr>
+                                 </thead>
+                                 <tbody className="divide-y divide-[rgba(255,255,255,0.05)] text-gray-300">
+                                    {filteredSales.map(sale => {
+                                       const sInstallments = installments.filter(i => i.saleId === sale.id);
+                                       const paidCount = sInstallments.filter(i => i.status === 'Pago').length;
+                                       const totalCount = sale.installmentsCount;
+                                       const progressPercent = totalCount > 0 ? (paidCount / totalCount) * 100 : 0;
+                                       const isExpanded = expandedSaleId === sale.id;
+                                       
+                                       return (
+                                          <Fragment key={sale.id}>
+                                             <tr className="hover:bg-white/[0.02] transition-colors group/row h-20">
+                                                
+                                                {/* COMPRADOR */}
+                                                <td className="p-4 pl-6 cursor-pointer" onClick={() => setExpandedSaleId(isExpanded ? null : sale.id)}>
+                                                   <div className="flex items-center gap-3">
+                                                      <div className="w-10 h-10 rounded-xl bg-[rgba(255,215,0,0.05)] border border-[rgba(255,215,0,0.1)] text-gold flex items-center justify-center font-black italic shadow-inner shrink-0 group-hover/row:bg-[rgba(255,215,0,0.1)] transition-colors">
+                                                         {sale.client.charAt(0).toUpperCase()}
+                                                      </div>
+                                                      <div className="flex flex-col">
+                                                         <strong className="text-white font-bold block text-sm uppercase truncate max-w-[200px]">{sale.client}</strong>
+                                                         <span className="text-[9px] text-gray-500 font-bold uppercase tracking-widest mt-0.5">ID: {sale.id.substring(0, 8)}</span>
+                                                      </div>
+                                                   </div>
+                                                </td>
+
+                                                {/* ATIVO */}
+                                                <td className="p-4 text-center cursor-pointer" onClick={() => setExpandedSaleId(isExpanded ? null : sale.id)}>
+                                                   <span className="text-xs font-bold text-gray-300 uppercase block">{sale.productName}</span>
+                                                   <span className="text-[8px] text-gray-650 font-black uppercase tracking-wider block mt-0.5">Lançamento</span>
+                                                </td>
+
+                                                {/* VALOR TOTAL */}
+                                                <td className="p-4 text-center font-bold cursor-pointer" onClick={() => setExpandedSaleId(isExpanded ? null : sale.id)}>
+                                                   <div className="flex flex-col items-center">
+                                                      <strong className="text-white text-sm font-black tracking-wide">{money(sale.total)}</strong>
+                                                      {sale.isInterestOnly ? (
+                                                         <span className="px-1.5 py-0.5 rounded bg-[rgba(255,190,0,0.15)] text-gold border border-[rgba(255,190,0,0.25)] text-[8px] font-black uppercase tracking-wider mt-1.5">
+                                                            Apenas Juros ({sale.interestRate}% a.m.)
+                                                         </span>
+                                                      ) : (
+                                                         <span className="text-[9px] text-gray-500 font-bold uppercase tracking-widest mt-0.5">
+                                                            {sale.installmentsCount}x de {money(sale.installmentValue)}
+                                                         </span>
+                                                      )}
+                                                   </div>
+                                                </td>
+
+                                                {/* MARGEM LUCRO */}
+                                                <td className="p-4 text-center cursor-pointer" onClick={() => setExpandedSaleId(isExpanded ? null : sale.id)}>
+                                                   <strong className="text-green-neon text-sm font-bold block">+{money(sale.profit)}</strong>
+                                                   <span className="text-[8px] text-gray-655 font-black uppercase tracking-widest block mt-0.5">ROI Esperado</span>
+                                                </td>
+
+                                                {/* QUITAÇÃO */}
+                                                <td className="p-4 cursor-pointer" onClick={() => setExpandedSaleId(isExpanded ? null : sale.id)}>
+                                                   <div className="flex flex-col items-center max-w-[150px] mx-auto w-full">
+                                                      <div className="flex items-center gap-1.5 mb-1.5 justify-between w-full">
+                                                         <span className="text-[9px] text-zinc-500 font-bold uppercase">Ciclos:</span>
+                                                         <span className="text-[9px] text-gray-400 font-extrabold uppercase">{paidCount}/{totalCount} ({Math.round(progressPercent)}%)</span>
+                                                      </div>
+                                                      <div className="h-1.5 w-full bg-[rgba(255,255,255,0.05)] rounded-full border border-line-strong overflow-hidden">
+                                                         <div className="h-full bg-gold transition-all duration-500" style={{ width: `${progressPercent}%` }} />
+                                                      </div>
+                                                   </div>
+                                                </td>
+
+                                                {/* ESTADO */}
+                                                <td className="p-4 text-center cursor-pointer" onClick={() => setExpandedSaleId(isExpanded ? null : sale.id)}>
+                                                   <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-line-strong bg-black/40">
+                                                      <span className={`w-1.5 h-1.5 rounded-full ${sale.status === 'Ativa' ? 'bg-gold animate-pulse' : 'bg-green-neon'}`} />
+                                                      <span className={`text-[9px] font-black uppercase tracking-widest ${sale.status === 'Ativa' ? 'text-gold' : 'text-green-neon'}`}>
+                                                         {sale.status === 'Ativa' ? 'Ativa' : 'Liquidada'}
+                                                      </span>
+                                                   </div>
+                                                </td>
+
+                                                {/* AÇÕES COMPLETA */}
+                                                <td className="p-4 pr-6 text-right">
+                                                   <div className="flex items-center justify-end gap-1.5">
+                                                      <button 
+                                                         onClick={() => setExpandedSaleId(isExpanded ? null : sale.id)}
+                                                         className={`h-8 px-2.5 rounded-lg border transition-all flex items-center gap-1 text-[9px] font-black uppercase tracking-wider cursor-pointer active:scale-90 shrink-0 ${
+                                                            isExpanded 
+                                                               ? 'bg-gold text-black border-gold font-extrabold shadow-lg shadow-gold/15' 
+                                                               : 'border-line bg-white/5 text-gray-400 hover:text-white hover:border-white'
+                                                         }`}
+                                                         title={isExpanded ? "Ocultar Parcelas" : "Receber / Ver Parcelas"}
+                                                      >
+                                                         <DollarSign size={11} />
+                                                         <span>Parcelas</span>
+                                                         <ChevronDown size={11} className={`transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`} />
+                                                      </button>
+
+                                                      {sale.isInterestOnly && sale.status === 'Ativa' && (
+                                                         <button 
+                                                            onClick={() => {
+                                                               setSelectedSaleForAmortization(sale);
+                                                               setAmortizationAmount('');
+                                                            }}
+                                                            className="h-8 w-8 rounded-lg border border-[rgba(255,190,0,0.3)] bg-[rgba(255,190,0,0.05)] text-amber-200 hover:bg-gold hover:text-black hover:border-gold transition-all grid place-items-center cursor-pointer active:scale-90"
+                                                            title="Amortizar Valor"
+                                                         >
+                                                            <Minus size={13} />
+                                                         </button>
+                                                      )}
+                                                      <button 
+                                                         onClick={() => setSelectedSaleForContract(sale)} 
+                                                         className="h-8 w-8 rounded-lg border border-line bg-white/5 text-gray-400 hover:text-gold hover:border-gold transition-all grid place-items-center active:scale-95 cursor-pointer"
+                                                         title="Ver Contrato"
+                                                      >
+                                                         <FileText size={13} />
+                                                      </button>
+                                                      <button 
+                                                         onClick={() => { 
+                                                            setSelectedSaleForContract(sale);
+                                                            setTimeout(() => {
+                                                               const element = document.getElementById('contract-content');
+                                                               if (element) {
+                                                                  const opt = {
+                                                                     margin: [10, 10],
+                                                                     filename: `CONTRATO_${sale.client.replace(/\s+/g, '_').toUpperCase()}.pdf`,
+                                                                     image: { type: 'jpeg', quality: 0.98 },
+                                                                     html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff' },
+                                                                     jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+                                                                  };
+                                                                  // @ts-ignore
+                                                                  html2pdf().set(opt).from(element).save();
+                                                                  showToast('Baixando contrato...');
+                                                               }
+                                                            }, 300);
+                                                         }} 
+                                                         className="h-8 w-8 rounded-lg border border-line bg-white/5 text-gray-400 hover:text-green-neon hover:border-green-neon transition-all grid place-items-center active:scale-95 cursor-pointer"
+                                                         title="Salvar PDF"
+                                                      >
+                                                         <Download size={13} />
+                                                      </button>
+                                                      <button 
+                                                         onClick={() => {
+                                                            setSaleToEdit(sale);
+                                                            setShowSaleForm(true);
+                                                         }}
+                                                         className="h-8 w-8 rounded-lg border border-line bg-white/5 text-gray-400 hover:text-gold hover:border-gold transition-all grid place-items-center active:scale-95 cursor-pointer"
+                                                         title="Editar"
+                                                      >
+                                                         <Pencil size={13} />
+                                                      </button>
+                                                      <button 
+                                                         onClick={() => openConfirm('Estornar Operação', 'Deseja anular este registro comercial?', () => deleteSale(sale.id))} 
+                                                         className="h-8 w-8 rounded-lg border border-line bg-white/5 text-gray-400 hover:text-red-500 hover:border-red-500 transition-all grid place-items-center active:scale-95 cursor-pointer"
+                                                         title="Estornar"
+                                                      >
+                                                         <X size={13} />
+                                                      </button>
+                                                   </div>
+                                                </td>
+
+                                             </tr>
+
+                                             {isExpanded && (
+                                                <tr className="bg-black/50 border-b border-line-strong">
+                                                   <td colSpan={7} className="p-6">
+                                                      <div className="flex flex-col gap-6 animate-view-enter">
+                                                         
+                                                         {/* Cronograma de Liquidação */}
+                                                         <div className="flex flex-col gap-4">
+                                                            <div className="flex items-center justify-between border-l-2 border-gold pl-4 py-1">
+                                                               <div>
+                                                                  <h4 className="text-[11px] font-black uppercase text-gray-300 tracking-widest">Cronograma de Liquidação</h4>
+                                                                  <p className="text-[9px] text-gray-500 font-bold uppercase mt-1">Clique em "Quitar" para receber a parcela ou em "Recibo" para baixar o comprovante do ciclo</p>
+                                                               </div>
+                                                            </div>
+                                                            
+                                                            <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-3">
+                                                               {sInstallments.sort((a,b) => a.number - b.number).map(inst => {
+                                                                  const isPaid = inst.status === 'Pago';
+                                                                  const dueDateObj = new Date(inst.dueDate);
+                                                                  dueDateObj.setHours(0,0,0,0);
+                                                                  
+                                                                  const isOverdue = !isPaid && dueDateObj.getTime() < todayTime.getTime();
+                                                                  const isDueToday = !isPaid && dueDateObj.getTime() === todayTime.getTime();
+
+                                                                  let cardStyles = 'border-line-strong bg-black/30 hover:border-[rgba(255,215,0,0.3)]';
+                                                                  let dotStyle = 'bg-[rgba(255,215,0,0.4)] animate-pulse';
+                                                                  let cycleLabel = `Ciclo ${inst.number}`;
+                                                                  let labelStyle = 'text-gray-500';
+
+                                                                  if (isPaid) {
+                                                                     cardStyles = 'border-[rgba(57,255,20,0.2)] bg-[rgba(57,255,20,0.05)]';
+                                                                     dotStyle = 'bg-green-neon';
+                                                                     labelStyle = 'text-green-500';
+                                                                  } else if (isOverdue) {
+                                                                     cardStyles = 'border-red-500/30 bg-red-500/5 hover:border-red-500/50';
+                                                                     dotStyle = 'bg-red-500 animate-pulse';
+                                                                     cycleLabel = `Ciclo ${inst.number} (Atrasado)`;
+                                                                     labelStyle = 'text-red-400';
+                                                                  } else if (isDueToday) {
+                                                                     cardStyles = 'border-purple-500/40 bg-purple-500/5 hover:border-purple-500/60';
+                                                                     dotStyle = 'bg-purple-500 animate-bounce';
+                                                                     cycleLabel = `Ciclo ${inst.number} (Vence Hoje)`;
+                                                                     labelStyle = 'text-purple-400';
+                                                                  }
+
+                                                                  return (
+                                                                     <div 
+                                                                        key={inst.id}
+                                                                        className={`p-4 rounded-xl border transition-all ${cardStyles} flex flex-col gap-3 relative group/inst`}
+                                                                     >
+                                                                        <div className="flex items-center justify-between">
+                                                                           <span className={`text-[10px] font-black uppercase tracking-tighter ${labelStyle}`}>{cycleLabel}</span>
+                                                                           <div className={`w-1.5 h-1.5 rounded-full ${dotStyle}`} />
+                                                                        </div>
+                                                                        <div>
+                                                                           <p className="text-[13px] font-bold text-white tracking-wide">{money(inst.value)}</p>
+                                                                           <p className="text-[9px] font-black text-gray-500 uppercase mt-0.5">{new Date(inst.dueDate).toLocaleDateString('pt-BR')}</p>
+                                                                        </div>
+                                                                        <div className="absolute inset-0 bg-[rgba(0,0,0,0.9)] flex items-center justify-center p-2 opacity-0 group-hover/inst:opacity-100 transition-all rounded-xl backdrop-blur-sm">
+                                                                           {inst.status === 'Pendente' && (
+                                                                              <button 
+                                                                                 onClick={() => setSelectedInstallmentForPayment(inst)}
+                                                                                 className="w-full h-full bg-gold text-black rounded-lg text-[10px] font-black uppercase tracking-widest shadow-2xl active:scale-95 cursor-pointer font-bold"
+                                                                              >
+                                                                                 Quitar
+                                                                              </button>
+                                                                           )}
+                                                                           {inst.status === 'Pago' && (
+                                                                              <button 
+                                                                                 onClick={() => setSelectedInstallmentForReceipt(inst)}
+                                                                                 className="w-full h-full bg-[rgba(255,255,255,0.1)] text-white rounded-lg text-[9px] font-black uppercase tracking-widest border border-[rgba(255,255,255,0.1)] cursor-pointer font-bold"
+                                                                              >
+                                                                                 Recibo
+                                                                              </button>
+                                                                           )}
+                                                                        </div>
+                                                                     </div>
+                                                                  );
+                                                               })}
+                                                            </div>
+
+                                                            <div className="flex justify-end gap-3 mt-2 pr-1">
+                                                               <button 
+                                                                  onClick={() => shareSaleTableWhatsApp(sale)}
+                                                                  className="h-9 px-4 bg-[rgba(34,197,94,0.1)] border border-[rgba(34,197,94,0.2)] text-green-500 rounded-lg text-[9px] font-black uppercase tracking-widest hover:bg-green-500 hover:text-black transition-all flex items-center gap-1.5 cursor-pointer"
+                                                               >
+                                                                  <MessageCircle size={13} />
+                                                                  Compartilhar WhatsApp
+                                                               </button>
+                                                            </div>
+                                                         </div>
+
+                                                      </div>
+                                                   </td>
+                                                </tr>
                                              )}
-                                            <span className="text-[9px] text-gray-500 font-bold uppercase mt-1">Protocal ID: {sale.id.substring(0, 8)}</span>
-                                          </div>
-                                       </td>
-                                       <td className="p-6">
-                                          <div className="flex items-center gap-3">
-                                            <div className="w-8 h-8 rounded-lg bg-[rgba(255,215,0,0.1)] text-gold flex items-center justify-center border border-[rgba(255,215,0,0.1)] shrink-0">
-                                              <ShoppingBag size={14} />
-                                            </div>
-                                            <span className="text-gray-300 text-[13px] font-semibold truncate max-w-[140px] uppercase">{sale.productName}</span>
-                                          </div>
-                                       </td>
-                                       <td className="p-6">
-                                          <div className="flex flex-col">
-                                             <strong className="font-bold text-white text-lg">{money(sale.total)}</strong>
-                                             <div className="flex items-center gap-1.5 mt-0.5">
-                                                 <span className="text-[9px] text-gray-600 font-bold uppercase">{sale.installmentsCount}x {money(sale.installmentValue)}</span>
-                                                 {sale.isInterestOnly && (
-                                                    <span className="px-1.5 py-0.5 rounded bg-[rgba(255,215,0,0.1)] text-gold border border-[rgba(255,215,0,0.2)] text-[8px] font-black uppercase tracking-wider">
-                                                       Apenas Juros ({sale.interestRate}%)
-                                                    </span>
-                                                 )}
-                                              </div>
-                                          </div>
-                                       </td>
-                                       <td className="p-6">
-                                          <div className="flex flex-col">
-                                            <span className="text-green-neon font-black text-sm">+{money(sale.profit)}</span>
-                                            <span className="text-[9px] text-gray-600 font-bold uppercase">ROI Operacional</span>
-                                          </div>
-                                       </td>
-                                       <td className="p-6">
-                                          <div className="flex flex-col gap-2">
-                                            <div className="flex items-center gap-2">
-                                              <span className={`w-2 h-2 rounded-full ${sale.status === 'Ativa' ? 'bg-gold animate-pulse' : 'bg-green-neon'}`} />
-                                              <span className={`text-[10px] font-black uppercase tracking-widest ${sale.status === 'Ativa' ? 'text-gold-200' : 'text-green-neon'}`}>
-                                                {sale.status === 'Ativa' ? 'Operacional' : 'Liquidado'}
-                                              </span>
-                                            </div>
-                                            <div className="h-1 w-full max-w-[100px] bg-[rgba(255,255,255,0.05)] rounded-full overflow-hidden border border-[rgba(255,255,255,0.05)]">
-                                               <div className="h-full bg-gold" style={{ width: `${(installments.filter(i => i.saleId === sale.id && i.status === 'Pago').length / sale.installmentsCount) * 100}%` }} />
-                                            </div>
-                                          </div>
-                                       </td>
-                                       <td className="p-6 text-right">
-                                          <div className="flex items-center justify-end gap-2">
-                                            <button 
-                                              onClick={() => setSelectedSaleForContract(sale)} 
-                                              className="w-10 h-10 rounded-xl border border-line bg-[rgba(255,255,255,0.02)] text-gray-400 hover:text-gold hover:border-[rgba(255,215,0,0.3)] hover:bg-[rgba(255,215,0,0.05)] transition-all flex items-center justify-center group/btn shadow-inner"
-                                              title="Ver Contrato"
-                                            >
-                                              <FileText size={18} className="group-hover/btn:scale-110 transition-transform" />
-                                            </button>
-                                            <button 
-                                              onClick={(e) => { 
-                                                e.stopPropagation(); 
-                                                setSelectedSaleForContract(sale);
-                                                // Pequeno delay para garantir que o modal abra e o elemento exista
-                                                setTimeout(() => {
-                                                  const element = document.getElementById('contract-content');
-                                                  if (element) {
-                                                    const opt = {
-                                                      margin: [10, 10],
-                                                      filename: `CONTRATO_${sale.client.replace(/\s+/g, '_').toUpperCase()}.pdf`,
-                                                      image: { type: 'jpeg', quality: 0.98 },
-                                                      html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff' },
-                                                      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
-                                                    };
-                                                    // @ts-ignore
-                                                    html2pdf().set(opt).from(element).save();
-                                                    showToast('Baixando contrato...');
-                                                  }
-                                                }, 300);
-                                              }} 
-                                              className="w-10 h-10 rounded-xl border border-line bg-[rgba(255,255,255,0.02)] text-gray-400 hover:text-green-neon hover:border-[rgba(57,255,20,0.3)] hover:bg-[rgba(57,255,20,0.05)] transition-all flex items-center justify-center group/btn shadow-inner"
-                                              title="Baixar PDF"
-                                            >
-                                              <Download size={18} className="group-hover/btn:scale-110 transition-transform" />
-                                            </button>
-                                            <button 
-                                              onClick={() => {
-                                                setSaleToEdit(sale);
-                                                setShowSaleForm(true);
-                                              }}
-                                              className="w-10 h-10 rounded-xl border border-line bg-[rgba(255,255,255,0.02)] text-gray-400 hover:text-gold hover:border-[rgba(255,215,0,0.3)] hover:bg-[rgba(255,215,0,0.05)] transition-all flex items-center justify-center group/btn shadow-inner"
-                                              title="Editar Venda"
-                                            >
-                                              <Pencil size={18} className="group-hover/btn:scale-110 transition-transform" />
-                                            </button>
-                                            <button 
-                                              onClick={() => openConfirm('Estornar Operação', 'Deseja anular este registro comercial?', () => deleteSale(sale.id))} 
-                                              className="w-10 h-10 rounded-xl border border-line bg-[rgba(255,255,255,0.02)] text-gray-400 hover:text-red-500 hover:border-[rgba(239,68,68,0.3)] hover:bg-red-500/5 transition-all flex items-center justify-center group/btn active:scale-95 shadow-inner"
-                                            >
-                                              <X size={18} />
-                                            </button>
-                                          </div>
-                                       </td>
-                                    </tr>
-                                    <tr>
-                                      <td colSpan={6} className="px-8 py-5 bg-[rgba(0,0,0,0.4)] shadow-inner">
-                                        <div className="flex flex-col gap-4">
-                                          <div className="flex items-center justify-between border-l-2 border-[rgba(255,215,0,0.4)] pl-4 py-1">
-                                            <div>
-                                               <h4 className="text-[11px] font-black uppercase text-gray-400 tracking-widest">Cronograma de Liquidação</h4>
-                                               <p className="text-[9px] text-gray-600 font-bold uppercase mt-1">Ciclos de Pagamento e Quitação</p>
-                                            </div>
-                                          </div>
-                                          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-3">
-                                            {installments.filter(i => i.saleId === sale.id).sort((a,b) => a.number - b.number).map(inst => {
-                                              const isPaid = inst.status === 'Pago';
-                                              const dueDateObj = new Date(inst.dueDate);
-                                              dueDateObj.setHours(0,0,0,0);
-                                              
-                                              const isOverdue = !isPaid && dueDateObj.getTime() < todayTime.getTime();
-                                              const isDueToday = !isPaid && dueDateObj.getTime() === todayTime.getTime();
-
-                                              let cardStyles = 'border-line-strong bg-[rgba(0,0,0,0.2)] hover:border-[rgba(255,215,0,0.3)]';
-                                              let dotStyle = 'bg-[rgba(255,215,0,0.4)] animate-pulse';
-                                              let cycleLabel = `Ciclo ${inst.number}`;
-                                              let labelStyle = 'text-gray-600';
-
-                                              if (isPaid) {
-                                                cardStyles = 'border-[rgba(57,255,20,0.2)] bg-[rgba(57,255,20,0.05)]';
-                                                dotStyle = 'bg-green-neon';
-                                              } else if (isOverdue) {
-                                                cardStyles = 'border-red-500/30 bg-red-500/5 hover:border-red-500/50';
-                                                dotStyle = 'bg-red-500 animate-pulse';
-                                                cycleLabel = `Ciclo ${inst.number} (Atrasado)`;
-                                                labelStyle = 'text-red-400';
-                                              } else if (isDueToday) {
-                                                cardStyles = 'border-purple-500/40 bg-purple-500/5 hover:border-purple-500/60';
-                                                dotStyle = 'bg-purple-500 animate-bounce';
-                                                cycleLabel = `Ciclo ${inst.number} (Vence Hoje)`;
-                                                labelStyle = 'text-purple-400';
-                                              }
-
-                                              return (
-                                                <div 
-                                                  key={inst.id}
-                                                  className={`p-4 rounded-2xl border transition-all ${cardStyles} flex flex-col gap-3 relative group/inst`}
-                                                >
-                                                  <div className="flex items-center justify-between">
-                                                    <span className={`text-[10px] font-black uppercase tracking-tighter ${labelStyle}`}>{cycleLabel}</span>
-                                                    <div className={`w-1.5 h-1.5 rounded-full ${dotStyle}`} />
-                                                  </div>
-                                                  <div>
-                                                    <p className="text-[13px] font-bold text-white tracking-wide">{money(inst.value)}</p>
-                                                    <p className="text-[9px] font-black text-gray-500 uppercase mt-0.5">{new Date(inst.dueDate).toLocaleDateString('pt-BR')}</p>
-                                                  </div>
-                                                  <div className="absolute inset-0 bg-[rgba(0,0,0,0.8)] flex items-center justify-center p-2 opacity-0 group-hover/inst:opacity-100 transition-all rounded-2xl backdrop-blur-sm">
-                                                    {inst.status === 'Pendente' && (
-                                                      <button 
-                                                        onClick={() => setSelectedInstallmentForPayment(inst)}
-                                                        className="w-full h-full bg-gold text-black rounded-xl text-[10px] font-black uppercase tracking-widest shadow-2xl active:scale-95"
-                                                      >
-                                                        Quitar
-                                                      </button>
-                                                    )}
-                                                    {inst.status === 'Pago' && (
-                                                      <button 
-                                                        onClick={() => setSelectedInstallmentForReceipt(inst)}
-                                                        className="w-full h-full bg-[rgba(255,255,255,0.1)] text-white rounded-xl text-[10px] font-black uppercase tracking-widest border border-[rgba(255,255,255,0.1)]"
-                                                      >
-                                                        Recibo
-                                                      </button>
-                                                    )}
-                                                  </div>
-                                                </div>
-                                              );
-                                            })}
-                                          </div>
-                                          <div className="flex justify-end px-2">
-                                            <button 
-                                              onClick={() => shareSaleTableWhatsApp(sale)}
-                                              className="h-10 px-6 bg-[rgba(34,197,94,0.1)] border border-[rgba(34,197,94,0.2)] text-green-500 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-green-500 hover:text-black transition-all flex items-center gap-2"
-                                            >
-                                              <MessageCircle size={14} />
-                                              Compartilhar Tabela WhatsApp
-                                            </button>
-                                          </div>
-                                        </div>
-                                      </td>
-                                    </tr>
-                                    </Fragment>
-                                 ))}
-                              </tbody>
-                           </table>
+                                          </Fragment>
+                                       );
+                                    })}
+                                 </tbody>
+                              </table>
+                           </div>
                         </div>
-                      </section>
                       )}
                     </div>
                   )}
@@ -1650,7 +2055,7 @@ export default function App() {
                     <div className="glass-card p-6 border border-zinc-850 flex flex-col justify-between h-[150px] relative overflow-hidden group">
                       <div className="absolute right-3 top-3 opacity-5 text-white"><DollarSign size={80} /></div>
                       <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider">Lucro do Ciclo Atual</span>
-                      <strong className="text-3xl font-black text-gold">{money(activeSales.reduce((acc, s) => acc + (s.profit || 0), 0))}</strong>
+                      <strong className="text-3xl font-black text-gold">{money(activeSales.reduce((acc, s) => acc + (s.installmentValue || 0), 0))}</strong>
                       <span className="text-[9px] text-zinc-400">Total acumulado desde o último fechamento</span>
                     </div>
 
@@ -1684,7 +2089,7 @@ export default function App() {
                         <h3 className="text-sm font-black text-amber-200 uppercase tracking-wider">Consolidar Período e Fechar Caixa</h3>
                       </div>
                       <p className="text-xs text-amber-100/60 max-w-xl">
-                        Ao realizar o fechamento do caixa mensal, o montante de lucro atual de <strong className="text-gold font-bold">{money(activeSales.reduce((acc, s) => acc + (s.profit || 0), 0))}</strong> e as informações deste ciclo serão arquivados. O card de lucros do dashboard será reiniciado em zero para iniciar um novo ciclo comercial.
+                        Ao realizar o fechamento do caixa mensal, o montante de lucro atual de <strong className="text-gold font-bold">{money(activeSales.reduce((acc, s) => acc + (s.installmentValue || 0), 0))}</strong> e as informações deste ciclo serão arquivados. O card de lucros do dashboard será reiniciado em zero para iniciar um novo ciclo comercial.
                       </p>
                     </div>
                     <div className="flex gap-3 shrink-0 items-center">
@@ -1698,7 +2103,7 @@ export default function App() {
                         onClick={() => {
                           const inputEl = document.getElementById('closingPeriodInput') as HTMLInputElement;
                           const periodVal = inputEl?.value?.trim() || `Ciclo - ${new Date().toLocaleDateString('pt-BR')}`;
-                          const currentActiveProfit = activeSales.reduce((acc, s) => acc + (s.profit || 0), 0);
+                          const currentActiveProfit = activeSales.reduce((acc, s) => acc + (s.installmentValue || 0), 0);
                           const currentActiveRevenue = activeSales.reduce((acc, s) => acc + (s.total || 0), 0);
                           const currentActiveCount = activeSales.length;
 
@@ -1879,8 +2284,9 @@ export default function App() {
                                   </div>
                                </div>
                                <div className="flex gap-2 sm:gap-3 w-full sm:w-auto">
-                                  <button onClick={shareSimulationWhatsApp} className="flex-1 sm:flex-none h-12 sm:h-14 px-6 bg-green-neon text-black rounded-xl sm:rounded-2xl font-black uppercase text-[10px] sm:text-xs shadow-xl active:scale-95">WhatsApp</button>
-                                  <button onClick={downloadSimulationPDF} className="flex-1 sm:flex-none h-12 sm:h-14 px-6 bg-gold text-black rounded-xl sm:rounded-2xl font-black uppercase text-[10px] sm:text-xs shadow-xl active:scale-95">PDF</button>
+                                  <button onClick={shareSimulationWhatsApp} className="w-full sm:w-auto h-12 sm:h-14 px-8 bg-green-neon text-black rounded-xl sm:rounded-2xl font-black uppercase text-[10px] sm:text-xs shadow-xl active:scale-95 hover:brightness-110 transition-all flex items-center justify-center gap-2">
+                                    Enviar via WhatsApp
+                                  </button>
                                </div>
                             </div>
                           </>
@@ -2461,6 +2867,91 @@ export default function App() {
                  >
                     <Zap size={20} />
                     Confirmar Quitação
+                 </button>
+              </motion.div>
+            </div>
+          )}
+
+          {selectedSaleForAmortization && (
+            <div key="modal-amortization" className="fixed inset-0 z-[80] flex items-center justify-center p-4">
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setSelectedSaleForAmortization(null)} className="absolute inset-0 bg-[rgba(0,0,0,0.95)] backdrop-blur-md" />
+              <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="relative w-full max-w-[440px] glass-card p-10 bg-[#0a0a0a] border border-[rgba(255,215,0,0.2)] shadow-2xl overflow-hidden rounded-[32px]">
+                 <div className="absolute top-0 left-0 w-full h-1 bg-gold shadow-[0_0_20px_#ffd70033]" />
+                 <button onClick={() => setSelectedSaleForAmortization(null)} className="absolute top-8 right-8 text-gray-400 hover:text-white transition-colors cursor-pointer"><X size={20}/></button>
+                 
+                 <div className="text-center mb-8">
+                    <h3 className="text-2xl font-black text-white italic uppercase tracking-tighter">Amortização de Saldo</h3>
+                    <p className="text-[10px] text-zinc-500 font-bold uppercase mt-1 tracking-widest leading-none">Redução de Dívida / Principal</p>
+                 </div>
+
+                 <div className="p-6 bg-zinc-950/60 rounded-2xl border border-zinc-900 mb-6 text-center">
+                    <span className="text-[9px] font-black text-gray-500 uppercase block tracking-wider mb-1">Cliente / Produto</span>
+                    <strong className="text-sm text-white font-bold block truncate max-w-full mb-3">{selectedSaleForAmortization.client} ({selectedSaleForAmortization.productName})</strong>
+                    
+                    <div className="grid grid-cols-2 gap-4 pt-3 border-t border-zinc-900">
+                      <div>
+                        <span className="text-[9px] font-black text-gray-500 uppercase block tracking-wider">Saldo Atual</span>
+                        <strong className="text-base text-gold font-bold">{money(selectedSaleForAmortization.total)}</strong>
+                      </div>
+                      <div>
+                        <span className="text-[9px] font-black text-gray-500 uppercase block tracking-wider">Juros Mensal</span>
+                        <strong className="text-base text-zinc-350 font-bold">{selectedSaleForAmortization.interestRate}% ({money(selectedSaleForAmortization.installmentValue)}/mês)</strong>
+                      </div>
+                    </div>
+                 </div>
+
+                 <div className="flex flex-col gap-2 mb-6">
+                    <label className="text-[10px] font-black uppercase text-gray-500 ml-2">Valor da Amortização (R$)</label>
+                    <div className="relative">
+                      <span className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-500 font-bold text-sm">R$</span>
+                      <input 
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        max={selectedSaleForAmortization.total}
+                        value={amortizationAmount}
+                        onChange={(e) => setAmortizationAmount(e.target.value)}
+                        placeholder="0,00"
+                        className="w-full h-14 bg-zinc-900 border border-line-strong rounded-2xl pl-12 pr-6 font-bold outline-none focus:border-gold text-white text-sm"
+                      />
+                    </div>
+                    {amortizationAmount && !isNaN(Number(amortizationAmount)) && Number(amortizationAmount) > 0 && (
+                      <div className="text-[10px] text-zinc-400 mt-1 font-semibold ml-2 text-left">
+                        Novo saldo devedor após pagamento: <span className="text-green-neon">{money(Math.max(0, selectedSaleForAmortization.total - Number(amortizationAmount)))}</span>
+                        {Number(amortizationAmount) >= selectedSaleForAmortization.total ? (
+                          <span className="text-gold block mt-0.5">⚠️ Esta amortização liquidará completamente este contrato!</span>
+                        ) : (
+                          <span className="text-zinc-500 block mt-0.5">Novo valor estimado dos juros mensais: {money(Math.max(0, selectedSaleForAmortization.total - Number(amortizationAmount)) * (selectedSaleForAmortization.interestRate || 0) / 100)}</span>
+                        )}
+                      </div>
+                    )}
+                 </div>
+
+                 <div className="flex flex-col gap-3 mb-8">
+                    <label className="text-[10px] font-black uppercase text-gray-500 ml-2 text-left">Meio de Pagamento Verificado</label>
+                    <div className="grid grid-cols-2 gap-2">
+                       {['Pix', 'Dinheiro', 'Cartão', 'Transferência'].map(m => (
+                         <button 
+                            key={m} 
+                            type="button"
+                            onClick={() => setAmortizationMethod(m as any)} 
+                            className={`h-11 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all relative overflow-hidden group ${amortizationMethod === m ? 'bg-gold text-black font-extrabold' : 'bg-zinc-900 border border-zinc-800 text-gray-500 hover:text-gray-300'}`}
+                         >
+                            <span className="relative z-10">{m}</span>
+                            {amortizationMethod === m && (
+                               <motion.div layoutId="amort-active" className="absolute inset-0 bg-gold" transition={{ type: 'spring', bounce: 0.2, duration: 0.6 }} />
+                            )}
+                         </button>
+                       ))}
+                    </div>
+                 </div>
+
+                 <button 
+                    onClick={handleConfirmAmortization} 
+                    className="w-full h-16 bg-gold text-black rounded-[20px] font-black uppercase text-xs shadow-xl hover:brightness-110 active:scale-95 transition-all flex items-center justify-center gap-3 cursor-pointer"
+                 >
+                    <DollarSign size={18} />
+                    Confirmar Amortização
                  </button>
               </motion.div>
             </div>

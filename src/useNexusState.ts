@@ -300,7 +300,7 @@ export function useNexusState() {
           productName: inst.productName,
           number: nextNumber,
           total: newTotal,
-          value: inst.value,
+          value: correspondingSale.installmentValue !== undefined ? correspondingSale.installmentValue : inst.value,
           dueDate: nextDueDate.toISOString(),
           status: 'Pendente'
         }));
@@ -309,6 +309,65 @@ export function useNexusState() {
       await batch.commit();
     } catch (err) {
       handleFirestoreError(err, OperationType.UPDATE, `installments/${id}`);
+    }
+  };
+
+  const amortizeSale = async (saleId: string, amount: number, paymentMethod: string) => {
+    try {
+      const sale = sales.find(s => s.id === saleId);
+      if (!sale) return;
+
+      const batch = writeBatch(db);
+
+      const newTotal = Math.max(0, sale.total - amount);
+      const isLiquidated = newTotal <= 0;
+      
+      const newInstallmentValue = isLiquidated ? 0 : newTotal * ((sale.interestRate || 0) / 100);
+      const newStatus = isLiquidated ? 'Liquidada' : 'Ativa';
+
+      batch.update(doc(db, 'sales', saleId), {
+        total: newTotal,
+        installmentValue: newInstallmentValue,
+        status: newStatus
+      });
+
+      // Registrar o pagamento correspondente à amortização no histórico de parcelas pagas
+      const amortInstId = crypto.randomUUID();
+      const nextNumber = (installments.filter(i => i.saleId === saleId).length) + 1;
+      
+      batch.set(doc(db, 'installments', amortInstId), cleanData({
+        id: amortInstId,
+        saleId: saleId,
+        client: sale.client,
+        productName: `${sale.productName} (Amortização de Principal)`,
+        number: nextNumber,
+        total: Math.max(sale.installmentsCount, nextNumber),
+        value: amount,
+        dueDate: new Date().toISOString(),
+        status: 'Pago',
+        paidAt: new Date().toISOString(),
+        paymentMethod: paymentMethod
+      }));
+
+      if (isLiquidated) {
+        // Remover parcelas pendentes já que o contrato foi totalmente quitado
+        const pending = installments.filter(i => i.saleId === saleId && i.status === 'Pendente');
+        pending.forEach(p => {
+          batch.delete(doc(db, 'installments', p.id));
+        });
+      } else {
+        // Atualizar todas as parcelas pendentes ativas para o novo valor de juros reduzido proporcionalmente
+        const pending = installments.filter(i => i.saleId === saleId && i.status === 'Pendente');
+        pending.forEach(p => {
+          batch.update(doc(db, 'installments', p.id), {
+            value: newInstallmentValue
+          });
+        });
+      }
+
+      await batch.commit();
+    } catch (err) {
+      handleFirestoreError(err, OperationType.UPDATE, `sales/${saleId}/amortize`);
     }
   };
 
@@ -434,6 +493,7 @@ export function useNexusState() {
     deleteProduct,
     registerSale,
     payInstallment,
+    amortizeSale,
     updateSaleFull,
     updateProduct,
     setInstallments,

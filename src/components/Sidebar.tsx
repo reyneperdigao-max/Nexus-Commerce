@@ -1,4 +1,4 @@
-import { LayoutDashboard, Boxes, ShoppingBag, User, Calculator, LogOut, ChevronLeft, ChevronRight, Settings, Menu, X, Receipt, BarChart3 } from 'lucide-react';
+import { LayoutDashboard, Boxes, ShoppingBag, User, Calculator, LogOut, Settings, Menu, X, Receipt, BarChart3 } from 'lucide-react';
 import { Settings as SettingsType } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
 import { Logo } from './CommonUI';
@@ -16,7 +16,7 @@ interface SidebarProps {
   setDesktopSidebarOpen: (open: boolean) => void;
 }
 
-export function Sidebar({ activeView, setActiveView, collapsed, setCollapsed, settings, onLogout, isMobileOpen, setIsMobileOpen, desktopSidebarOpen, setDesktopSidebarOpen }: SidebarProps) {
+export function Sidebar({ activeView, setActiveView, collapsed = false, setCollapsed, settings, onLogout, isMobileOpen, setIsMobileOpen, desktopSidebarOpen, setDesktopSidebarOpen }: SidebarProps) {
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'stock', label: 'Estoque', icon: Boxes },
@@ -32,13 +32,6 @@ export function Sidebar({ activeView, setActiveView, collapsed, setCollapsed, se
     <div className="flex flex-col h-full bg-black border-r border-line-strong p-4 sm:p-6 overflow-hidden">
       <div className="flex items-center justify-between mb-12 px-2">
         <Logo showText={!collapsed} />
-        <button 
-          onClick={() => setCollapsed(!collapsed)}
-          className="hidden sm:flex w-8 h-8 rounded-lg border border-line-strong bg-black items-center justify-center text-gray-500 hover:text-gold hover:border-gold/30 transition-all cursor-pointer"
-          title={collapsed ? "Expandir Menu" : "Recolher Menu"}
-        >
-          {collapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
-        </button>
       </div>
 
       <nav className="flex-1 flex flex-col gap-2">
@@ -84,13 +77,6 @@ export function Sidebar({ activeView, setActiveView, collapsed, setCollapsed, se
           <LogOut size={20} />
           {!collapsed && <span>Encerrar Sessão</span>}
         </button>
-
-        <button 
-          onClick={() => setCollapsed(!collapsed)}
-          className="hidden sm:flex items-center justify-center h-10 w-full border border-line-strong rounded-xl text-gray-600 hover:text-gold hover:border-gold/30 transition-all"
-        >
-          {collapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
-        </button>
       </div>
     </div>
   );
@@ -98,7 +84,7 @@ export function Sidebar({ activeView, setActiveView, collapsed, setCollapsed, se
   return (
     <>
       {/* Desktop Sidebar */}
-      <aside className={`hidden ${desktopSidebarOpen ? 'sm:block' : 'sm:hidden'} transition-all duration-300 relative ${collapsed ? 'w-24' : 'w-72'}`}>
+      <aside className={`hidden ${desktopSidebarOpen ? 'sm:block' : 'sm:hidden'} transition-all duration-300 sticky top-0 h-screen shrink-0 ${collapsed ? 'w-24' : 'w-72'}`}>
         {content}
       </aside>
 

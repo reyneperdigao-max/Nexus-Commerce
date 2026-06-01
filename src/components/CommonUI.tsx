@@ -83,7 +83,7 @@ export function DashboardStats({ products, sales, installments, closings = [], o
     : '';
 
   const activeSales = sales.filter(s => s.createdAt > lastClosingDate);
-  const currentProfit = activeSales.reduce((acc, s) => acc + (s.profit || 0), 0);
+  const currentProfit = activeSales.reduce((acc, s) => acc + (s.installmentValue || 0), 0);
 
   const stats = [
     { 
