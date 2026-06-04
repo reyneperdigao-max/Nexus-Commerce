@@ -47,11 +47,13 @@ export interface Sale {
   isInterestOnly?: boolean;
   interestRate?: number;
   clientAddress?: string;
+  costPrice?: number;
 }
 
 export interface Settings {
   userName: string;
   userRole: string;
+  userFunction?: string;
   userEmail: string;
   profilePhoto?: string;
   pixName: string;
@@ -64,6 +66,24 @@ export interface Settings {
   currency: string;
   language: string;
   theme: 'dark' | 'light';
+  whatsappTemplate?: string;
+  currentOperator?: 'operator1' | 'operator2';
+  op1Name?: string;
+  op1Role?: string;
+  op1Function?: string;
+  op1Email?: string;
+  op1Photo?: string;
+  op1PixName?: string;
+  op1PixKey?: string;
+  op1PixType?: string;
+  op2Name?: string;
+  op2Role?: string;
+  op2Function?: string;
+  op2Email?: string;
+  op2Photo?: string;
+  op2PixName?: string;
+  op2PixKey?: string;
+  op2PixType?: string;
 }
 
 export interface Closing {

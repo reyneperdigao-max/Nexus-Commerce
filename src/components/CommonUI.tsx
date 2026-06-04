@@ -1,4 +1,4 @@
-import { Settings as SettingsIcon, Menu, Wallet, ShoppingBag, Boxes, User, Activity, AlertCircle, Calendar, TrendingUp, DollarSign } from 'lucide-react';
+import { Settings as SettingsIcon, Menu, Wallet, ShoppingBag, Boxes, User, Activity, AlertCircle, Calendar, TrendingUp, DollarSign, ShieldCheck } from 'lucide-react';
 import { Product, Sale, Installment } from '../types';
 
 export function Logo({ className = "", showText = true }: { className?: string, showText?: boolean }) {
@@ -62,8 +62,30 @@ export function DashboardStats({ products, sales, installments, closings = [], o
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
-  const investedValue = products.reduce((acc, p) => acc + (p.cost || 0), 0);
-  
+  const lastClosingDate = closings.length > 0 
+    ? closings.reduce((latest, c) => c.closedAt > latest ? c.closedAt : latest, '')
+    : '';
+
+  const isCurrentMonth = (dateStr?: string) => {
+    if (!dateStr) return false;
+    const date = new Date(dateStr);
+    const now = new Date();
+    return date.getFullYear() === now.getFullYear() && date.getMonth() === now.getMonth();
+  };
+
+  const monthlyDownPayments = sales
+    .filter(s => isCurrentMonth(s.createdAt))
+    .reduce((acc, s) => acc + (s.downPayment || 0), 0);
+
+  const monthlyPaidInstallments = installments
+    .filter(i => i.status === 'Pago' && isCurrentMonth(i.paidAt || i.dueDate))
+    .reduce((acc, i) => acc + (i.value || 0), 0);
+
+  const currentProfit = monthlyDownPayments + monthlyPaidInstallments;
+  const receivablesValue = installments.filter(i => i.status === 'Pendente').reduce((acc, i) => acc + i.value, 0);
+
+  // Health Rate (Credit / Adimplência Index)
+  const paidCount = installments.filter(i => i.status === 'Pago').length;
   const overdueCount = installments.filter(i => {
     if (i.status !== 'Pendente') return false;
     const dueDate = new Date(i.dueDate);
@@ -71,6 +93,10 @@ export function DashboardStats({ products, sales, installments, closings = [], o
     return dueDate < today;
   }).length;
 
+  const totalRelevantPoints = paidCount + overdueCount;
+  const healthRate = totalRelevantPoints > 0 ? (paidCount / totalRelevantPoints) * 100 : 100;
+
+  // Due today count
   const dueTodayCount = installments.filter(i => {
     if (i.status !== 'Pendente') return false;
     const dueDate = new Date(i.dueDate);
@@ -78,136 +104,283 @@ export function DashboardStats({ products, sales, installments, closings = [], o
     return dueDate.getTime() === today.getTime();
   }).length;
 
-  const lastClosingDate = closings.length > 0 
-    ? closings.reduce((latest, c) => c.closedAt > latest ? c.closedAt : latest, '')
-    : '';
+  // SVG Sparkline path helper
+  const getSalesTrendPoints = (): number[] => {
+    const sorted = [...sales]
+      .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+    if (sorted.length < 3) {
+      return [300, 420, 310, 580, 490, 720, 610, 890]; // Elegant modern mock-wave
+    }
+    return sorted.slice(-10).map(s => s.total);
+  };
 
-  const activeSales = sales.filter(s => s.createdAt > lastClosingDate);
-  const currentProfit = activeSales.reduce((acc, s) => acc + (s.installmentValue || 0), 0);
+  const getReceivablesTrendPoints = (): number[] => {
+    const sortedPending = [...installments]
+      .filter(i => i.status === 'Pendente')
+      .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
+    if (sortedPending.length < 3) {
+      return [150, 240, 180, 310, 260, 420, 380, 510]; // Fluid modern progression mock-wave
+    }
+    return sortedPending.slice(0, 10).map(i => i.value);
+  };
 
-  const stats = [
-    { 
-      id: 'invested-stat',
-      label: 'Total em Produtos', 
-      value: money(investedValue), 
-      sub: 'Patrimônio investido', 
-      icon: Boxes, 
-      color: 'blue',
-      trend: 'Investimento',
-      view: 'stock',
-      filter: 'Todos',
-      style: { icon: 'text-blue-500', bg: 'bg-blue-500/10', border: 'border-blue-500/20', text: 'text-blue-400', dot: 'bg-blue-500', glow: 'bg-blue-500' }
-    },
-    { 
-      id: 'profit-stat',
-      label: 'Lucro Líquido (Ciclo)', 
-      value: money(currentProfit), 
-      sub: closings.length > 0 ? 'Desde o último fechamento' : 'Acumulado histórico', 
-      icon: DollarSign, 
-      color: 'yellow',
-      trend: 'Resultado',
-      view: 'reports',
-      filter: 'Todos',
-      style: { icon: 'text-amber-400', bg: 'bg-amber-500/10', border: 'border-amber-500/20', text: 'text-amber-400', dot: 'bg-amber-500', glow: 'bg-amber-500' }
-    },
-    { 
-      id: 'sales-stat',
-      label: 'Vendas Realizadas', 
-      value: sales.length, 
-      sub: 'Contratos validados', 
-      icon: ShoppingBag, 
-      color: 'gold',
-      trend: 'Desempenho',
-      view: 'sales',
-      filter: 'Todos',
-      style: { icon: 'text-gold', bg: 'bg-gold/10', border: 'border-gold/20', text: 'text-gold-200', dot: 'bg-gold', glow: 'bg-gold' }
-    },
-    { 
-      id: 'receivables-stat',
-      label: 'Valores a Receber', 
-      value: money(installments.filter(i => i.status === 'Pendente').reduce((acc, i) => acc + i.value, 0)), 
-      sub: 'Lançamentos futuros', 
-      icon: TrendingUp, 
-      color: 'green',
-      trend: 'Liquidez',
-      view: 'sales',
-      filter: 'Todos',
-      style: { icon: 'text-green-neon', bg: 'bg-green-neon/10', border: 'border-green-neon/20', text: 'text-green-neon', dot: 'bg-green-neon', glow: 'bg-green-neon' }
-    },
-    { 
-      id: 'overdue-stat',
-      label: 'Atrasados', 
-      value: overdueCount, 
-      sub: overdueCount > 0 ? 'CRÍTICO: Inadimplência detectada' : 'Sem pendências críticas', 
-      icon: AlertCircle, 
-      color: 'red',
-      trend: 'Risco',
-      view: 'sales',
-      filter: 'Atrasados',
-      style: { 
-        icon: overdueCount > 0 ? 'text-red-500' : 'text-gray-600', 
-        bg: overdueCount > 0 ? 'bg-red-500/20' : 'bg-white/5', 
-        border: overdueCount > 0 ? 'border-red-500/40' : 'border-white/5', 
-        text: overdueCount > 0 ? 'text-red-400' : 'text-gray-500', 
-        dot: overdueCount > 0 ? 'bg-red-500 animate-pulse' : 'bg-gray-700', 
-        glow: 'bg-red-500' 
-      },
-      severity: overdueCount > 0
-    },
-    { 
-      id: 'due-today-stat',
-      label: 'Vence Hoje', 
-      value: dueTodayCount, 
-      sub: dueTodayCount > 0 ? 'ATENÇÃO: Recebíveis do dia' : 'Nenhuma parcela para hoje', 
-      icon: Calendar, 
-      color: 'purple',
-      trend: 'Operacional',
-      view: 'sales',
-      filter: 'Hoje',
-      style: { 
-        icon: dueTodayCount > 0 ? 'text-purple-500' : 'text-gray-600', 
-        bg: dueTodayCount > 0 ? 'bg-purple-500/20' : 'bg-white/5', 
-        border: dueTodayCount > 0 ? 'border-purple-500/40' : 'border-white/5', 
-        text: dueTodayCount > 0 ? 'text-purple-400' : 'text-gray-500', 
-        dot: dueTodayCount > 0 ? 'bg-purple-500 animate-bounce' : 'bg-gray-700', 
-        glow: 'bg-purple-500' 
-      },
-      severity: dueTodayCount > 0
-    },
-  ];
+  const drawSparkline = (points: number[], width = 140, height = 36) => {
+    if (points.length < 2) return "";
+    const min = Math.min(...points);
+    const max = Math.max(...points);
+    const range = max - min || 1;
+    return points.map((p, idx) => {
+      const x = (idx / (points.length - 1)) * width;
+      const y = height - ((p - min) / range) * (height - 8) - 4;
+      return `${idx === 0 ? 'M' : 'L'} ${x.toFixed(1)} ${y.toFixed(1)}`;
+    }).join(' ');
+  };
+
+  const drawSparklineArea = (points: number[], width = 140, height = 36) => {
+    const linePath = drawSparkline(points, width, height);
+    if (!linePath) return "";
+    return `${linePath} L ${width.toFixed(1)} ${height.toFixed(1)} L 0 ${height.toFixed(1)} Z`;
+  };
+
+  // Circle progress math for adimplência gauge
+  const gaugeRadius = 14;
+  const gaugeCircumference = 2 * Math.PI * gaugeRadius;
+  const gaugeOffset = gaugeCircumference - (healthRate / 100) * gaugeCircumference;
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 sm:gap-6 px-1">
-      {stats.map((stat) => (
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 sm:gap-6 px-1">
+      
+      {/* Bento Card 1: Valores a Receber */}
+      <div 
+        onClick={() => onNavigate('sales')}
+        className="glass-card group p-5 sm:p-6 flex flex-col justify-between border border-white/5 hover:border-blue-500/30 transition-all duration-500 hover:scale-[1.02] hover:-translate-y-1 relative overflow-hidden cursor-pointer active:scale-95 min-h-[160px]"
+      >
+        <div className="absolute -right-6 -top-6 w-32 h-32 rounded-full blur-3xl opacity-0 group-hover:opacity-10 transition-opacity duration-700 bg-blue-500" />
+        
+        <div className="flex items-center justify-between relative z-10">
+          <div className="w-11 h-11 rounded-xl flex items-center justify-center bg-blue-500/10 border border-blue-500/20 group-hover:border-blue-500/40 transition-all duration-500">
+            <TrendingUp size={20} className="text-blue-400 group-hover:scale-110 transition-transform duration-500" />
+          </div>
+          
+          {/* Glowing mini path */}
+          <div className="opacity-60 group-hover:opacity-100 transition-opacity duration-500">
+            <svg width="100" height="28" viewBox="0 0 100 28" className="overflow-visible">
+              <defs>
+                <linearGradient id="blue-grad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.3" />
+                  <stop offset="100%" stopColor="#3b82f6" stopOpacity="0" />
+                </linearGradient>
+              </defs>
+              <path 
+                d={drawSparklineArea(getReceivablesTrendPoints(), 100, 28)} 
+                fill="url(#blue-grad)" 
+              />
+              <path 
+                d={drawSparkline(getReceivablesTrendPoints(), 100, 28)} 
+                fill="none" 
+                stroke="#3b82f6" 
+                strokeWidth="2" 
+                strokeLinecap="round" 
+                strokeLinejoin="round" 
+              />
+            </svg>
+          </div>
+        </div>
+
+        <div className="relative z-10 mt-2">
+          <span className="text-[10px] font-bold uppercase tracking-[0.2em] mb-1 block text-white/40">Valores a Receber</span>
+          <strong className="text-2xl sm:text-3xl font-black block text-blue-400 group-hover:text-blue-300 transition-colors duration-500">
+            {money(receivablesValue)}
+          </strong>
+          <div className="flex items-center gap-2 mt-2">
+            <div className="w-1.5 h-1.5 rounded-full bg-blue-400 shadow-[0_0_8px_#3b82f6]" />
+            <p className="text-[10px] font-bold uppercase tracking-wider text-white/30">Total Pendente Futuro</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Bento Card 2: Faturamento Realizado (Recebido no Mês) */}
+      <div 
+        onClick={() => onNavigate('reports')}
+        className="glass-card group p-5 sm:p-6 flex flex-col justify-between border border-white/5 hover:border-gold/30 transition-all duration-500 hover:scale-[1.02] hover:-translate-y-1 relative overflow-hidden cursor-pointer active:scale-95 min-h-[160px]"
+      >
+        <div className="absolute -right-6 -top-6 w-32 h-32 rounded-full blur-3xl opacity-0 group-hover:opacity-10 transition-opacity duration-700 bg-gold" />
+        
+        <div className="flex items-center justify-between relative z-10">
+          <div className="w-11 h-11 rounded-xl flex items-center justify-center bg-gold/10 border border-gold/20 group-hover:border-gold/40 transition-all duration-500">
+            <DollarSign size={20} className="text-gold group-hover:scale-110 transition-transform duration-500" />
+          </div>
+          
+          {/* Glowing mini path */}
+          <div className="opacity-60 group-hover:opacity-100 transition-opacity duration-500">
+            <svg width="100" height="28" viewBox="0 0 100 28" className="overflow-visible">
+              <defs>
+                <linearGradient id="gold-grad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#ffd700" stopOpacity="0.3" />
+                  <stop offset="100%" stopColor="#ffd700" stopOpacity="0" />
+                </linearGradient>
+              </defs>
+              <path 
+                d={drawSparklineArea(getSalesTrendPoints(), 100, 28)} 
+                fill="url(#gold-grad)" 
+              />
+              <path 
+                d={drawSparkline(getSalesTrendPoints(), 100, 28)} 
+                fill="none" 
+                stroke="#ffd700" 
+                strokeWidth="2" 
+                strokeLinecap="round" 
+                strokeLinejoin="round" 
+              />
+            </svg>
+          </div>
+        </div>
+
+        <div className="relative z-10 mt-2">
+          <span className="text-[10px] font-bold uppercase tracking-[0.2em] mb-1 block text-white/40">Faturamento Realizado</span>
+          <strong className="text-2xl sm:text-3xl font-black block text-gold group-hover:text-amber-300 transition-colors duration-500">
+            {money(currentProfit)}
+          </strong>
+          <div className="flex items-center gap-2 mt-2">
+            <div className="w-1.5 h-1.5 rounded-full bg-gold shadow-[0_0_8px_#ffd700]" />
+            <p className="text-[10px] font-bold uppercase tracking-wider text-white/30">Total Recebido no Mês</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Bento Card 3: Índice de Adimplência (Credit Health) */}
+      <div 
+        onClick={() => onNavigate('sales')}
+        className="glass-card group p-5 sm:p-6 flex flex-col justify-between border border-white/5 hover:border-green-neon/30 transition-all duration-500 hover:scale-[1.02] hover:-translate-y-1 relative overflow-hidden cursor-pointer active:scale-95 min-h-[160px]"
+      >
+        <div className="absolute -right-6 -top-6 w-32 h-32 rounded-full blur-3xl opacity-0 group-hover:opacity-10 transition-opacity duration-700 bg-green-neon" />
+        
+        <div className="flex items-center justify-between relative z-10">
+          <div className="w-11 h-11 rounded-xl flex items-center justify-center bg-[#39ff14]/10 border border-[#39ff14]/20 group-hover:border-[#39ff14]/40 transition-all duration-500">
+            <Activity size={20} className="text-green-neon group-hover:scale-110 transition-transform duration-500" />
+          </div>
+          
+          {/* Gauge Widget */}
+          <div className="relative flex items-center justify-center w-10 h-10 shrink-0">
+            <svg className="w-12 h-12" viewBox="0 0 36 36">
+              <circle cx="18" cy="18" r={gaugeRadius} className="stroke-zinc-900 fill-none" strokeWidth="3" />
+              <circle 
+                cx="18" 
+                cy="18" 
+                r={gaugeRadius} 
+                className="stroke-green-neon fill-none transition-all duration-1000 ease-out" 
+                strokeWidth="3"
+                strokeDasharray={gaugeCircumference}
+                strokeDashoffset={gaugeOffset}
+                strokeLinecap="round"
+                style={{ transform: 'rotate(-90deg)', transformOrigin: '50% 50%' }}
+              />
+            </svg>
+            <span className="absolute text-[8px] font-black text-green-neon">{Math.round(healthRate)}%</span>
+          </div>
+        </div>
+
+        <div className="relative z-10 mt-2">
+          <span className="text-[10px] font-bold uppercase tracking-[0.2em] mb-1 block text-white/40">Índice de Adimplência</span>
+          <strong className="text-2xl sm:text-3xl font-black block text-green-neon">
+            {healthRate.toFixed(1)}%
+          </strong>
+          <div className="flex items-center gap-2 mt-2">
+            <div className="w-1.5 h-1.5 rounded-full bg-green-neon shadow-[0_0_8px_#39FF14]" />
+            <p className="text-[10px] font-bold uppercase tracking-wider text-white/30 truncate">
+              {overdueCount === 0 ? "Sem faturas atrasadas" : `${overdueCount} parcelas em risco`}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Container dos dois cards menores: Vencem Hoje e Atrasados */}
+      <div className="col-span-1 sm:col-span-2 lg:col-span-1 grid grid-cols-2 gap-3 sm:gap-4">
+        {/* Card 1: Vencem Hoje */}
         <div 
-          key={stat.id} 
-          onClick={() => onNavigate(stat.view, (stat as any).filter)}
-          className={`glass-card group p-5 sm:p-6 flex flex-col gap-4 sm:gap-6 border transition-all duration-500 hover:scale-[1.02] hover:-translate-y-1 relative overflow-hidden cursor-pointer active:scale-95 ${stat.severity ? 'shadow-[0_0_30px_rgba(239,68,68,0.2)]' : 'border-white/5'}`}
+          onClick={() => onNavigate('sales', 'Hoje')}
+          className={`glass-card group p-4 sm:p-5 flex flex-col justify-between border transition-all duration-500 hover:scale-[1.02] hover:-translate-y-1 relative overflow-hidden cursor-pointer active:scale-95 min-h-[160px] ${
+            dueTodayCount > 0 
+              ? 'border-purple-500/20 hover:border-purple-500/40 shadow-[0_0_20px_rgba(168,85,247,0.1)]'
+              : 'border-white/5 hover:border-emerald-500/30'
+          }`}
         >
-          {/* Subtle Color Glow */}
-          <div className={`absolute -right-6 -top-6 w-32 h-32 rounded-full blur-3xl opacity-0 group-hover:opacity-10 transition-opacity duration-700 ${stat.style.glow}`} />
+          <div className="absolute -right-6 -top-6 w-24 h-24 rounded-full blur-2xl opacity-0 group-hover:opacity-10 transition-opacity duration-700 bg-purple-500" />
           
           <div className="flex items-center justify-between relative z-10">
-            <div className={`w-14 h-14 rounded-2xl flex items-center justify-center ${stat.style.bg} border ${stat.style.border} group-hover:border-opacity-50 transition-all duration-500`}>
-              <stat.icon size={26} className={`${stat.style.icon} group-hover:scale-110 transition-transform duration-500`} />
+            <div className={`w-8 h-8 sm:w-9 sm:h-9 rounded-lg flex items-center justify-center transition-all duration-500 ${
+              dueTodayCount > 0 
+                ? 'bg-purple-500/10 border border-purple-500/20 text-purple-400' 
+                : 'bg-zinc-800/50 border border-zinc-700/30 text-zinc-500'
+            }`}>
+              <Calendar size={14} className={dueTodayCount > 0 ? "animate-bounce" : ""} />
             </div>
-            <div className={`px-2 py-1 rounded-lg ${stat.style.bg} border ${stat.style.border} border-opacity-50`}>
-              <span className={`text-[9px] font-black uppercase tracking-widest ${stat.style.text}`}>{stat.trend}</span>
+            
+            <div>
+              {dueTodayCount > 0 ? (
+                <span className="px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-wider bg-purple-500/20 text-purple-400 border border-purple-500/30">Hoje</span>
+              ) : (
+                <span className="px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-wider bg-zinc-800/40 text-zinc-500 border border-zinc-750">Ok</span>
+              )}
             </div>
           </div>
 
-          <div className="relative z-10">
-            <span className={`text-[10px] font-bold uppercase tracking-[0.2em] mb-1 block ${stat.severity ? 'text-white' : 'text-white/40'}`}>{stat.label}</span>
-            <strong className={`text-3xl font-black block transition-colors duration-500 group-hover:text-white/90 ${stat.severity ? 'text-white' : 'text-zinc-100'}`}>
-              {stat.value}
+          <div className="relative z-10 mt-2">
+            <span className="text-[9px] font-black uppercase tracking-[0.15em] mb-0.5 block text-white/40">Vencem hoje</span>
+            <strong className="text-base sm:text-lg font-black block text-zinc-100 group-hover:text-white transition-colors duration-500 leading-tight">
+              {dueTodayCount} {dueTodayCount === 1 ? 'parcela' : 'parcelas'}
             </strong>
-            <div className="flex items-center gap-2 mt-2">
-              <div className={`w-1.5 h-1.5 rounded-full ${stat.style.dot} ${stat.severity ? 'shadow-[0_0_12px_currentColor] scale-125' : 'shadow-[0_0_8px_currentColor]'}`} />
-              <p className={`text-[10px] font-bold uppercase tracking-wider ${stat.severity ? 'text-white animate-pulse' : 'text-white/30'}`}>{stat.sub}</p>
-            </div>
+            <p className="text-[8px] font-bold uppercase tracking-wider text-white/20 mt-1 truncate">
+              {dueTodayCount > 0 ? "Receber hoje" : "Sem vencimentos"}
+            </p>
           </div>
         </div>
-      ))}
+
+        {/* Card 2: Atrasados */}
+        <div 
+          onClick={() => onNavigate('sales', 'Atrasados')}
+          className={`glass-card group p-4 sm:p-5 flex flex-col justify-between border transition-all duration-500 hover:scale-[1.02] hover:-translate-y-1 relative overflow-hidden cursor-pointer active:scale-95 min-h-[160px] ${
+            overdueCount > 0 
+              ? 'border-red-500/20 hover:border-red-500/40 shadow-[0_0_20px_rgba(239,68,68,0.1)]' 
+              : 'border-white/5 hover:border-emerald-500/30'
+          }`}
+        >
+          <div className="absolute -right-6 -top-6 w-24 h-24 rounded-full blur-2xl opacity-0 group-hover:opacity-10 transition-opacity duration-700 bg-red-500" />
+          
+          <div className="flex items-center justify-between relative z-10">
+            <div className={`w-8 h-8 sm:w-9 sm:h-9 rounded-lg flex items-center justify-center transition-all duration-500 ${
+              overdueCount > 0 
+                ? 'bg-red-500/10 border border-red-500/20 text-red-500' 
+                : 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-400'
+            }`}>
+              {overdueCount > 0 ? (
+                <AlertCircle size={14} className="animate-pulse" />
+              ) : (
+                <ShieldCheck size={14} />
+              )}
+            </div>
+            
+            <div>
+              {overdueCount > 0 ? (
+                <span className="px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-wider bg-red-500/20 text-red-400 animate-pulse border border-red-500/30">Risco</span>
+              ) : (
+                <span className="px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-wider bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">Zero</span>
+              )}
+            </div>
+          </div>
+
+          <div className="relative z-10 mt-2">
+            <span className="text-[9px] font-black uppercase tracking-[0.15em] mb-0.5 block text-white/40">Atrasados</span>
+            <strong className="text-base sm:text-lg font-black block text-zinc-100 group-hover:text-white transition-colors duration-500 leading-tight">
+              {overdueCount} {overdueCount === 1 ? 'pendente' : 'pendentes'}
+            </strong>
+            <p className="text-[8px] font-bold uppercase tracking-wider text-white/20 mt-1 truncate">
+              {overdueCount > 0 ? "Requer atenção" : "Nenhum atraso"}
+            </p>
+          </div>
+        </div>
+      </div>
+
     </div>
   );
 }

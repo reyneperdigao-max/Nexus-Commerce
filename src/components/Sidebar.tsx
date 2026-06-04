@@ -64,8 +64,18 @@ export function Sidebar({ activeView, setActiveView, collapsed = false, setColla
           </div>
           {!collapsed && (
             <div className="flex flex-col min-w-0">
-               <span className="text-white text-xs font-black truncate">{settings.userName}</span>
-               <span className="text-[10px] text-gray-500 font-bold uppercase truncate">{settings.userRole}</span>
+              <span className="text-white text-xs font-black truncate">{settings.userName}</span>
+              <div className="flex flex-col gap-0.5 mt-0.5">
+                {settings.userRole && (
+                  <span className="text-[9px] text-gold/90 font-bold uppercase truncate tracking-wider">{settings.userRole}</span>
+                )}
+                {settings.userFunction && (
+                  <span className="text-[9px] text-gray-400 font-bold uppercase truncate tracking-wider">{settings.userFunction}</span>
+                )}
+                {settings.userEmail && (
+                  <span className="text-[8.5px] text-gray-500 font-medium truncate mt-0.5 lower-case select-all">{settings.userEmail}</span>
+                )}
+              </div>
             </div>
           )}
         </div>

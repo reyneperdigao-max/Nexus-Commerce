@@ -17,8 +17,9 @@ export function useNexusState() {
   const [installments, setInstallments] = useState<Installment[]>([]);
   const [closings, setClosings] = useState<Closing[]>([]);
   const [settings, setSettings] = useState<Settings>({
-    userName: 'Administrador',
+    userName: 'Operador 1',
     userRole: 'CEO / Diretor Comercial',
+    userFunction: 'Vendas & Negócios',
     userEmail: 'admin@nexus.com',
     pixName: '',
     pixKey: '',
@@ -29,7 +30,23 @@ export function useNexusState() {
     companyAddress: '',
     currency: 'BRL',
     language: 'pt-BR',
-    theme: 'dark'
+    theme: 'dark',
+    whatsappTemplate: 'Olá, {cliente}! Passando para lembrar que a sua parcela {parcela} do produto {produto} no valor de {valor} vence em {vencimento}.\n\nPara facilitar o pagamento, você pode utilizar a chave Pix abaixo:\nChave Pix: {chave_pix}\nBeneficiário: {nome_pix}\n\nSe tiver qualquer dúvida, fique à vontade para falar conosco!',
+    currentOperator: 'operator1',
+    op1Name: 'Operador 1',
+    op1Role: 'Diretor Comercial',
+    op1Function: 'Vendas & Negócios',
+    op1Email: 'op1@nexus.com',
+    op1PixName: '',
+    op1PixKey: '',
+    op1PixType: 'Pix',
+    op2Name: 'Operador 2',
+    op2Role: 'Financeiro',
+    op2Function: 'Controle de Recebimentos',
+    op2Email: 'op2@nexus.com',
+    op2PixName: '',
+    op2PixKey: '',
+    op2PixType: 'Pix'
   });
 
   // Real-time synchronization
@@ -58,9 +75,52 @@ export function useNexusState() {
       if (err.code !== 'permission-denied') handleFirestoreError(err, OperationType.LIST, 'closings');
     });
 
-    const unsubSettings = onSnapshot(doc(db, 'settings', 'config'), (doc) => {
-      if (doc.exists()) {
-        setSettings(doc.data() as Settings);
+    const unsubSettings = onSnapshot(doc(db, 'settings', 'config'), (docSnapshot) => {
+      if (docSnapshot.exists()) {
+        const rawSettings = docSnapshot.data() as Settings;
+        const currentOperator = rawSettings.currentOperator || 'operator1';
+
+        const op1Name = rawSettings.op1Name ?? rawSettings.userName ?? 'Operador 1';
+        const op1Role = rawSettings.op1Role ?? rawSettings.userRole ?? 'Financeiro';
+        const op1Function = rawSettings.op1Function ?? rawSettings.userFunction ?? 'Vendas & Negócios';
+        const op1Email = rawSettings.op1Email ?? rawSettings.userEmail ?? 'op1@nexus.com';
+        const op1Photo = rawSettings.op1Photo ?? rawSettings.profilePhoto;
+        const op1PixName = rawSettings.op1PixName ?? rawSettings.pixName ?? '';
+        const op1PixKey = rawSettings.op1PixKey ?? rawSettings.pixKey ?? '';
+        const op1PixType = rawSettings.op1PixType ?? rawSettings.pixType ?? 'Pix';
+
+        const op2Name = rawSettings.op2Name ?? 'Operador 2';
+        const op2Role = rawSettings.op2Role ?? 'Diretor';
+        const op2Function = rawSettings.op2Function ?? 'Controle de Recebimentos';
+        const op2Email = rawSettings.op2Email ?? 'op2@nexus.com';
+        const op2Photo = rawSettings.op2Photo;
+        const op2PixName = rawSettings.op2PixName ?? '';
+        const op2PixKey = rawSettings.op2PixKey ?? '';
+        const op2PixType = rawSettings.op2PixType ?? 'Pix';
+
+        const activeName = currentOperator === 'operator2' ? op2Name : op1Name;
+        const activeRole = currentOperator === 'operator2' ? op2Role : op1Role;
+        const activeFunction = currentOperator === 'operator2' ? op2Function : op1Function;
+        const activeEmail = currentOperator === 'operator2' ? op2Email : op1Email;
+        const activePhoto = currentOperator === 'operator2' ? op2Photo : op1Photo;
+        const activePixName = currentOperator === 'operator2' ? op2PixName : op1PixName;
+        const activePixKey = currentOperator === 'operator2' ? op2PixKey : op1PixKey;
+        const activePixType = currentOperator === 'operator2' ? op2PixType : op1PixType;
+
+        setSettings({
+          ...rawSettings,
+          currentOperator,
+          userName: activeName,
+          userRole: activeRole,
+          userFunction: activeFunction,
+          userEmail: activeEmail,
+          profilePhoto: activePhoto,
+          pixName: activePixName,
+          pixKey: activePixKey,
+          pixType: activePixType,
+          op1Name, op1Role, op1Function, op1Email, op1Photo, op1PixName, op1PixKey, op1PixType,
+          op2Name, op2Role, op2Function, op2Email, op2Photo, op2PixName, op2PixKey, op2PixType,
+        });
       }
     }, (err) => {
       if (err.code !== 'permission-denied') handleFirestoreError(err, OperationType.GET, 'settings/config');
@@ -77,6 +137,28 @@ export function useNexusState() {
 
   const saveSettings = async (newSettings: Settings) => {
     try {
+      const currentOperator = newSettings.currentOperator || 'operator1';
+
+      if (currentOperator === 'operator1') {
+        newSettings.op1Name = newSettings.userName;
+        newSettings.op1Role = newSettings.userRole;
+        newSettings.op1Function = newSettings.userFunction;
+        newSettings.op1Email = newSettings.userEmail;
+        newSettings.op1Photo = newSettings.profilePhoto;
+        newSettings.op1PixName = newSettings.pixName;
+        newSettings.op1PixKey = newSettings.pixKey;
+        newSettings.op1PixType = newSettings.pixType;
+      } else {
+        newSettings.op2Name = newSettings.userName;
+        newSettings.op2Role = newSettings.userRole;
+        newSettings.op2Function = newSettings.userFunction;
+        newSettings.op2Email = newSettings.userEmail;
+        newSettings.op2Photo = newSettings.profilePhoto;
+        newSettings.op2PixName = newSettings.pixName;
+        newSettings.op2PixKey = newSettings.pixKey;
+        newSettings.op2PixType = newSettings.pixType;
+      }
+
       await setDoc(doc(db, 'settings', 'config'), cleanData(newSettings));
       setSettings(newSettings);
     } catch (err) {
@@ -128,6 +210,7 @@ export function useNexusState() {
     downPayment: number;
     isInterestOnly?: boolean;
     interestRate?: number;
+    costPrice?: number;
   }) => {
     const product = products.find(p => p.id === data.productId);
     if (!product) return;
@@ -144,7 +227,8 @@ export function useNexusState() {
       installmentValue = remainingToFinance / data.installments;
     }
     
-    const profit = finalTotal - product.cost;
+    const costForProfit = data.costPrice !== undefined ? data.costPrice : (product.cost || 0);
+    const profit = finalTotal - costForProfit;
 
     const saleId = crypto.randomUUID();
     const newSale: Sale = {
@@ -164,7 +248,8 @@ export function useNexusState() {
       status: 'Ativa',
       createdAt: new Date().toISOString(),
       isInterestOnly: data.isInterestOnly || false,
-      interestRate: data.interestRate || 0
+      interestRate: data.interestRate || 0,
+      costPrice: costForProfit
     };
 
     const currentQty = product.quantity !== undefined ? product.quantity : 1;
@@ -383,6 +468,7 @@ export function useNexusState() {
     downPayment: number;
     isInterestOnly?: boolean;
     interestRate?: number;
+    costPrice?: number;
   }) => {
     const sale = sales.find(s => s.id === id);
     if (!sale) return;
@@ -401,7 +487,9 @@ export function useNexusState() {
       const remainingToFinance = finalTotal - data.downPayment;
       installmentValue = remainingToFinance / data.installments;
     }
-    const profit = finalTotal - product.cost;
+    
+    const costForProfit = data.costPrice !== undefined ? data.costPrice : (sale.costPrice !== undefined ? sale.costPrice : (product.cost || 0));
+    const profit = finalTotal - costForProfit;
 
     const batch = writeBatch(db);
 
@@ -417,7 +505,8 @@ export function useNexusState() {
       installmentValue: installmentValue,
       date: data.firstDueDate,
       isInterestOnly: data.isInterestOnly || false,
-      interestRate: data.interestRate || 0
+      interestRate: data.interestRate || 0,
+      costPrice: costForProfit
     };
 
     batch.update(doc(db, 'sales', id), cleanData(updatedSale));

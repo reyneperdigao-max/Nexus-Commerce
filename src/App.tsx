@@ -1,9 +1,10 @@
 import { useState, Fragment, useEffect, useMemo } from 'react';
 import { useNexusState } from './useNexusState';
 import { Sidebar } from './components/Sidebar';
+import { BottomNavigation } from './components/BottomNavigation';
 import { Logo, Topbar, DashboardStats } from './components/CommonUI';
 import { AnimatePresence, motion } from 'motion/react';
-import { Boxes, Plus, X, Search, ImagePlus, User, Wallet, ShoppingBag, ArrowLeft, ArrowRight, BadgeDollarSign, Activity, Zap, History, ChevronDown, Pencil, FileText, Download, DollarSign, Share2, Calculator, Package, MessageCircle, ShieldCheck, Lock, Mail, Image as ImageIcon, AlertCircle, Calendar, Camera, Trash2, Minus } from 'lucide-react';
+import { Boxes, Plus, X, Search, ImagePlus, User, Wallet, ShoppingBag, ArrowLeft, ArrowRight, BadgeDollarSign, Activity, Zap, History, ChevronDown, Pencil, FileText, Download, DollarSign, Share2, Calculator, Package, MessageCircle, ShieldCheck, Lock, Mail, Image as ImageIcon, AlertCircle, Calendar, Camera, Trash2, Minus, TrendingUp } from 'lucide-react';
 import html2pdf from 'html2pdf.js';
 import { auth } from './lib/firebase';
 import { signInAnonymously, onAuthStateChanged } from 'firebase/auth';
@@ -30,6 +31,57 @@ export default function App() {
 
   const [activeView, setActiveView] = useState('dashboard');
   const [activeSettingsTab, setActiveSettingsTab] = useState<string | null>(null);
+
+  const switchOperator = (newOp: 'operator1' | 'operator2') => {
+    const currentOp = settings.currentOperator || 'operator1';
+    
+    const updatedSettings = { ...settings };
+    
+    if (currentOp === 'operator1') {
+      updatedSettings.op1Name = settings.userName;
+      updatedSettings.op1Role = settings.userRole;
+      updatedSettings.op1Function = settings.userFunction;
+      updatedSettings.op1Email = settings.userEmail;
+      updatedSettings.op1Photo = settings.profilePhoto;
+      updatedSettings.op1PixName = settings.pixName;
+      updatedSettings.op1PixKey = settings.pixKey;
+      updatedSettings.op1PixType = settings.pixType;
+    } else {
+      updatedSettings.op2Name = settings.userName;
+      updatedSettings.op2Role = settings.userRole;
+      updatedSettings.op2Function = settings.userFunction;
+      updatedSettings.op2Email = settings.userEmail;
+      updatedSettings.op2Photo = settings.profilePhoto;
+      updatedSettings.op2PixName = settings.pixName;
+      updatedSettings.op2PixKey = settings.pixKey;
+      updatedSettings.op2PixType = settings.pixType;
+    }
+
+    updatedSettings.currentOperator = newOp;
+
+    if (newOp === 'operator1') {
+      updatedSettings.userName = updatedSettings.op1Name || 'Operador 1';
+      updatedSettings.userRole = updatedSettings.op1Role || 'Diretor Comercial';
+      updatedSettings.userFunction = updatedSettings.op1Function || 'Vendas & Negócios';
+      updatedSettings.userEmail = updatedSettings.op1Email || 'op1@nexus.com';
+      updatedSettings.profilePhoto = updatedSettings.op1Photo;
+      updatedSettings.pixName = updatedSettings.op1PixName || '';
+      updatedSettings.pixKey = updatedSettings.op1PixKey || '';
+      updatedSettings.pixType = updatedSettings.op1PixType || 'Pix';
+    } else {
+      updatedSettings.userName = updatedSettings.op2Name || 'Operador 2';
+      updatedSettings.userRole = updatedSettings.op2Role || 'Financeiro';
+      updatedSettings.userFunction = updatedSettings.op2Function || 'Controle de Recebimentos';
+      updatedSettings.userEmail = updatedSettings.op2Email || 'op2@nexus.com';
+      updatedSettings.profilePhoto = updatedSettings.op2Photo;
+      updatedSettings.pixName = updatedSettings.op2PixName || '';
+      updatedSettings.pixKey = updatedSettings.op2PixKey || '';
+      updatedSettings.pixType = updatedSettings.op2PixType || 'Pix';
+    }
+
+    setSettings(updatedSettings);
+  };
+
   const [collapsed, setCollapsed] = useState(false);
   const [desktopSidebarOpen, setDesktopSidebarOpen] = useState(true);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
@@ -124,6 +176,7 @@ export default function App() {
   const [selectedSaleForContract, setSelectedSaleForContract] = useState<any>(null);
   const [selectedClient, setSelectedClient] = useState<string | null>(null);
   const [selectedInstallmentForPayment, setSelectedInstallmentForPayment] = useState<any>(null);
+  const [paymentType, setPaymentType] = useState<'interest' | 'amortization'>('interest');
   const [paymentMethod, setPaymentMethod] = useState<'Pix' | 'Cartão de Crédito' | 'Cartão de Débito' | 'Dinheiro' | 'Transferência'>('Pix');
   const [selectedInstallmentForReceipt, setSelectedInstallmentForReceipt] = useState<any>(null);
   const [selectedSaleForAmortization, setSelectedSaleForAmortization] = useState<any>(null);
@@ -265,6 +318,34 @@ export default function App() {
     }
   };
 
+  const handleDownloadReportPDF = async () => {
+    const element = document.getElementById('report-pdf-content');
+    if (!element) {
+      showToast('Erro: Conteúdo do relatório para PDF não encontrado.', 'error');
+      return;
+    }
+    
+    showToast('Gerando PDF do Relatório Comercial...');
+    const now = new Date();
+    const formattedDate = now.toLocaleDateString('pt-BR').replace(/\//g, '-');
+    const opt: any = {
+      margin: [12, 12],
+      filename: `RELATORIO_GESTÃO_DE_VENDAS_${formattedDate}.pdf`,
+      image: { type: 'jpeg', quality: 0.98 },
+      html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff' },
+      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+    };
+
+    try {
+      // @ts-ignore - html2pdf might not have TS types
+      await html2pdf().set(opt).from(element).save();
+      showToast('Relatório Comercial em PDF baixado com sucesso!');
+    } catch (e) {
+      console.error(e);
+      showToast('Erro ao exportar o PDF.', 'error');
+    }
+  };
+
   const downloadSimulationPDF = () => {
     const element = document.getElementById('simulation-content');
     if (!element) return;
@@ -310,6 +391,28 @@ export default function App() {
     text += `\n_Gerado por Nexus Commerce em ${date}_`;
     
     window.open(`https://wa.me/${sale.clientPhone.replace(/\D/g, '')}?text=${encodeURIComponent(text)}`, '_blank');
+  };
+
+  const shareInstallmentWhatsApp = (sale: any, inst: any) => {
+    let template = settings.whatsappTemplate || 'Olá, {cliente}! Passando para lembrar que a sua parcela {parcela} do produto {produto} no valor de {valor} vence em {vencimento}.\n\nPara facilitar o pagamento, você pode utilizar a chave Pix abaixo:\nChave Pix: {chave_pix}\nBeneficiário: {nome_pix}\n\nSe tiver qualquer dúvida, fique à vontade para falar conosco!';
+    
+    const formattedParcela = `${inst.number}/${inst.total || sale.installmentsCount}`;
+    const formattedValor = money(inst.value);
+    const formattedVencimento = new Date(inst.dueDate).toLocaleDateString('pt-BR');
+    
+    const text = template
+      .replace(/{cliente}/g, inst.client || sale.client || 'Cliente')
+      .replace(/{produto}/g, inst.productName || sale.productName || 'Produto')
+      .replace(/{parcela}/g, formattedParcela)
+      .replace(/{valor}/g, formattedValor)
+      .replace(/{vencimento}/g, formattedVencimento)
+      .replace(/{chave_pix}/g, settings.pixKey || '')
+      .replace(/{nome_pix}/g, settings.pixName || '');
+      
+    const rawPhone = sale.clientPhone ? sale.clientPhone.replace(/\D/g, '') : '';
+    const phonePrefix = rawPhone.length === 11 || rawPhone.length === 10 ? '55' + rawPhone : rawPhone;
+    
+    window.open(`https://wa.me/${phonePrefix}?text=${encodeURIComponent(text)}`, '_blank');
   };
 
   const getWhatsAppShareLink = (tx: any) => {
@@ -507,19 +610,29 @@ export default function App() {
   return (
     <div className="flex min-h-screen bg-bg-main text-white">
       <Sidebar activeView={activeView} setActiveView={setActiveView} collapsed={collapsed} setCollapsed={setCollapsed} settings={settings} isMobileOpen={isMobileOpen} setIsMobileOpen={setIsMobileOpen} desktopSidebarOpen={desktopSidebarOpen} setDesktopSidebarOpen={setDesktopSidebarOpen} onLogout={() => setIsAuthenticated(false)} />
+      <BottomNavigation activeView={activeView} setActiveView={setActiveView} isMobileOpen={isMobileOpen} setIsMobileOpen={setIsMobileOpen} />
       <main className="flex-1 flex flex-col min-w-0">
         <Topbar 
           onOpenSettings={() => setActiveView('settings')} 
           onOpenMobileMenu={() => setIsMobileOpen(true)} 
           onToggleDesktopSidebar={() => setDesktopSidebarOpen(!desktopSidebarOpen)}
           desktopSidebarOpen={desktopSidebarOpen}
-          viewTitle={activeView === 'reports' ? 'Relatório Mensal' : activeView === 'dashboard' ? 'Sinergia Comercial' : activeView === 'stock' ? 'Estoque de Produtos' : activeView === 'sales' ? 'Gestão de Recebíveis' : activeView === 'transactions' ? 'Histórico de Transações' : activeView === 'clients' ? 'Relacionamento' : activeView === 'settings' ? 'Configurações de Sistema' : 'Simulador de Preços'} 
+          viewTitle={activeView === 'reports' ? 'Relatório Mensal' : activeView === 'dashboard' ? 'Gestão de Vendas' : activeView === 'stock' ? 'Estoque de Produtos' : activeView === 'sales' ? 'Gestão de Recebíveis' : activeView === 'transactions' ? 'Histórico de Transações' : activeView === 'clients' ? 'Relacionamento' : activeView === 'settings' ? 'Configurações de Sistema' : 'Simulador de Preços'} 
         />
-        <div className="p-4 sm:p-8 overflow-x-hidden custom-scrollbar">
+        <div className="p-4 pb-24 sm:p-8 overflow-x-hidden custom-scrollbar">
           <AnimatePresence mode="wait">
             <motion.div key={activeView} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }}>
               {activeView === 'dashboard' && (
                 <div className="flex flex-col gap-4 sm:gap-8 animate-view-enter">
+                  <div className="flex flex-col pl-1 sm:pl-0">
+                     <h1 className="text-lg sm:text-xl font-bold text-white tracking-tight">
+                        Olá, <span className="text-white font-black italic">{settings.userName ? settings.userName.trim().split(' ')[0].charAt(0).toUpperCase() + settings.userName.trim().split(' ')[0].slice(1).substring(0).toLowerCase() : ''}</span>.
+                     </h1>
+                     <p className="text-[9px] text-zinc-550 font-bold uppercase mt-0.5 tracking-[0.25em]" style={{ color: '#71717a' }}>
+                        gerencie suas vendas
+                     </p>
+                  </div>
+
                   <DashboardStats 
                     products={products} 
                     sales={sales} 
@@ -858,8 +971,14 @@ export default function App() {
                                                 {sale.isInterestOnly && sale.status === 'Ativa' && (
                                                    <button 
                                                       onClick={() => {
-                                                         setSelectedSaleForAmortization(sale);
-                                                         setAmortizationAmount('');
+                                                         const pending = installments.find(i => i.saleId === sale.id && i.status === 'Pendente');
+                                                         if (pending) {
+                                                            setSelectedInstallmentForPayment(pending);
+                                                            setPaymentType('amortization');
+                                                            setAmortizationAmount('');
+                                                         } else {
+                                                            showToast('Não há parcelas pendentes para amortizar nesta venda.', 'error');
+                                                         }
                                                       }}
                                                       className="h-10 px-4 rounded-xl border border-[rgba(255,190,0,0.3)] bg-[rgba(255,190,0,0.05)] text-amber-200 hover:bg-gold hover:text-black hover:border-gold transition-all flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest active:scale-95 cursor-pointer"
                                                       title="Amortizar Valor"
@@ -975,11 +1094,27 @@ export default function App() {
                                                             <p className="text-[13px] font-bold text-white tracking-wide">{money(inst.value)}</p>
                                                             <p className="text-[9px] font-black text-gray-500 uppercase mt-0.5">{new Date(inst.dueDate).toLocaleDateString('pt-BR')}</p>
                                                          </div>
-                                                         <div className="absolute inset-0 bg-[rgba(0,0,0,0.8)] flex items-center justify-center p-2 opacity-0 group-hover/inst:opacity-100 transition-all rounded-2xl backdrop-blur-sm">
-                                                            {inst.status === 'Pendente' && (
+                                                         <div className="absolute inset-0 bg-[rgba(0,0,0,0.85)] flex items-center justify-center p-3 opacity-0 group-hover/inst:opacity-100 transition-all rounded-2xl backdrop-blur-sm">
+                                                            {inst.status === 'Pendente' && (<>
                                                                <button 
                                                                   onClick={() => setSelectedInstallmentForPayment(inst)}
-                                                                  className="w-full h-full bg-gold text-black rounded-xl text-[10px] font-black uppercase tracking-widest shadow-2xl active:scale-95 px-1 font-extrabold"
+                                                                  className="hidden" style={{ display: 'none' }} />
+                                                                   <div className="flex flex-col gap-1.5 w-full">
+                                                                      <button 
+                                                                         onClick={() => setSelectedInstallmentForPayment(inst)}
+                                                                         className="w-full py-1.5 bg-gold text-black rounded-xl text-[9px] font-black uppercase tracking-widest shadow-2xl active:scale-95 px-1 font-black cursor-pointer leading-tight text-center"
+                                                                      >
+                                                                         Quitar
+                                                                      </button>
+                                                                      <button 
+                                                                         onClick={() => shareInstallmentWhatsApp(sale, inst)}
+                                                                         className="w-full py-1.5 bg-[#25D366] text-white rounded-xl text-[9px] font-black uppercase tracking-widest shadow-2xl active:scale-95 px-1 font-black flex items-center justify-center gap-1 cursor-pointer leading-tight animate-view-enter"
+                                                                      >
+                                                                         <MessageCircle size={10} />
+                                                                         Cobrar
+                                                                      </button>
+                                                                   </div>
+                                                                   <button className="hidden" style={{ display: 'none' }}></button></>)}{false && (<button 
                                                                >
                                                                   Quitar
                                                                </button>
@@ -1084,7 +1219,6 @@ export default function App() {
                           <tr className="border-b border-line-strong bg-black/80 text-[10px] font-black uppercase text-gray-400 tracking-[0.2em] h-14">
                             <th className="p-4 pl-6">Produto / Modelo (Edição em Linha)</th>
                             <th className="p-4 text-center w-40">Categoria</th>
-                            <th className="p-4 text-center w-36">Custo Real (R$)</th>
                             <th className="p-4 text-center w-36">Valor Saída (R$)</th>
                             <th className="p-4 text-center w-48">Estoque (Qtd)</th>
                             <th className="p-4 text-center w-36">Estado</th>
@@ -1094,7 +1228,7 @@ export default function App() {
                         <tbody className="divide-y divide-[rgba(255,255,255,0.05)] text-gray-300">
                           {filteredProducts.length === 0 ? (
                             <tr>
-                              <td colSpan={7} className="p-16 text-center">
+                              <td colSpan={6} className="p-16 text-center">
                                 <div className="flex flex-col items-center gap-3">
                                   <Package size={48} className="text-gray-600 animate-pulse" />
                                   <h4 className="text-sm font-black uppercase tracking-widest text-white italic">Nenhum Produto Localizado</h4>
@@ -1184,26 +1318,6 @@ export default function App() {
                                       <option value="Hardware">Hardware</option>
                                       <option value="Acessório">Acessório</option>
                                     </select>
-                                  </td>
-
-                                  {/* REAL COST INLINE */}
-                                  <td className="p-4 text-center">
-                                    <div className="flex items-center gap-1 bg-zinc-950 border border-line-strong rounded-lg px-2.5 h-9 w-28 mx-auto focus-within:border-gold/50 transition-colors">
-                                      <span className="text-[10px] text-gray-500 font-bold">R$</span>
-                                      <input 
-                                        type="number" 
-                                        step="0.01" 
-                                        defaultValue={p.cost} 
-                                        onBlur={(e) => {
-                                          const val = parseFloat(e.target.value) || 0;
-                                          if (val !== p.cost) {
-                                            updateProduct(p.id, { cost: val });
-                                            showToast(`Custo de "${p.name}" atualizado.`);
-                                          }
-                                        }}
-                                        className="bg-transparent text-xs font-bold text-gray-300 outline-none w-full min-w-0"
-                                      />
-                                    </div>
                                   </td>
 
                                   {/* SALE PRICE INLINE */}
@@ -1333,7 +1447,8 @@ export default function App() {
                           manualSalePrice: Number(f.manualSalePrice.value), 
                           downPayment: Number(f.downPayment.value),
                           isInterestOnly: isInterestOnlyForm,
-                          interestRate: isInterestOnlyForm ? Number(f.interestRate?.value || 0) : 0
+                          interestRate: isInterestOnlyForm ? Number(f.interestRate?.value || 0) : 0,
+                          costPrice: Number(f.costPrice.value)
                         };
 
                         if (saleToEdit) {
@@ -1383,7 +1498,14 @@ export default function App() {
                            <input name="clientAddress" defaultValue={saleToEdit?.clientAddress || ''} placeholder="Ex: Av. Paulista, 1000, Apto 12 - São Paulo / SP" className="h-12 sm:h-14 bg-[rgba(0,0,0,0.4)] border border-line-strong rounded-xl sm:rounded-2xl px-5 sm:px-6 outline-none focus:border-gold transition-all font-bold text-xs sm:text-sm" />
                         </div>
 
-                        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+                        <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 sm:gap-6">
+                           <div className="flex flex-col gap-2">
+                              <label className="text-[9px] sm:text-[10px] font-black text-gray-500 uppercase ml-3">Preço de Custo</label>
+                              <div className="relative">
+                                 <input name="costPrice" type="number" step="0.01" required defaultValue={saleToEdit?.costPrice || ''} placeholder="0,00" className="w-full h-12 sm:h-14 bg-[rgba(0,0,0,0.4)] border border-line-strong rounded-xl sm:rounded-2xl px-5 sm:px-6 pl-10 sm:pl-12 outline-none focus:border-gold transition-all font-black text-zinc-300 italic text-xs sm:text-sm" />
+                                 <span className="absolute left-5 sm:left-6 top-1/2 -translate-y-1/2 text-zinc-500 font-bold">$</span>
+                              </div>
+                           </div>
                            <div className="flex flex-col gap-2">
                               <label className="text-[9px] sm:text-[10px] font-black text-gray-500 uppercase ml-3">Preço Final</label>
                               <div className="relative">
@@ -1644,8 +1766,14 @@ export default function App() {
                                                       {sale.isInterestOnly && sale.status === 'Ativa' && (
                                                          <button 
                                                             onClick={() => {
-                                                               setSelectedSaleForAmortization(sale);
-                                                               setAmortizationAmount('');
+                                                               const pending = installments.find(i => i.saleId === sale.id && i.status === 'Pendente');
+                                                               if (pending) {
+                                                                  setSelectedInstallmentForPayment(pending);
+                                                                  setPaymentType('amortization');
+                                                                  setAmortizationAmount('');
+                                                               } else {
+                                                                  showToast('Não há parcelas pendentes para amortizar nesta venda.', 'error');
+                                                               }
                                                             }}
                                                             className="h-8 w-8 rounded-lg border border-[rgba(255,190,0,0.3)] bg-[rgba(255,190,0,0.05)] text-amber-200 hover:bg-gold hover:text-black hover:border-gold transition-all grid place-items-center cursor-pointer active:scale-90"
                                                             title="Amortizar Valor"
@@ -1763,11 +1891,27 @@ export default function App() {
                                                                            <p className="text-[13px] font-bold text-white tracking-wide">{money(inst.value)}</p>
                                                                            <p className="text-[9px] font-black text-gray-500 uppercase mt-0.5">{new Date(inst.dueDate).toLocaleDateString('pt-BR')}</p>
                                                                         </div>
-                                                                        <div className="absolute inset-0 bg-[rgba(0,0,0,0.9)] flex items-center justify-center p-2 opacity-0 group-hover/inst:opacity-100 transition-all rounded-xl backdrop-blur-sm">
-                                                                           {inst.status === 'Pendente' && (
+                                                                        <div className="absolute inset-0 bg-[rgba(0,0,0,0.85)] flex items-center justify-center p-3 opacity-0 group-hover/inst:opacity-100 transition-all rounded-xl backdrop-blur-sm">
+                                                                           {inst.status === 'Pendente' && (<>
                                                                               <button 
                                                                                  onClick={() => setSelectedInstallmentForPayment(inst)}
-                                                                                 className="w-full h-full bg-gold text-black rounded-lg text-[10px] font-black uppercase tracking-widest shadow-2xl active:scale-95 cursor-pointer font-bold"
+                                                                                 className="hidden" style={{ display: 'none' }} />
+                                                                                  <div className="flex flex-col gap-1.5 w-full">
+                                                                                     <button 
+                                                                                        onClick={() => setSelectedInstallmentForPayment(inst)}
+                                                                                        className="w-full py-1.5 bg-gold text-black rounded-xl text-[9px] font-black uppercase tracking-widest shadow-2xl active:scale-95 px-1 font-black cursor-pointer leading-tight text-center"
+                                                                                     >
+                                                                                        Quitar
+                                                                                     </button>
+                                                                                     <button 
+                                                                                        onClick={() => shareInstallmentWhatsApp(sale, inst)}
+                                                                                        className="w-full py-1.5 bg-[#25D366] text-white rounded-xl text-[9px] font-black uppercase tracking-widest shadow-2xl active:scale-95 px-1 font-black flex items-center justify-center gap-1 cursor-pointer leading-tight animate-view-enter"
+                                                                                     >
+                                                                                        <MessageCircle size={10} />
+                                                                                        Cobrar
+                                                                                     </button>
+                                                                                  </div>
+                                                                                  <button className="hidden-second" style={{ display: 'none' }}></button></>)}{false && (<button 
                                                                               >
                                                                                  Quitar
                                                                               </button>
@@ -2041,45 +2185,132 @@ export default function App() {
                 </div>
               )}
 
-              {activeView === 'reports' && (
-                <div className="flex flex-col gap-6 sm:gap-8 animate-view-enter">
-                  <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-1">
-                     <div>
-                        <h2 className="text-xl sm:text-3xl font-black tracking-tight text-white italic uppercase">Relatório de Resultados</h2>
-                        <p className="text-[9px] sm:text-[10px] text-gray-500 font-bold uppercase tracking-[0.3em] mt-1">Dados Consolidados do Ciclo Comercial Aberto</p>
-                     </div>
-                  </div>
+              {activeView === 'reports' && (() => {
+                const totalGross = activeSales.reduce((acc, s) => acc + (s.total || 0), 0);
+                const totalRealProfit = activeSales.reduce((acc, s) => acc + (s.profit || 0), 0);
+                const profitMargin = totalGross > 0 ? (totalRealProfit / totalGross) * 100 : 0;
+                const totalMonthlyProfit = activeSales.reduce((acc, s) => acc + (s.installmentValue || 0), 0);
+                const totalDownPayments = activeSales.reduce((acc, s) => acc + (s.downPayment || 0), 0);
 
-                  {/* Bento Grid dos Dados Atuais do Ciclo */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
-                    <div className="glass-card p-6 border border-zinc-850 flex flex-col justify-between h-[150px] relative overflow-hidden group">
-                      <div className="absolute right-3 top-3 opacity-5 text-white"><DollarSign size={80} /></div>
-                      <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider">Lucro do Ciclo Atual</span>
-                      <strong className="text-3xl font-black text-gold">{money(activeSales.reduce((acc, s) => acc + (s.installmentValue || 0), 0))}</strong>
-                      <span className="text-[9px] text-zinc-400">Total acumulado desde o último fechamento</span>
+                return (
+                  <div className="flex flex-col gap-6 sm:gap-8 animate-view-enter">
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 px-1">
+                       <div>
+                          <h2 className="text-xl sm:text-3xl font-black tracking-tight text-white italic uppercase">Relatório de Resultados</h2>
+                          <p className="text-[9px] sm:text-[10px] text-gray-500 font-bold uppercase tracking-[0.3em] mt-1">Dados Consolidados do Ciclo Comercial Aberto</p>
+                       </div>
+                       <button
+                          onClick={handleDownloadReportPDF}
+                          className="flex items-center gap-2 px-6 h-11 bg-gold text-black hover:bg-gold/90 font-black uppercase text-[10px] tracking-widest rounded-xl transition-all shadow-lg shadow-gold/10 cursor-pointer active:scale-95 shrink-0 w-full sm:w-auto justify-center"
+                       >
+                          <FileText size={14} />
+                          Gerar Relatório (PDF)
+                       </button>
                     </div>
 
-                    <div className="glass-card p-6 border border-zinc-850 flex flex-col justify-between h-[150px] relative overflow-hidden group">
-                      <div className="absolute right-3 top-3 opacity-5 text-white"><ShoppingBag size={80} /></div>
-                      <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider">Vendas no Ciclo</span>
-                      <strong className="text-3xl font-black text-white">{activeSales.length} Uni.</strong>
-                      <span className="text-[9px] text-zinc-400">Contratos fechados e faturados</span>
+                    {/* Bento Grid dos Dados Atuais do Ciclo */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 sm:gap-6">
+                      <div className="glass-card p-5 border border-zinc-850 flex flex-col justify-between h-[155px] relative overflow-hidden group">
+                        <div className="absolute right-3 top-3 opacity-5 text-white"><DollarSign size={60} /></div>
+                        <span className="text-[9px] text-zinc-500 font-bold uppercase tracking-wider">Lucro Real (Líquido)</span>
+                        <strong className="text-xl font-black text-green-neon mt-2">{money(totalRealProfit)}</strong>
+                        <span className="text-[8px] text-zinc-400 mt-2 block leading-normal">Faturamento residual deduzida a aquisição</span>
+                      </div>
+
+                      <div className="glass-card p-5 border border-zinc-850 flex flex-col justify-between h-[155px] relative overflow-hidden group">
+                        <div className="absolute right-3 top-3 opacity-5 text-white"><Activity size={60} /></div>
+                        <span className="text-[9px] text-zinc-500 font-bold uppercase tracking-wider">Valor Bruto (Faturamento)</span>
+                        <strong className="text-xl font-black text-white mt-2">{money(totalGross)}</strong>
+                        <span className="text-[8px] text-zinc-400 mt-2 block leading-normal">Volume comercial integral contratualizado</span>
+                      </div>
+
+                      <div className="glass-card p-5 border border-zinc-850 flex flex-col justify-between h-[155px] relative overflow-hidden group">
+                        <div className="absolute right-3 top-3 opacity-5 text-white"><TrendingUp size={60} /></div>
+                        <span className="text-[9px] text-zinc-500 font-bold uppercase tracking-wider">Lucro em Cima (Margem)</span>
+                        <strong className="text-xl font-black text-blue-400 mt-2">{profitMargin.toFixed(2)}%</strong>
+                        <span className="text-[8px] text-zinc-400 mt-2 block leading-normal">Margem líquida sobre o volume de vendas</span>
+                      </div>
+
+                      <div className="glass-card p-5 border border-zinc-850 flex flex-col justify-between h-[155px] relative overflow-hidden group">
+                        <div className="absolute right-3 top-3 opacity-5 text-white"><Wallet size={60} /></div>
+                        <span className="text-[9px] text-zinc-500 font-bold uppercase tracking-wider">Lucro do Ciclo (Recebido)</span>
+                        <strong className="text-xl font-black text-gold mt-2">{money(totalMonthlyProfit)}</strong>
+                        <span className="text-[8px] text-zinc-400 mt-2 block leading-normal border-t border-white/5 pt-1">Total de parcelas recebidas no ciclo</span>
+                      </div>
+
+                      <div className="glass-card p-5 border border-zinc-850 flex flex-col justify-between h-[155px] relative overflow-hidden group">
+                        <div className="absolute right-3 top-3 opacity-5 text-white"><ShoppingBag size={60} /></div>
+                        <span className="text-[9px] text-zinc-500 font-bold uppercase tracking-wider">Vendas no Ciclo</span>
+                        <strong className="text-xl font-black text-zinc-100 mt-2">{activeSales.length} Uni.</strong>
+                        <span className="text-[8px] text-zinc-400 mt-2 block leading-normal">Volume físico de contratos ativos</span>
+                      </div>
+
+                      <div className="glass-card p-5 border border-zinc-850 flex flex-col justify-between h-[155px] relative overflow-hidden group">
+                        <div className="absolute right-3 top-3 opacity-5 text-white"><Wallet size={60} /></div>
+                        <span className="text-[9px] text-zinc-500 font-bold uppercase tracking-wider">Valor em Entradas</span>
+                        <strong className="text-xl font-black text-blue-400 mt-2">{money(totalDownPayments)}</strong>
+                        <span className="text-[8px] text-zinc-400 mt-2 block leading-normal">Montante imediato de caixas iniciais</span>
+                      </div>
                     </div>
 
-                    <div className="glass-card p-6 border border-zinc-850 flex flex-col justify-between h-[150px] relative overflow-hidden group">
-                      <div className="absolute right-3 top-3 opacity-5 text-white"><Activity size={80} /></div>
-                      <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider">Volume de Negócios</span>
-                      <strong className="text-3xl font-black text-green-neon">{money(activeSales.reduce((acc, s) => acc + (s.total || 0), 0))}</strong>
-                      <span className="text-[9px] text-zinc-400">Faturamento total contratualizado</span>
-                    </div>
+                    {/* Detalhamento das Operações Ativas de Conferencia */}
+                    <div className="glass-card border border-line-strong overflow-hidden bg-black/40 backdrop-blur-md">
+                      <div className="p-6 border-b border-line-strong flex justify-between items-center sm:flex-row flex-col gap-4">
+                        <div>
+                          <h3 className="text-lg font-black italic uppercase text-white">Detalhamento das Operações Ativas</h3>
+                          <p className="text-[9px] text-gray-500 font-bold uppercase tracking-wider mt-0.5">Vendas individuais cadastradas neste ciclo</p>
+                        </div>
+                        <span className="px-3 py-1 rounded bg-zinc-800 text-zinc-300 text-[10px] font-black uppercase tracking-widest">{activeSales.length} Contratos</span>
+                      </div>
 
-                    <div className="glass-card p-6 border border-zinc-850 flex flex-col justify-between h-[150px] relative overflow-hidden group">
-                      <div className="absolute right-3 top-3 opacity-5 text-white"><Wallet size={80} /></div>
-                      <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider">Valor em Entradas</span>
-                      <strong className="text-3xl font-black text-blue-400">{money(activeSales.reduce((acc, s) => acc + (s.downPayment || 0), 0))}</strong>
-                      <span className="text-[9px] text-zinc-400">Capital imediato em tesouraria</span>
+                      {activeSales.length === 0 ? (
+                        <div className="p-12 text-center text-gray-500 uppercase font-black text-xs tracking-widest">
+                          Nenhuma venda registrada ou ativa para o período corrente.
+                        </div>
+                      ) : (
+                        <div className="overflow-x-auto custom-scrollbar">
+                          <table className="w-full text-left min-w-[750px]">
+                            <thead>
+                              <tr className="border-b border-line-strong text-[10px] uppercase text-zinc-500 font-black bg-white/2 h-12">
+                                <th className="p-4 pl-6">Cliente / Produto</th>
+                                <th className="p-4 text-center">Custo Unitário</th>
+                                <th className="p-4 text-center">Valor Bruto</th>
+                                <th className="p-4 text-center text-green-neon">Lucro Real</th>
+                                <th className="p-4 text-right pr-6">Rendimento (% margem)</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-zinc-900">
+                              {activeSales.map((sale) => {
+                                const saleCost = sale.costPrice !== undefined ? sale.costPrice : ((sale.total || 0) - (sale.profit || 0));
+                                const saleMargin = sale.total > 0 ? ((sale.profit || 0) / sale.total) * 100 : 0;
+                                return (
+                                  <tr key={sale.id} className="hover:bg-white/[0.01] transition-colors h-14">
+                                    <td className="p-4 pl-6">
+                                      <div className="flex flex-col">
+                                        <span className="uppercase text-white font-bold tracking-wide text-xs">{sale.client}</span>
+                                        <span className="text-[9px] text-zinc-500 font-bold mt-0.5">{sale.productName}</span>
+                                      </div>
+                                    </td>
+                                    <td className="p-4 text-xs text-zinc-400 font-bold text-center">
+                                      {money(saleCost)}
+                                    </td>
+                                    <td className="p-4 text-sm text-zinc-100 font-bold text-center">
+                                      {money(sale.total || 0)}
+                                    </td>
+                                    <td className="p-4 text-sm font-black text-green-neon text-center">
+                                      {money(sale.profit || 0)}
+                                    </td>
+                                    <td className="p-4 text-sm font-black text-right text-blue-400 pr-6">
+                                      {saleMargin.toFixed(1)}% lucros
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
                     </div>
-                  </div>
 
                   {/* Seção de Fechamento de Caixa */}
                   <div className="glass-card p-6 border border-amber-500/20 bg-amber-500/[0.02] rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-6">
@@ -2177,8 +2408,121 @@ export default function App() {
                       </div>
                     )}
                   </div>
+
+                  {/* OFFSCREEN PRINTABLE REPORT TEMPLATE */}
+                  <div className="absolute left-[-9999px] top-[-9999px]">
+                    <div id="report-pdf-content" className="bg-white p-12 text-zinc-900 w-[790px] font-sans flex flex-col gap-6" style={{ width: '790px' }}>
+                      
+                      {/* Header */}
+                      <div className="border-b-2 border-zinc-900 pb-4 flex justify-between items-end">
+                        <div>
+                          <h1 className="text-2xl font-extrabold uppercase tracking-tight text-zinc-900">Gestão de Vendas - Relatório Comercial</h1>
+                          <p className="text-xs font-semibold uppercase text-zinc-500 tracking-wider mt-1">NEXUS PRIVATE SYNERGY PLATFORM</p>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-[10px] font-bold uppercase text-zinc-400 block">Gerado em:</span>
+                          <span className="text-xs font-bold text-zinc-700 block">{new Date().toLocaleString('pt-BR')}</span>
+                        </div>
+                      </div>
+
+                      {/* Operador Details */}
+                      <div className="bg-zinc-50 p-5 rounded-xl border border-zinc-150 grid grid-cols-2 gap-4 text-xs">
+                        <div>
+                          <span className="block text-[9px] text-zinc-400 font-bold uppercase tracking-wider">Operador Responsável</span>
+                          <strong className="block text-sm text-zinc-800 mt-1 uppercase">{settings.userName || 'N/A'}</strong>
+                          <span className="block text-zinc-500 mt-0.5">{settings.userRole || 'Operador'} - {settings.userFunction || 'N/A'}</span>
+                        </div>
+                        <div className="text-right">
+                          <span className="block text-[9px] text-zinc-400 font-bold uppercase tracking-wider">Contato Eletrônico</span>
+                          <strong className="block text-sm text-zinc-800 mt-1">{settings.userEmail || 'N/A'}</strong>
+                          <span className="block text-zinc-400 mt-0.5 text-[10px]">CICLO COMERCIAL ATUAL EM ABERTO</span>
+                        </div>
+                      </div>
+
+                      {/* Key Financial KPIs */}
+                      <div className="grid grid-cols-3 gap-4 my-2">
+                        <div className="p-5 border border-zinc-200 bg-zinc-50/50 rounded-xl text-center">
+                          <span className="text-[9px] text-zinc-400 font-bold uppercase tracking-widest block mb-1">Valor Bruto (Faturamento)</span>
+                          <strong className="text-xl font-black text-zinc-900">{money(totalGross)}</strong>
+                        </div>
+                        <div className="p-5 border border-zinc-200 bg-zinc-50/50 rounded-xl text-center">
+                          <span className="text-[9px] text-zinc-400 font-bold uppercase tracking-widest block mb-1 text-green-700 font-bold">Lucro Real (Líquido)</span>
+                          <strong className="text-xl font-black text-green-700">{money(totalRealProfit)}</strong>
+                        </div>
+                        <div className="p-5 border border-zinc-150 bg-zinc-100 rounded-xl text-center">
+                          <span className="text-[9px] text-zinc-400 font-bold uppercase tracking-widest block mb-1">Lucro em Cima (Margem)</span>
+                          <strong className="text-xl font-black text-blue-600">{profitMargin.toFixed(2)}%</strong>
+                        </div>
+                      </div>
+
+                      {/* Aux indicators */}
+                      <div className="grid grid-cols-3 gap-4 text-xs border-y border-zinc-100 py-3">
+                        <div>
+                          <span className="text-zinc-500 font-medium font-sans">Quantidade de Contratos:</span>
+                          <strong className="text-zinc-800 ml-1.5 font-sans">{activeSales.length} Uni.</strong>
+                        </div>
+                        <div className="text-center">
+                          <span className="text-zinc-500 font-medium font-sans">Sinal / Entradas:</span>
+                          <strong className="text-zinc-800 ml-1.5 font-sans">{money(totalDownPayments)}</strong>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-zinc-500 font-medium font-sans">Lucro de Parcelas:</span>
+                          <strong className="text-zinc-800 ml-1.5 font-sans">{money(totalMonthlyProfit)}</strong>
+                        </div>
+                      </div>
+
+                      {/* Detailed Table */}
+                      <div className="mt-2 flex flex-col gap-3">
+                        <h3 className="text-xs font-black uppercase text-zinc-800 tracking-wider">Demonstrativo Detalhado de Vendas</h3>
+                        <table className="w-full text-xs text-left border-collapse border border-zinc-200 rounded-xl overflow-hidden">
+                          <thead>
+                            <tr className="bg-zinc-900 text-white text-[9px] uppercase font-bold text-center">
+                              <th className="p-3 text-left">Cliente / Produto</th>
+                              <th className="p-3">Custo Unitário</th>
+                              <th className="p-3">Valor Bruto</th>
+                              <th className="p-3">Lucro Real</th>
+                              <th className="p-3 text-right">Margem d'Lucro</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-zinc-200">
+                            {activeSales.map((sale) => {
+                              const saleCost = sale.costPrice !== undefined ? sale.costPrice : ((sale.total || 0) - (sale.profit || 0));
+                              const saleMargin = sale.total > 0 ? ((sale.profit || 0) / sale.total) * 100 : 0;
+                              return (
+                                <tr key={sale.id} className="text-center">
+                                  <td className="p-3 text-left font-bold text-zinc-900 border-r border-zinc-100">
+                                    <div className="flex flex-col">
+                                      <span className="uppercase text-zinc-900 font-bold text-xs">{sale.client}</span>
+                                      <span className="text-[8px] text-zinc-400 font-normal">{sale.productName}</span>
+                                    </div>
+                                  </td>
+                                  <td className="p-3 text-zinc-650">{money(saleCost)}</td>
+                                  <td className="p-3 text-zinc-800 font-semibold">{money(sale.total || 0)}</td>
+                                  <td className="p-3 font-bold text-green-700">{money(sale.profit || 0)}</td>
+                                  <td className="p-3 text-right font-bold text-zinc-550">{saleMargin.toFixed(1)}%</td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+
+                      {/* Footer / Signatures */}
+                      <div className="mt-12 border-t border-zinc-200 pt-6 flex justify-between items-center text-[10px] text-zinc-400 uppercase font-mono">
+                        <div>
+                          <span>CONCILIAÇÃO COMERCIAL AUTOMATIZADA</span>
+                        </div>
+                        <div>
+                          <span>PÁGINA 1 DE 1</span>
+                        </div>
+                      </div>
+
+                    </div>
+                  </div>
+
                 </div>
-              )}
+              );
+            })()}
 
               {activeView === 'simulation' && (
                 <div className="grid grid-cols-1 lg:grid-cols-[420px_1fr] gap-6 sm:gap-10 animate-view-enter">
@@ -2307,10 +2651,11 @@ export default function App() {
                         <p className="text-[9px] sm:text-[10px] text-zinc-500 font-bold uppercase mt-1 tracking-[0.3em]">Selecione uma categoria para configurar seu ecossistema Nexus Private</p>
                       </div>
 
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 sm:gap-8">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 sm:gap-8">
                         {[
                           { id: 'profile', label: 'Operador', icon: User, desc: 'Configure seus dados pessoais, foto de identificação e conta do sistema.', labelHighlight: 'Identidade' },
                           { id: 'finance', label: 'Financeiro', icon: Wallet, desc: 'Cadastre nomes de favorecido, chaves de recebimento e chaves PIX de liquidez.', labelHighlight: 'Liquidez' },
+                          { id: 'templates', label: 'WhatsApp', icon: MessageCircle, desc: 'Configure o template de mensagens para cobrança e envio de parcelas.', labelHighlight: 'Mensagens' },
                           { id: 'system', label: 'Sistema', icon: ShieldCheck, desc: 'Controle a segurança do banco, reset de registros locais e preferências do operador.', labelHighlight: 'Segurança' },
                         ].map((option) => (
                           <button
@@ -2353,7 +2698,7 @@ export default function App() {
                         </button>
                         
                         <div className="flex items-center gap-2 text-gold/80 text-[10px] tracking-widest uppercase bg-gold/5 px-3 py-1 border border-gold/10 rounded-full">
-                           Ajuste Ativo: {activeSettingsTab === 'profile' ? 'Operador' : activeSettingsTab === 'finance' ? 'Financeiro' : 'Sistema'}
+                           Ajuste Ativo: {activeSettingsTab === 'profile' ? 'Operador' : activeSettingsTab === 'finance' ? 'Financeiro' : activeSettingsTab === 'templates' ? 'WhatsApp' : 'Sistema'}
                         </div>
                       </div>
 
@@ -2367,10 +2712,53 @@ export default function App() {
                                  <h3 className="text-2xl font-black italic uppercase text-white tracking-tighter logo-title">Dados de Operador</h3>
                                  <p className="text-[10px] text-zinc-500 font-bold uppercase mt-1 tracking-[0.3em]">Configure suas informações de identificação</p>
                               </div>
+
+                              {/* Operador Switcher */}
+                              <div className="bg-zinc-950/40 border border-zinc-850 rounded-[24px] p-5">
+                                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
+                                    <div>
+                                       <span className="text-[10px] font-black text-gold uppercase tracking-[0.2em]">Operador em uso do sistema</span>
+                                       <p className="text-[11px] text-zinc-500 font-semibold">Alterne entre perfis de operadores. Cada um tem suas próprias chaves Pix e identificação.</p>
+                                    </div>
+                                    <div className="flex items-center gap-2 text-gold/80 text-[10px] tracking-widest uppercase bg-gold/5 px-2.5 py-1 border border-gold/10 rounded-full w-fit">
+                                       Ativo: <span className="font-black text-white ml-1 italic">{settings.currentOperator === 'operator2' ? 'Operador 2' : 'Operador 1'}</span>
+                                    </div>
+                                 </div>
+                                 <div className="grid grid-cols-2 gap-4 bg-black/60 p-1.5 border border-zinc-900 rounded-2xl">
+                                    <button
+                                       type="button"
+                                       onClick={() => switchOperator('operator1')}
+                                       className="h-11 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer bg-gold text-black italic shadow-lg shadow-gold/10"
+                                       style={{ backgroundColor: (settings.currentOperator || 'operator1') === 'operator1' ? 'var(--color-gold)' : 'transparent', color: (settings.currentOperator || 'operator1') === 'operator1' ? 'black' : '#71717a' }}
+                                    >
+                                       Operador 1 ({(settings.op1Name || 'Op 1').split(' ')[0]})
+                                    </button>
+                                    <button
+                                       type="button"
+                                       onClick={() => switchOperator('operator2')}
+                                       className="h-11 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer text-zinc-500 hover:text-zinc-300"
+                                       style={{ backgroundColor: settings.currentOperator === 'operator2' ? 'var(--color-gold)' : 'transparent', color: settings.currentOperator === 'operator2' ? 'black' : '#71717a' }}
+                                    >
+                                       Operador 2 ({(settings.op2Name || 'Op 2').split(' ')[0]})
+                                    </button>
+                                 </div>
+                              </div>
                               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                                 <div className="flex flex-col gap-2">
+                                 <div className="flex flex-col gap-2 md:col-span-2">
                                     <label className="text-[10px] font-black text-zinc-600 uppercase ml-3 tracking-widest">Nome Completo</label>
                                     <input value={settings.userName} onChange={(e) => setSettings({...settings, userName: e.target.value})} className="h-16 bg-black border border-zinc-800 rounded-2xl px-6 font-black text-white italic outline-none focus:border-gold transition-all" />
+                                 </div>
+                                 <div className="flex flex-col gap-2">
+                                    <label className="text-[10px] font-black text-zinc-600 uppercase ml-3 tracking-widest">Cargo</label>
+                                    <input value={settings.userRole || ''} onChange={(e) => setSettings({...settings, userRole: e.target.value})} className="h-16 bg-black border border-zinc-800 rounded-2xl px-6 font-black text-white italic outline-none focus:border-gold transition-all" />
+                                 </div>
+                                 <div className="flex flex-col gap-2">
+                                    <label className="text-[10px] font-black text-zinc-600 uppercase ml-3 tracking-widest">Função</label>
+                                    <input value={settings.userFunction || ''} onChange={(e) => setSettings({...settings, userFunction: e.target.value})} className="h-16 bg-black border border-zinc-800 rounded-2xl px-6 font-black text-white italic outline-none focus:border-gold transition-all" />
+                                 </div>
+                                 <div className="flex flex-col gap-2 md:col-span-2">
+                                    <label className="text-[10px] font-black text-zinc-600 uppercase ml-3 tracking-widest">E-mail de Contato</label>
+                                    <input value={settings.userEmail || ''} onChange={(e) => setSettings({...settings, userEmail: e.target.value})} className="h-16 bg-black border border-zinc-800 rounded-2xl px-6 font-black text-white italic outline-none focus:border-gold transition-all" />
                                  </div>
                                  <div className="flex flex-col gap-2 md:col-span-2">
                                     <label className="text-[10px] font-black text-zinc-600 uppercase ml-3 tracking-widest">Foto de Perfil</label>
@@ -2421,6 +2809,40 @@ export default function App() {
                            <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="space-y-10">
                               <div>
                                  <h3 className="text-2xl font-black italic uppercase text-white tracking-tighter logo-title">Fluxo de Caixa</h3>
+                              </div>
+
+                              {/* Operador Switcher */}
+                              <div className="bg-zinc-950/40 border border-zinc-850 rounded-[24px] p-5">
+                                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
+                                    <div>
+                                       <span className="text-[10px] font-black text-gold uppercase tracking-[0.2em]">Operador em uso do sistema</span>
+                                       <p className="text-[11px] text-zinc-500 font-semibold">Alterne entre perfis de operadores. Cada um tem suas próprias chaves Pix e identificação.</p>
+                                    </div>
+                                    <div className="flex items-center gap-2 text-gold/80 text-[10px] tracking-widest uppercase bg-gold/5 px-2.5 py-1 border border-gold/10 rounded-full w-fit">
+                                       Ativo: <span className="font-black text-white ml-1 italic">{settings.currentOperator === 'operator2' ? 'Operador 2' : 'Operador 1'}</span>
+                                    </div>
+                                 </div>
+                                 <div className="grid grid-cols-2 gap-4 bg-black/60 p-1.5 border border-zinc-900 rounded-2xl">
+                                    <button
+                                       type="button"
+                                       onClick={() => switchOperator('operator1')}
+                                       className="h-11 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer bg-gold text-black italic shadow-lg shadow-gold/10"
+                                       style={{ backgroundColor: (settings.currentOperator || 'operator1') === 'operator1' ? 'var(--color-gold)' : 'transparent', color: (settings.currentOperator || 'operator1') === 'operator1' ? 'black' : '#71717a' }}
+                                    >
+                                       Operador 1 ({(settings.op1Name || 'Op 1').split(' ')[0]})
+                                     </button>
+                                    <button
+                                       type="button"
+                                       onClick={() => switchOperator('operator2')}
+                                       className="h-11 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer text-zinc-500 hover:text-zinc-300"
+                                       style={{ backgroundColor: settings.currentOperator === 'operator2' ? 'var(--color-gold)' : 'transparent', color: settings.currentOperator === 'operator2' ? 'black' : '#71717a' }}
+                                    >
+                                       Operador 2 ({(settings.op2Name || 'Op 2').split(' ')[0]})
+                                    </button>
+                                 </div>
+                              </div>
+
+                              <div>
                                  <p className="text-[10px] text-zinc-500 font-bold uppercase mt-1 tracking-[0.3em]">Configurações de recebimento instantâneo</p>
                               </div>
                               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -2446,7 +2868,103 @@ export default function App() {
                            </motion.div>
                         )}
 
-                        {activeSettingsTab === 'system' && (
+                        {activeSettingsTab === 'templates' && (
+                            <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="space-y-10">
+                               <div>
+                                  <h3 className="text-2xl font-black italic uppercase text-white tracking-tighter logo-title">Template de Mensagem</h3>
+                                  <p className="text-[10px] text-zinc-500 font-bold uppercase mt-1 tracking-[0.3em]">Configure as notificações padrão de cobrança via WhatsApp</p>
+                               </div>
+                               <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                                  {/* Edit Section */}
+                                  <div className="lg:col-span-7 flex flex-col gap-6">
+                                     <div className="flex flex-col gap-2">
+                                        <label className="text-[10px] font-black text-zinc-500 uppercase ml-3 tracking-widest">Texto da Notificação</label>
+                                        <textarea 
+                                           id="whatsappTemplateEditor"
+                                           value={settings.whatsappTemplate || ''} 
+                                           onChange={(e) => setSettings({...settings, whatsappTemplate: e.target.value})} 
+                                           className="h-64 bg-black border border-zinc-800 rounded-3xl p-6 font-semibold text-zinc-200 outline-none focus:border-gold transition-all text-sm resize-none custom-scrollbar"
+                                        />
+                                     </div>
+                                     <div className="space-y-3">
+                                        <span className="text-[10px] font-black text-zinc-500 uppercase tracking-widest ml-3 block">Variáveis Disponíveis (Clique para inserir)</span>
+                                        <div className="flex flex-wrap gap-2.5 bg-black/40 border border-zinc-900 rounded-2xl p-4">
+                                           {[
+                                              { tag: '{cliente}', label: 'Nome do Cliente' },
+                                              { tag: '{produto}', label: 'Produto Adquirido' },
+                                              { tag: '{parcela}', label: 'Nº da Parcela' },
+                                              { tag: '{valor}', label: 'Valor Devido' },
+                                              { tag: '{vencimento}', label: 'Data Vencimento' },
+                                              { tag: '{chave_pix}', label: 'Chave PIX' },
+                                              { tag: '{nome_pix}', label: 'Nome Beneficiário' },
+                                           ].map(v => (
+                                              <button
+                                                 key={v.tag}
+                                                 type="button"
+                                                 onClick={() => {
+                                                    const textarea = document.getElementById('whatsappTemplateEditor') as HTMLTextAreaElement;
+                                                    if (textarea) {
+                                                       const start = textarea.selectionStart;
+                                                       const end = textarea.selectionEnd;
+                                                       const text = settings.whatsappTemplate || '';
+                                                       const updated = text.substring(0, start) + v.tag + text.substring(end);
+                                                       setSettings({ ...settings, whatsappTemplate: updated });
+                                                       setTimeout(() => {
+                                                          textarea.focus();
+                                                          textarea.setSelectionRange(start + v.tag.length, start + v.tag.length);
+                                                       }, 50);
+                                                    }
+                                                 }}
+                                                 className="px-3 py-1.5 bg-zinc-900 hover:bg-gold/10 hover:text-gold border border-zinc-850 hover:border-gold/30 rounded-xl text-[10px] font-bold text-zinc-400 transition-all cursor-pointer"
+                                              >
+                                                 {v.tag} <span className="text-[9px] opacity-60 font-medium font-sans">({v.label})</span>
+                                              </button>
+                                           ))}
+                                        </div>
+                                     </div>
+                                  </div>
+
+                                  {/* Live Mock Preview Section */}
+                                  <div className="lg:col-span-5 flex flex-col gap-4">
+                                     <span className="text-[10px] font-black text-zinc-500 uppercase tracking-widest ml-3 block">Pré-visualização Dinâmica</span>
+                                     <div className="bg-[#0b141a] border border-zinc-850 rounded-[32px] overflow-hidden flex flex-col min-h-[350px] shadow-2xl relative">
+                                        {/* WhatsApp Chat Header */}
+                                        <div className="bg-[#1f2c34] h-14 px-4 flex items-center gap-3 border-b border-zinc-800">
+                                           <div className="w-9 h-9 rounded-full bg-zinc-700 font-black text-xs text-white flex items-center justify-center uppercase">
+                                              CN
+                                           </div>
+                                           <div className="flex flex-col">
+                                              <span className="text-xs font-bold text-white leading-tight">Canal de Cobrança</span>
+                                              <span className="text-[9px] text-[#8696a0] leading-none font-medium">Online</span>
+                                           </div>
+                                        </div>
+
+                                        {/* WhatsApp Chat Body BG */}
+                                        <div className="flex-1 p-4 relative flex flex-col justify-end" style={{ backgroundImage: 'radial-gradient(circle, #101d24 0%, #0b141a 100%)' }}>
+                                           {/* Message Bubble */}
+                                           <div className="max-w-[90%] self-end bg-[#005c4b] text-[#e9edef] rounded-2xl rounded-tr-none px-3.5 py-2.5 text-xs relative shadow-md leading-relaxed whitespace-pre-wrap">
+                                              {((settings.whatsappTemplate || '')
+                                                 .replace(/{cliente}/g, 'Fulano de Souza')
+                                                 .replace(/{produto}/g, 'Relógio Rolex Submariner')
+                                                 .replace(/{parcela}/g, '1ª Parcela (1/5)')
+                                                 .replace(/{valor}/g, 'R$ 4.500,00')
+                                                 .replace(/{vencimento}/g, '15/10/2026')
+                                                 .replace(/{chave_pix}/g, settings.pixKey || 'financeiro@nexus.com')
+                                                 .replace(/{nome_pix}/g, settings.pixName || 'Nexus Commerce')) || 'Nenhum texto de template configurado.'}
+                                              
+                                              <div className="flex items-center justify-end gap-1 mt-1 text-[9px] text-[#8696a0] text-right">
+                                                 <span>20:15</span>
+                                                 <span className="text-[#53bdeb]">✓✓</span>
+                                              </div>
+                                           </div>
+                                        </div>
+                                     </div>
+                                  </div>
+                               </div>
+                            </motion.div>
+                         )}
+
+                         {activeSettingsTab === 'system' && (
                            <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="space-y-10">
                               <div>
                                  <h3 className="text-2xl font-black italic uppercase text-white tracking-tighter logo-title">Segurança e Dados</h3>
@@ -2553,15 +3071,10 @@ export default function App() {
                     </div>
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="flex flex-col gap-2">
-                    <label className="text-[9px] sm:text-[10px] font-black text-gray-500 uppercase ml-2">Custo</label>
-                    <input name="cost" type="number" step="0.01" required defaultValue={productToEdit?.cost || ''} placeholder="R$" className="h-12 sm:h-14 bg-zinc-900 border border-line-strong rounded-xl px-5 text-xs sm:text-sm text-white" />
-                  </div>
-                  <div className="flex flex-col gap-2">
-                    <label className="text-[9px] sm:text-[10px] font-black text-gray-500 uppercase ml-2">Venda</label>
-                    <input name="sale" type="number" step="0.01" required defaultValue={productToEdit?.sale || ''} placeholder="R$" className="h-12 sm:h-14 bg-zinc-900 border border-line-strong rounded-xl px-5 text-gold text-xs sm:text-sm font-bold" />
-                  </div>
+                <div className="flex flex-col gap-2">
+                  <input name="cost" type="hidden" defaultValue={productToEdit?.cost || "0"} />
+                  <label className="text-[9px] sm:text-[10px] font-black text-gray-500 uppercase ml-2">Valor de Saída (Venda)</label>
+                  <input name="sale" type="number" step="0.01" required defaultValue={productToEdit?.sale || ''} placeholder="R$" className="w-full h-12 sm:h-14 bg-zinc-900 border border-line-strong rounded-xl px-5 text-gold text-xs sm:text-sm font-bold" />
                 </div>
                 <div className="flex flex-col gap-2">
                   <label className="text-[9px] sm:text-[10px] font-black text-gray-500 uppercase ml-2">Quantidade em Estoque</label>
@@ -2825,54 +3338,207 @@ export default function App() {
             );
           })()}
 
-          {selectedInstallmentForPayment && (
-            <div key="modal-payment" className="fixed inset-0 z-[80] flex items-center justify-center p-4">
-              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setSelectedInstallmentForPayment(null)} className="absolute inset-0 bg-[rgba(0,0,0,0.95)] backdrop-blur-md" />
-              <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="relative w-full max-w-[420px] glass-card p-10 bg-[#0a0a0a] border border-[rgba(255,215,0,0.2)] shadow-2xl overflow-hidden rounded-[32px]">
-                 <div className="absolute top-0 left-0 w-full h-1 bg-gold shadow-[0_0_20px_#ffd70033]" />
-                 <button onClick={() => setSelectedInstallmentForPayment(null)} className="absolute top-8 right-8 text-gray-500 hover:text-white transition-colors"><X size={20}/></button>
-                 
-                 <div className="text-center mb-10">
-                    <h3 className="text-2xl font-black text-white italic uppercase tracking-tighter">Liquidação de Ciclo</h3>
-                    <p className="text-[10px] text-gray-600 font-bold uppercase mt-1 tracking-widest leading-none">Processamento de Recebíveis</p>
-                 </div>
+          {selectedInstallmentForPayment && (() => {
+            const correspondingSale = sales.find(s => s.id === selectedInstallmentForPayment.saleId);
+            const isInterestOnly = correspondingSale?.isInterestOnly;
 
-                 <div className="p-10 bg-[rgba(0,0,0,0.6)] rounded-[32px] border border-[rgba(255,255,255,0.05)] text-center mb-10 shadow-inner relative group overflow-hidden">
-                    <div className="absolute inset-0 bg-[rgba(255,215,0,0.05)] opacity-0 group-hover:opacity-100 transition-opacity" />
-                    <span className="text-[10px] font-black text-gray-500 uppercase block mb-3 tracking-[0.3em]">Montante Quitação</span>
-                    <strong className="text-5xl text-white font-black italic tracking-tighter drop-shadow-lg">{money(selectedInstallmentForPayment.value)}</strong>
-                 </div>
+            // Resolve whether we are in amortization mode (only for interest-only sales)
+            const isAmortizing = isInterestOnly && paymentType === 'amortization';
+            
+            const handleUnifiedPaymentSubmit = async () => {
+              if (isAmortizing) {
+                const amountVal = Number(amortizationAmount);
+                if (isNaN(amountVal) || amountVal <= 0) {
+                  showToast('Por favor, informe um valor de amortização válido maior que zero.', 'error');
+                  return;
+                }
+                if (amountVal > correspondingSale.total) {
+                  showToast(`O valor da amortização não pode ser maior que o saldo atual de ${money(correspondingSale.total)}.`, 'error');
+                  return;
+                }
+                
+                await amortizeSale(correspondingSale.id, amountVal, paymentMethod);
+                showToast('Amortização realizada com sucesso!');
+                setSelectedInstallmentForPayment(null);
+              } else {
+                await payInstallment(selectedInstallmentForPayment.id, paymentMethod);
+                const iCopy = { 
+                  ...selectedInstallmentForPayment, 
+                  status: 'Pago', 
+                  paidAt: new Date().toISOString(), 
+                  paymentMethod 
+                };
+                setSelectedInstallmentForPayment(null);
+                setSelectedInstallmentForReceipt(iCopy);
+                showToast('Pagamento do ciclo confirmado com sucesso!');
+              }
+            };
 
-                 <div className="flex flex-col gap-3 mb-10">
-                    <label className="text-[10px] font-black uppercase text-gray-600 ml-4 mb-1">Método Verificado</label>
-                    <div className="grid grid-cols-2 gap-3">
-                       {['Pix', 'Dinheiro', 'Cartão', 'Transferência'].map(m => (
-                         <button 
-                            key={m} 
-                            onClick={() => setPaymentMethod(m as any)} 
-                            className={`h-14 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all relative overflow-hidden group ${paymentMethod === m ? 'bg-gold text-black' : 'bg-[rgba(255,255,255,0.03)] text-gray-600 border border-[rgba(255,255,255,0.05)] hover:border-[rgba(255,215,0,0.3)] hover:text-gray-300'}`}
-                         >
-                            <span className="relative z-10">{m}</span>
-                            {paymentMethod === m && (
-                               <motion.div layoutId="pay-active" className="absolute inset-0 bg-gold" transition={{ type: 'spring', bounce: 0.2, duration: 0.6 }} />
-                            )}
-                         </button>
-                       ))}
-                    </div>
-                 </div>
+            return (
+              <div key="modal-payment" className="fixed inset-0 z-[80] flex items-center justify-center p-4">
+                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setSelectedInstallmentForPayment(null)} className="absolute inset-0 bg-[rgba(0,0,0,0.95)] backdrop-blur-md" />
+                <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="relative w-full max-w-[440px] glass-card p-10 bg-[#0a0a0a] border border-[rgba(255,215,0,0.2)] shadow-2xl overflow-hidden rounded-[32px]">
+                   <div className="absolute top-0 left-0 w-full h-1 bg-gold shadow-[0_0_20px_#ffd70033]" />
+                   <button onClick={() => setSelectedInstallmentForPayment(null)} className="absolute top-8 right-8 text-gray-500 hover:text-white transition-colors cursor-pointer"><X size={20}/></button>
+                   
+                   <div className="text-center mb-6">
+                      <h3 className="text-2xl font-black text-white italic uppercase tracking-tighter">
+                        {isInterestOnly ? 'Opções de Liquidação' : 'Liquidação de Ciclo'}
+                      </h3>
+                      <p className="text-[10px] text-gray-500 font-bold uppercase mt-1 tracking-widest leading-none">
+                        {isInterestOnly ? 'Operação de Juros / ROI Ativo' : 'Processamento de Recebíveis'}
+                      </p>
+                   </div>
 
-                 <button 
-                    onClick={handleConfirmPayment} 
-                    className="w-full h-16 bg-green-neon text-black rounded-[24px] font-black uppercase text-xs shadow-[0_10px_30px_rgba(34,197,94,0.3)] hover:brightness-110 active:scale-95 transition-all flex items-center justify-center gap-3"
-                 >
-                    <Zap size={20} />
-                    Confirmar Quitação
-                 </button>
-              </motion.div>
-            </div>
-          )}
+                   {/* Toggle options for Interest Only sales */}
+                   {isInterestOnly && (
+                     <div className="flex bg-zinc-950 border border-zinc-900 rounded-2xl p-1 mb-6 gap-1">
+                       <button
+                         type="button"
+                         onClick={() => {
+                           setPaymentType('interest');
+                           setAmortizationAmount('');
+                         }}
+                         className={`flex-1 py-3 text-center rounded-xl text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer ${
+                           paymentType === 'interest' 
+                             ? 'bg-gold text-black font-extrabold' 
+                             : 'text-zinc-500 hover:text-zinc-300'
+                         }`}
+                       >
+                         Pagar Juros e Renovar 30 Dias
+                       </button>
+                       <button
+                         type="button"
+                         onClick={() => {
+                           setPaymentType('amortization');
+                           setAmortizationAmount('');
+                         }}
+                         className={`flex-1 py-3 text-center rounded-xl text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer ${
+                           paymentType === 'amortization' 
+                             ? 'bg-gold text-black font-extrabold' 
+                             : 'text-zinc-500 hover:text-zinc-300'
+                         }`}
+                       >
+                         Amortização
+                       </button>
+                     </div>
+                   )}
 
-          {selectedSaleForAmortization && (
+                   {/* Main details box */}
+                   <div className="p-8 bg-[rgba(0,0,0,0.6)] rounded-[24px] border border-[rgba(255,255,255,0.05)] text-center mb-6 shadow-inner relative group overflow-hidden">
+                      <div className="absolute inset-0 bg-[rgba(255,215,0,0.05)] opacity-0 group-hover:opacity-100 transition-opacity" />
+                      
+                      {isAmortizing ? (
+                        <div className="flex flex-col gap-2">
+                          <label className="text-[10px] font-black text-gray-500 uppercase block tracking-[0.2em]">Valor da Amortização (R$)</label>
+                          <div className="relative mt-2">
+                            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 font-bold text-sm">R$</span>
+                            <input 
+                              type="number"
+                              step="0.01"
+                              min="0.01"
+                              max={correspondingSale?.total || 9999999}
+                              value={amortizationAmount}
+                              onChange={(e) => setAmortizationAmount(e.target.value)}
+                              placeholder="0,00"
+                              className="w-full h-14 bg-zinc-900 border border-line-strong rounded-2xl pl-10 pr-4 font-bold outline-none focus:border-gold text-white text-center text-xl"
+                              autoFocus
+                            />
+                          </div>
+                          
+                          {correspondingSale && (
+                            <div className="mt-3 pt-3 border-t border-white/5 text-[9px] text-zinc-400 text-left space-y-1">
+                              <div className="flex justify-between">
+                                <span>Saldo Principal Atual:</span>
+                                <span className="font-bold text-white">{money(correspondingSale.total)}</span>
+                              </div>
+                              {Number(amortizationAmount) > 0 && (
+                                <>
+                                  <div className="flex justify-between text-green-neon">
+                                    <span>Novo Saldo Devedor:</span>
+                                    <span className="font-extrabold">{money(Math.max(0, correspondingSale.total - Number(amortizationAmount)))}</span>
+                                  </div>
+                                  <div className="flex justify-between">
+                                    <span>Novo Juros Mensal Estimado ({correspondingSale.interestRate}%):</span>
+                                    <span className="font-bold text-zinc-300 font-mono">
+                                      {money(Math.max(0, correspondingSale.total - Number(amortizationAmount)) * (correspondingSale.interestRate || 0) / 100)}
+                                    </span>
+                                  </div>
+                                </>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <>
+                          <span className="text-[10px] font-black text-gray-500 uppercase block mb-2 tracking-[0.3em]">
+                            {isInterestOnly ? "Rendimento do Ciclo (Juros)" : "Montante Quitação"}
+                          </span>
+                          <strong className="text-4xl sm:text-5xl text-white font-black italic tracking-tighter drop-shadow-lg block">
+                            {money(selectedInstallmentForPayment.value)}
+                          </strong>
+                          {isInterestOnly && (
+                            <p className="text-[9px] text-gray-400 font-bold uppercase tracking-wider mt-2.5">
+                              ROI esperado de {correspondingSale?.interestRate || 0}% sobre {money(correspondingSale?.total || 0)}
+                            </p>
+                          )}
+                        </>
+                      )}
+                   </div>
+
+                   {/* Subtitle warning for interestOnly renewal */}
+                   {isInterestOnly && !isAmortizing && (
+                     <div className="mb-6 p-4 rounded-xl bg-gold/5 border border-gold/10 text-[9px] text-zinc-400 uppercase tracking-wide leading-normal">
+                       ✨ Ao confirmar o recebimento dos juros, a operação será automaticamente renovada por mais 30 dias com o mesmo ROI esperado.
+                     </div>
+                   )}
+
+                   {/* Meio de pagamento */}
+                   <div className="flex flex-col gap-2 mb-8">
+                      <label className="text-[10px] font-black uppercase text-gray-600 ml-2 mb-1 text-left">Meio de Pagamento Verificado</label>
+                      <div className="grid grid-cols-2 gap-2">
+                         {['Pix', 'Dinheiro', 'Cartão', 'Transferência'].map(m => (
+                           <button 
+                              key={m} 
+                              type="button"
+                              onClick={() => {
+                                 const mapping: Record<string, any> = {
+                                   'Pix': 'Pix',
+                                   'Dinheiro': 'Dinheiro',
+                                   'Cartão': 'Cartão de Crédito',
+                                   'Transferência': 'Transferência'
+                                 };
+                                 setPaymentMethod(mapping[m] || 'Pix');
+                              }} 
+                              className={`h-11 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all relative overflow-hidden group border ${
+                                (paymentMethod === m || (m === 'Cartão' && (paymentMethod === 'Cartão de Crédito' || paymentMethod === 'Cartão de Débito')))
+                                  ? 'bg-gold text-black border-gold font-extrabold' 
+                                  : 'bg-[rgba(255,255,255,0.03)] text-gray-600 border-[rgba(255,255,255,0.05)] hover:border-[rgba(255,215,0,0.3)] hover:text-gray-300'
+                              }`}
+                           >
+                              <span className="relative z-10">{m}</span>
+                              {(paymentMethod === m || (m === 'Cartão' && (paymentMethod === 'Cartão de Crédito' || paymentMethod === 'Cartão de Débito'))) && (
+                                 <motion.div layoutId="pay-active-unified" className="absolute inset-0 bg-gold" transition={{ type: 'spring', bounce: 0.2, duration: 0.6 }} />
+                              )}
+                           </button>
+                         ))}
+                      </div>
+                   </div>
+
+                   {/* Apenas um botão de pagamento */}
+                   <button 
+                      onClick={handleUnifiedPaymentSubmit} 
+                      className="w-full h-16 bg-green-neon text-black rounded-[24px] font-black uppercase text-xs shadow-[0_10px_30px_rgba(34,197,94,0.3)] hover:brightness-110 active:scale-95 transition-all flex items-center justify-center gap-3 cursor-pointer"
+                   >
+                      <Zap size={20} />
+                      {isAmortizing ? 'Confirmar Amortização' : (isInterestOnly ? 'Pagar Juros e Renovar' : 'Confirmar Quitação')}
+                   </button>
+                </motion.div>
+              </div>
+            );
+          })()}
+
+          {false && selectedSaleForAmortization && (
             <div key="modal-amortization" className="fixed inset-0 z-[80] flex items-center justify-center p-4">
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setSelectedSaleForAmortization(null)} className="absolute inset-0 bg-[rgba(0,0,0,0.95)] backdrop-blur-md" />
               <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="relative w-full max-w-[440px] glass-card p-10 bg-[#0a0a0a] border border-[rgba(255,215,0,0.2)] shadow-2xl overflow-hidden rounded-[32px]">
