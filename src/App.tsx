@@ -204,6 +204,57 @@ export default function App() {
   const [simProductName, setSimProductName] = useState<string>('');
   const [simRate, setSimRate] = useState<number>(0);
   const [simInstallments, setSimInstallments] = useState<number>(12);
+  const [simPmt, setSimPmt] = useState<string>('');
+  const [isEditingPmt, setIsEditingPmt] = useState(false);
+
+  // Helper numerical solver to find interest rate (i) given pv, pmt, and n using bisection
+  const calculateRateFromPmt = (pv: number, pmt: number, n: number): number => {
+    if (pv <= 0 || pmt <= 0 || n <= 0) return 0;
+    if (pmt * n <= pv) return 0;
+
+    let low = 0.00001; 
+    let high = 5.0;    
+    let mid = 0;
+    
+    for (let iter = 0; iter < 100; iter++) {
+      mid = (low + high) / 2;
+      const factor = Math.pow(1 + mid, n);
+      const estPmt = pv * mid * factor / (factor - 1);
+      
+      if (Math.abs(estPmt - pmt) < 0.00001) {
+        break;
+      }
+      if (estPmt > pmt) {
+        high = mid;
+      } else {
+        low = mid;
+      }
+    }
+    return mid * 100;
+  };
+
+  useEffect(() => {
+    if (!isEditingPmt) {
+      const i = simRate / 100;
+      const n = simInstallments || 1;
+      const pv = simValue || 0;
+      const pmt = i === 0 ? pv / n : pv * (i * Math.pow(1 + i, n)) / (Math.pow(1 + i, n) - 1);
+      setSimPmt(pmt > 0 ? pmt.toFixed(2) : '');
+    }
+  }, [simValue, simRate, simInstallments, isEditingPmt]);
+
+  const handleSimPmtChange = (val: string) => {
+    setSimPmt(val);
+    const numericPmt = Number(val);
+    if (!isNaN(numericPmt) && numericPmt > 0) {
+      const pv = simValue || 0;
+      const n = simInstallments || 1;
+      if (pv > 0 && n > 0) {
+        const calculatedRate = calculateRateFromPmt(pv, numericPmt, n);
+        setSimRate(Number(calculatedRate.toFixed(3)));
+      }
+    }
+  };
 
   const money = (val: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
 
@@ -2546,6 +2597,21 @@ export default function App() {
                            <label className="text-[10px] font-black uppercase text-gray-500 ml-3 tracking-widest">Valor do Ativo (PV)</label>
                            <input type="number" value={simValue || ''} onChange={(e) => setSimValue(Number(e.target.value))} className="h-14 sm:h-16 bg-black border border-line-strong rounded-xl sm:rounded-[24px] px-6 sm:px-8 font-black text-lg sm:text-xl text-gold italic outline-none focus:border-gold transition-all" placeholder="0,00" />
                            <div className="absolute right-6 top-[3rem] sm:top-[3.25rem] text-gold font-black opacity-30 italic text-sm">BRL</div>
+                        </div>
+
+                        <div className="flex flex-col gap-2 relative">
+                           <label className="text-[10px] font-black uppercase text-gray-500 ml-3 tracking-widest">Valor da Parcela (PMT)</label>
+                           <input 
+                             type="number" 
+                             step="0.01" 
+                             value={simPmt} 
+                             onFocus={() => setIsEditingPmt(true)}
+                             onBlur={() => setIsEditingPmt(false)}
+                             onChange={(e) => handleSimPmtChange(e.target.value)} 
+                             className="h-14 sm:h-16 bg-black border border-line-strong rounded-xl sm:rounded-[24px] px-6 sm:px-8 font-black text-lg sm:text-xl text-amber-200 italic outline-none focus:border-gold transition-all" 
+                             placeholder="0,00" 
+                           />
+                           <div className="absolute right-6 top-[3rem] sm:top-[3.25rem] text-amber-200 font-black opacity-30 italic text-sm">BRL</div>
                         </div>
 
                         <div className="grid grid-cols-2 gap-4 sm:gap-6">
