@@ -239,7 +239,8 @@ export default function App() {
       const n = simInstallments || 1;
       const pv = simValue || 0;
       const pmt = i === 0 ? pv / n : pv * (i * Math.pow(1 + i, n)) / (Math.pow(1 + i, n) - 1);
-      setSimPmt(pmt > 0 ? pmt.toFixed(2) : '');
+      const roundedPmt = Math.round(pmt);
+      setSimPmt(roundedPmt > 0 ? roundedPmt.toString() : '');
     }
   }, [simValue, simRate, simInstallments, isEditingPmt]);
 
@@ -413,7 +414,8 @@ export default function App() {
   const shareSimulationWhatsApp = () => {
     const date = new Date().toLocaleDateString('pt-BR');
     const i = simRate / 100;
-    const pmt = i === 0 ? simValue / simInstallments : (simValue * i * Math.pow(1 + i, simInstallments)) / (Math.pow(1 + i, simInstallments) - 1);
+    const rawPmt = i === 0 ? simValue / simInstallments : (simValue * i * Math.pow(1 + i, simInstallments)) / (Math.pow(1 + i, simInstallments) - 1);
+    const pmt = Math.round(rawPmt);
     const productText = simProductName ? `💎 *Produto:* ${simProductName}\n` : '';
     const text = `*SIMULAÇÃO - ${date}*\n\n${productText}📦 *Parcelas:* ${simInstallments}x\n💰 *Valor:* ${money(pmt)}\n📊 *Total:* ${money(pmt * simInstallments)}`;
     window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
@@ -2670,7 +2672,8 @@ export default function App() {
                         const i = simRate / 100;
                         const n = simInstallments || 1;
                         const pv = simValue || 0;
-                        const pmt = i === 0 ? pv / n : pv * (i * Math.pow(1 + i, n)) / (Math.pow(1 + i, n) - 1);
+                        const rawPmt = i === 0 ? pv / n : pv * (i * Math.pow(1 + i, n)) / (Math.pow(1 + i, n) - 1);
+                        const pmt = Math.round(rawPmt);
                         return (
                           <>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-8 mb-8 sm:mb-16">
