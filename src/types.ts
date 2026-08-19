@@ -27,6 +27,10 @@ export interface Installment {
   status: 'Pendente' | 'Pago';
   paidAt?: string;
   paymentMethod?: string;
+  originalValue?: number;
+  discountPercentage?: number;
+  discountAmount?: number;
+  isAdvanced?: boolean;
 }
 
 export interface Sale {

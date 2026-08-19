@@ -554,6 +554,53 @@ export function useNexusState() {
     }
   };
 
+  const advanceInstallments = async (
+    saleId: string,
+    items: Array<{ id: string; discountPercentage: number }>,
+    paymentMethod: string
+  ) => {
+    try {
+      const sale = sales.find(s => s.id === saleId);
+      if (!sale) return;
+
+      const batch = writeBatch(db);
+      const itemMap = new Map(items.map(item => [item.id, item.discountPercentage]));
+
+      const targetInstallments = installments.filter(i => itemMap.has(i.id));
+      if (targetInstallments.length === 0) return;
+
+      targetInstallments.forEach(inst => {
+        const discountPct = itemMap.get(inst.id) || 0;
+        const origValue = inst.value;
+        const discountVal = (origValue * discountPct) / 100;
+        const finalVal = Math.round(Math.max(0, origValue - discountVal));
+
+        batch.update(doc(db, 'installments', inst.id), cleanData({
+          status: 'Pago',
+          paidAt: new Date().toISOString(),
+          paymentMethod: paymentMethod,
+          value: finalVal,
+          originalValue: origValue,
+          discountPercentage: discountPct,
+          discountAmount: Math.round(discountVal),
+          isAdvanced: true
+        }));
+      });
+
+      const targetIds = new Set(items.map(i => i.id));
+      const remainingPending = installments.filter(i => i.saleId === saleId && i.status === 'Pendente' && !targetIds.has(i.id));
+      if (remainingPending.length === 0) {
+        batch.update(doc(db, 'sales', saleId), {
+          status: 'Liquidada'
+        });
+      }
+
+      await batch.commit();
+    } catch (err) {
+      handleFirestoreError(err, OperationType.UPDATE, `sales/${saleId}/advanceInstallments`);
+    }
+  };
+
   const closeMonthlyRegister = async (periodName: string, profit: number, totalSales: number, salesCount: number) => {
     const id = crypto.randomUUID();
     const newClosing: Closing = {
@@ -583,6 +630,7 @@ export function useNexusState() {
     registerSale,
     payInstallment,
     amortizeSale,
+    advanceInstallments,
     updateSaleFull,
     updateProduct,
     setInstallments,
