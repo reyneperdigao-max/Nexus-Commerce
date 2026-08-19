@@ -6,7 +6,7 @@ import { Logo, Topbar, DashboardStats } from './components/CommonUI';
 import { AnimatePresence, motion } from 'motion/react';
 import { Boxes, Plus, X, Search, ImagePlus, User, Wallet, ShoppingBag, ArrowLeft, ArrowRight, BadgeDollarSign, Activity, Zap, History, ChevronDown, Pencil, FileText, Download, DollarSign, Share2, Calculator, Package, MessageCircle, ShieldCheck, Lock, Mail, Image as ImageIcon, AlertCircle, Calendar, Camera, Trash2, Minus, TrendingUp, Percent, Printer, Copy, Check, ExternalLink } from 'lucide-react';
 import html2pdf from 'html2pdf.js';
-import { downloadContractAsPDF, fallbackPrintContract, shareContractFile } from './lib/pdfGenerator';
+import { downloadContractAsPDF, fallbackPrintContract, shareContractFile, downloadReceiptAsPDF } from './lib/pdfGenerator';
 import { auth } from './lib/firebase';
 import { signInAnonymously, onAuthStateChanged } from 'firebase/auth';
 
@@ -455,21 +455,16 @@ export default function App() {
   };
 
   const handleDownloadReceiptPDF = async () => {
-    const element = document.getElementById('receipt-content');
-    if (!element || !selectedInstallmentForReceipt) return;
+    if (!selectedInstallmentForReceipt) return;
     try {
       showToast('Gerando comprovante em PDF...');
-      const cleanClientName = selectedInstallmentForReceipt.client.replace(/\s+/g, '_').toUpperCase();
-      const filename = `RECIBO_${cleanClientName}_${selectedInstallmentForReceipt.id.substring(0,8).toUpperCase()}.pdf`;
-      const opt: any = {
-        margin: [10, 10],
-        filename: filename,
-        image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff' },
-        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
-      };
-      await html2pdf().set(opt).from(element).save();
-      showToast('Comprovante em PDF baixado com sucesso!');
+      const correspondingSale = sales.find(s => s.id === selectedInstallmentForReceipt.saleId || (selectedInstallmentForReceipt?.id && selectedInstallmentForReceipt.id.replace('entrada-', '') === s.id));
+      const res = await downloadReceiptAsPDF(selectedInstallmentForReceipt, correspondingSale, settings);
+      if (res.success) {
+        showToast('Comprovante em PDF baixado com sucesso!');
+      } else {
+        showToast('Erro ao gerar PDF do comprovante.', 'error');
+      }
     } catch (error) {
       console.error(error);
       showToast('Erro ao gerar PDF do comprovante.', 'error');
@@ -3399,11 +3394,11 @@ Autenticação: ${targetSale.id.toUpperCase()}`;
           )}
 
           {selectedSaleForContract && (
-            <div key="modal-contract" className="fixed inset-0 z-[60] flex items-center justify-center p-0 sm:p-6 overflow-y-auto custom-scrollbar">
-              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setSelectedSaleForContract(null)} className="fixed inset-0 bg-[rgba(0,0,0,0.9)] backdrop-blur-sm" />
-              <motion.div initial={{ opacity: 0, y: 50 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 50 }} className="relative bg-white w-full max-w-4xl p-8 sm:p-20 shadow-2xl overflow-hidden min-h-screen sm:min-h-0 sm:rounded-sm text-black font-sans">
+            <div key="modal-contract" className="fixed inset-0 z-[60] flex items-center justify-center p-2 sm:p-6 overflow-y-auto custom-scrollbar">
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setSelectedSaleForContract(null)} className="fixed inset-0 bg-[rgba(0,0,0,0.85)] backdrop-blur-sm" />
+              <motion.div initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.98 }} className="relative bg-white w-full max-w-3xl p-4 sm:p-6 shadow-2xl overflow-y-auto max-h-[92vh] rounded-2xl text-black font-sans my-auto">
                 {/* Header de Ações UI (não sai na impressão) */}
-                <div className="sticky top-0 z-20 bg-white/95 backdrop-blur border-b border-gray-200 -mx-8 -mt-8 sm:-mx-20 sm:-mt-20 p-4 sm:px-12 flex flex-wrap items-center justify-between gap-3 no-print shadow-sm mb-6">
+                <div className="sticky top-0 z-20 bg-white/95 backdrop-blur border-b border-gray-200 -mx-4 -mt-4 sm:-mx-6 sm:-mt-6 p-3 sm:px-6 flex flex-wrap items-center justify-between gap-2.5 no-print shadow-sm mb-4">
                   <div className="flex items-center gap-2">
                     <div className="w-8 h-8 rounded-xl bg-black text-gold flex items-center justify-center font-black">
                       <FileText size={16} />
@@ -3418,51 +3413,51 @@ Autenticação: ${targetSale.id.toUpperCase()}`;
                     <button 
                       onClick={() => handleDownloadContract(selectedSaleForContract)} 
                       disabled={isContractGenerating}
-                      className="h-10 px-4 rounded-xl bg-black text-gold hover:bg-gold hover:text-black transition-all flex items-center gap-2 text-xs font-black uppercase tracking-wider shadow-md active:scale-95 cursor-pointer disabled:opacity-50" 
-                      title="Baixar Arquivo PDF"
+                      className="h-9 px-3.5 rounded-xl bg-black text-gold hover:bg-gold hover:text-black transition-all flex items-center gap-2 text-xs font-black uppercase tracking-wider shadow-md active:scale-95 cursor-pointer disabled:opacity-50" 
+                      title="Baixar Arquivo PDF (1 Página A4)"
                     >
-                      <Download size={15} />
+                      <Download size={14} />
                       <span>{isContractGenerating ? 'Gerando...' : 'Baixar PDF'}</span>
                     </button>
                     
                     <button 
                       onClick={() => handlePrintContract(selectedSaleForContract)} 
-                      className="h-10 px-3.5 rounded-xl bg-gray-100 border border-gray-300 text-gray-800 hover:bg-gray-200 transition-all flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider shadow-sm active:scale-95 cursor-pointer" 
+                      className="h-9 px-3 rounded-xl bg-gray-100 border border-gray-300 text-gray-800 hover:bg-gray-200 transition-all flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider shadow-sm active:scale-95 cursor-pointer" 
                       title="Imprimir ou Salvar via Navegador"
                     >
-                      <Printer size={15} />
-                      <span className="hidden sm:inline">Imprimir / Salvar</span>
+                      <Printer size={14} />
+                      <span className="hidden sm:inline">Imprimir</span>
                     </button>
 
                     <button 
                       onClick={() => handleShareContract(selectedSaleForContract)} 
-                      className="h-10 px-3.5 rounded-xl bg-gray-100 border border-gray-300 text-gray-800 hover:bg-gray-200 transition-all flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider shadow-sm active:scale-95 cursor-pointer" 
+                      className="h-9 px-3 rounded-xl bg-gray-100 border border-gray-300 text-gray-800 hover:bg-gray-200 transition-all flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider shadow-sm active:scale-95 cursor-pointer" 
                       title="Compartilhar Arquivo PDF"
                     >
-                      <Share2 size={15} />
+                      <Share2 size={14} />
                       <span className="hidden sm:inline">Compartilhar</span>
                     </button>
 
                     <button 
                       onClick={() => handleCopyContractText(selectedSaleForContract)} 
-                      className="h-10 px-3.5 rounded-xl bg-gray-100 border border-gray-300 text-gray-800 hover:bg-gray-200 transition-all flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider shadow-sm active:scale-95 cursor-pointer" 
+                      className="h-9 px-3 rounded-xl bg-gray-100 border border-gray-300 text-gray-800 hover:bg-gray-200 transition-all flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider shadow-sm active:scale-95 cursor-pointer" 
                       title="Copiar Texto do Contrato"
                     >
-                      <Copy size={15} />
+                      <Copy size={14} />
                       <span className="hidden sm:inline">Copiar Texto</span>
                     </button>
 
                     <button 
                       onClick={() => setSelectedSaleForContract(null)} 
-                      className="h-10 w-10 rounded-xl bg-gray-100 border border-gray-300 flex items-center justify-center text-gray-600 hover:bg-red-600 hover:text-white hover:border-red-600 transition-all shadow-sm active:scale-95 cursor-pointer"
+                      className="h-9 w-9 rounded-xl bg-gray-100 border border-gray-300 flex items-center justify-center text-gray-600 hover:bg-red-600 hover:text-white hover:border-red-600 transition-all shadow-sm active:scale-95 cursor-pointer"
                       title="Fechar"
                     >
-                      <X size={18} />
+                      <X size={16} />
                     </button>
                   </div>
                 </div>
 
-                <div id="contract-content" className="bg-white p-6 sm:p-12 font-sans text-slate-800 print:p-4 text-xs">
+                <div id="contract-content" className="bg-white p-2 sm:p-4 font-sans text-slate-800 print:p-2 text-xs">
                   {(() => {
                     const company = (settings.companyName || settings.userName || 'GESTÃO DE VENDAS').toUpperCase();
                     const cleanId = selectedSaleForContract.id.substring(0, 8).toUpperCase();
@@ -3485,66 +3480,66 @@ Autenticação: ${targetSale.id.toUpperCase()}`;
                     const interestRate = selectedSaleForContract.interestRate || 0;
 
                     return (
-                      <div className="max-w-[750px] mx-auto flex flex-col gap-5 leading-relaxed">
+                      <div className="max-w-[720px] mx-auto flex flex-col gap-3.5 leading-normal">
                         {/* Header Institucional */}
-                        <div className="border-b-2 border-slate-900 pb-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                        <div className="border-b-2 border-slate-900 pb-3 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
                           <div>
-                            <span className="text-[10px] font-black uppercase text-amber-700 tracking-widest block">{company}</span>
+                            <span className="text-[9.5px] font-black uppercase text-amber-700 tracking-widest block">{company}</span>
                             <h1 className="text-base sm:text-lg font-black uppercase tracking-tight text-slate-900">
                               Contrato de Compra e Venda
                             </h1>
-                            <span className="text-[10px] text-slate-500 font-semibold">Instrumento Particular de Compromisso de Venda e Confissão de Dívida</span>
+                            <span className="text-[9px] text-slate-500 font-semibold">Instrumento Particular de Compromisso de Venda e Confissão de Dívida</span>
                           </div>
                           <div className="text-left sm:text-right">
-                            <div className="px-2.5 py-1 bg-slate-100 border border-slate-200 rounded-md font-mono text-[10px] font-black text-slate-900 inline-block">
+                            <div className="px-2.5 py-0.5 bg-slate-100 border border-slate-200 rounded-md font-mono text-[10px] font-black text-slate-900 inline-block">
                               Nº: CT-{cleanId}
                             </div>
-                            <div className="text-[10px] text-slate-500 font-medium mt-1">Emissão: <strong className="text-slate-800">{dateFormatted}</strong></div>
+                            <div className="text-[9px] text-slate-500 font-medium mt-0.5">Emissão: <strong className="text-slate-800">{dateFormatted}</strong></div>
                           </div>
                         </div>
 
                         {/* Quadro-Resumo */}
-                        <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 sm:p-5 shadow-sm space-y-3">
-                          <div className="flex items-center justify-between border-b border-slate-200 pb-2">
-                            <span className="text-[11px] font-black uppercase tracking-wider text-slate-900 flex items-center gap-1.5">
+                        <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 sm:p-4 shadow-sm space-y-2.5">
+                          <div className="flex items-center justify-between border-b border-slate-200 pb-1.5">
+                            <span className="text-[10px] font-black uppercase tracking-wider text-slate-900 flex items-center gap-1.5">
                               📋 Quadro-Resumo da Transação
                             </span>
                             {isInterest ? (
-                              <span className="px-2 py-0.5 bg-amber-100 border border-amber-300 text-amber-900 text-[9px] font-black uppercase rounded-full">
+                              <span className="px-2 py-0.5 bg-amber-100 border border-amber-300 text-amber-900 text-[8.5px] font-black uppercase rounded-full">
                                 Juros Mensais ({interestRate}% a.m.)
                               </span>
                             ) : (
-                              <span className="px-2 py-0.5 bg-sky-100 border border-sky-300 text-sky-900 text-[9px] font-black uppercase rounded-full">
+                              <span className="px-2 py-0.5 bg-sky-100 border border-sky-300 text-sky-900 text-[8.5px] font-black uppercase rounded-full">
                                 Parcelamento Direto
                               </span>
                             )}
                           </div>
 
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-2.5 gap-x-4 text-[11px]">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-2 gap-x-4 text-[10.5px]">
                             <div>
-                              <span className="text-slate-400 font-bold block text-[9px] uppercase tracking-wider">Comprador(a)</span>
+                              <span className="text-slate-400 font-bold block text-[8.5px] uppercase tracking-wider">Comprador(a)</span>
                               <strong className="text-slate-900 uppercase">{selectedSaleForContract.client}</strong>
                             </div>
                             <div>
-                              <span className="text-slate-400 font-bold block text-[9px] uppercase tracking-wider">CPF / Documento</span>
+                              <span className="text-slate-400 font-bold block text-[8.5px] uppercase tracking-wider">CPF / Documento</span>
                               <strong className="text-slate-900">{selectedSaleForContract.clientCpf || 'Registrado em Sistema'}</strong>
                             </div>
                             <div className="sm:col-span-2">
-                              <span className="text-slate-400 font-bold block text-[9px] uppercase tracking-wider">Produto / Bem Alienado</span>
+                              <span className="text-slate-400 font-bold block text-[8.5px] uppercase tracking-wider">Produto / Bem Alienado</span>
                               <strong className="text-slate-900 uppercase">{(selectedSaleForContract.productName || 'Produto Comercial').toUpperCase()}</strong>
                             </div>
                             <div>
-                              <span className="text-slate-400 font-bold block text-[9px] uppercase tracking-wider">Valor Total da Operação</span>
-                              <strong className="text-sm font-black text-slate-900">{money(selectedSaleForContract.total)}</strong>
+                              <span className="text-slate-400 font-bold block text-[8.5px] uppercase tracking-wider">Valor Total da Operação</span>
+                              <strong className="text-xs font-black text-slate-900">{money(selectedSaleForContract.total)}</strong>
                             </div>
                             <div>
-                              <span className="text-slate-400 font-bold block text-[9px] uppercase tracking-wider">Entrada Liquidada</span>
+                              <span className="text-slate-400 font-bold block text-[8.5px] uppercase tracking-wider">Entrada Liquidada</span>
                               <strong className={downPayment > 0 ? "text-emerald-700 font-bold" : "text-slate-600 font-medium"}>
                                 {downPayment > 0 ? money(downPayment) : 'Sem entrada'}
                               </strong>
                             </div>
                             <div>
-                              <span className="text-slate-400 font-bold block text-[9px] uppercase tracking-wider">Plano de Pagamento</span>
+                              <span className="text-slate-400 font-bold block text-[8.5px] uppercase tracking-wider">Plano de Pagamento</span>
                               <strong className="text-slate-900">
                                 {isInterest 
                                   ? `${installmentsCount} parcelas de juros de ${money(installmentVal)}` 
@@ -3552,51 +3547,51 @@ Autenticação: ${targetSale.id.toUpperCase()}`;
                               </strong>
                             </div>
                             <div>
-                              <span className="text-slate-400 font-bold block text-[9px] uppercase tracking-wider">Vencimento Recorrente</span>
+                              <span className="text-slate-400 font-bold block text-[8.5px] uppercase tracking-wider">Vencimento Recorrente</span>
                               <strong className="text-slate-900">Todo dia {dueDay} de cada mês</strong>
                             </div>
                           </div>
                         </div>
 
                         {/* Cláusulas Contratuais */}
-                        <div className="space-y-3.5 text-[11px] text-slate-600 pt-1">
+                        <div className="space-y-2 text-[10px] text-slate-600 pt-0.5">
                           <div>
-                            <strong className="text-slate-900 uppercase block mb-0.5">Cláusula 1ª – Das Partes Contratantes</strong>
+                            <strong className="text-slate-900 uppercase block mb-0.5 text-[9.5px]">Cláusula 1ª – Das Partes Contratantes</strong>
                             <p className="text-justify">
                               Pelo presente instrumento, de um lado denominada(o) <strong>VENDEDOR(A)</strong>: <strong>{company}</strong>; e de outro lado denominada(o) <strong>COMPRADOR(A)</strong>: <strong>{selectedSaleForContract.client.toUpperCase()}</strong>, CPF nº <strong>{selectedSaleForContract.clientCpf || 'N/A'}</strong>, telefone <strong>{selectedSaleForContract.clientPhone || 'N/A'}</strong>{selectedSaleForContract.clientAddress ? `, residente em ${selectedSaleForContract.clientAddress}` : ''}, firmam o presente compromisso de compra e venda mercantil.
                             </p>
                           </div>
 
                           <div>
-                            <strong className="text-slate-900 uppercase block mb-0.5">Cláusula 2ª – Do Objeto</strong>
+                            <strong className="text-slate-900 uppercase block mb-0.5 text-[9.5px]">Cláusula 2ª – Do Objeto</strong>
                             <p className="text-justify">
                               O presente contrato tem por objeto a alienação do bem/serviço: <strong>{(selectedSaleForContract.productName || 'PRODUTO REGISTRADO').toUpperCase()}</strong>, entregue ou disponibilizado em perfeitas condições de uso, conferido e aceito pelo Comprador.
                             </p>
                           </div>
 
                           <div>
-                            <strong className="text-slate-900 uppercase block mb-0.5">Cláusula 3ª – Do Preço, Condições e Amortização</strong>
+                            <strong className="text-slate-900 uppercase block mb-0.5 text-[9.5px]">Cláusula 3ª – Do Preço, Condições e Amortização</strong>
                             <p className="text-justify">
                               O valor integral estipulado é de <strong>{money(selectedSaleForContract.total)}</strong>, a ser liquidado conforme discriminado no Quadro-Resumo, com vencimento todo dia <strong>{dueDay}</strong> de cada mês subsequente. É assegurado ao Comprador o direito de realizar quitações antecipadas ou amortizações com o devido abatimento proporcional.
                             </p>
                           </div>
 
                           <div>
-                            <strong className="text-slate-900 uppercase block mb-0.5">Cláusula 4ª – Da Tolerância e Encargos por Atraso</strong>
+                            <strong className="text-slate-900 uppercase block mb-0.5 text-[9.5px]">Cláusula 4ª – Da Tolerância e Encargos por Atraso</strong>
                             <p className="text-justify">
                               Eventual atraso na quitação de parcelas acarretará em multa moratória de 2% (dois por cento) sobre a parcela vencida, acrescida de juros de 1% (um por cento) ao mês <em>pro rata die</em> até a efetiva quitação.
                             </p>
                           </div>
 
                           <div>
-                            <strong className="text-slate-900 uppercase block mb-0.5">Cláusula 5ª – Da Eficácia e Título Executivo</strong>
+                            <strong className="text-slate-900 uppercase block mb-0.5 text-[9.5px]">Cláusula 5ª – Da Eficácia e Título Executivo</strong>
                             <p className="text-justify">
                               As partes reconhecem a plena validade jurídica deste instrumento eletrônico e seus respectivos comprovantes, constituindo confissão líquida, certa e exigível de dívida nos termos do art. 784, inciso III do Código de Processo Civil.
                             </p>
                           </div>
 
                           <div>
-                            <strong className="text-slate-900 uppercase block mb-0.5">Cláusula 6ª – Do Foro</strong>
+                            <strong className="text-slate-900 uppercase block mb-0.5 text-[9.5px]">Cláusula 6ª – Do Foro</strong>
                             <p className="text-justify">
                               Fica eleito o foro da comarca da sede do Vendedor para dirimir quaisquer dúvidas decorrentes do presente contrato.
                             </p>
@@ -3604,30 +3599,30 @@ Autenticação: ${targetSale.id.toUpperCase()}`;
                         </div>
 
                         {/* Assinaturas */}
-                        <div className="mt-6 pt-4 border-t border-slate-200">
-                          <p className="text-center text-[9px] text-slate-400 uppercase tracking-wider mb-8">
+                        <div className="mt-4 pt-3 border-t border-slate-200">
+                          <p className="text-center text-[8.5px] text-slate-400 uppercase tracking-wider mb-5">
                             E por estarem de pleno acordo, firmam o presente compromisso.
                           </p>
-                          <div className="grid grid-cols-2 gap-8 sm:gap-16 px-4">
-                            <div className="text-center space-y-1.5">
+                          <div className="grid grid-cols-2 gap-8 sm:gap-14 px-4">
+                            <div className="text-center space-y-1">
                               <div className="h-[1.5px] bg-slate-700 w-full"></div>
                               <div className="flex flex-col">
-                                <strong className="text-[10px] font-bold uppercase text-slate-900">{company}</strong>
-                                <span className="text-[8px] text-slate-400 font-bold uppercase tracking-widest">Vendedor(a)</span>
+                                <strong className="text-[9.5px] font-bold uppercase text-slate-900">{company}</strong>
+                                <span className="text-[7.5px] text-slate-400 font-bold uppercase tracking-widest">Vendedor(a)</span>
                               </div>
                             </div>
-                            <div className="text-center space-y-1.5">
+                            <div className="text-center space-y-1">
                               <div className="h-[1.5px] bg-slate-700 w-full"></div>
                               <div className="flex flex-col">
-                                <strong className="text-[10px] font-bold uppercase text-slate-900">{selectedSaleForContract.client}</strong>
-                                <span className="text-[8px] text-slate-400 font-bold uppercase tracking-widest">Comprador(a)</span>
+                                <strong className="text-[9.5px] font-bold uppercase text-slate-900">{selectedSaleForContract.client}</strong>
+                                <span className="text-[7.5px] text-slate-400 font-bold uppercase tracking-widest">Comprador(a)</span>
                               </div>
                             </div>
                           </div>
                         </div>
 
                         {/* Rodapé de Autenticação */}
-                        <div className="mt-4 pt-3 flex justify-between border-t border-dashed border-slate-200 text-[8px] text-slate-400 uppercase font-mono">
+                        <div className="mt-3 pt-2 flex justify-between border-t border-dashed border-slate-200 text-[7.5px] text-slate-400 uppercase font-mono">
                           <span>Autenticação: {selectedSaleForContract.id.toUpperCase()}</span>
                           <span>Via Original Digital • Emissão: {dateFormatted}</span>
                         </div>
