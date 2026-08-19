@@ -3460,6 +3460,7 @@ Autenticação: ${targetSale.id.toUpperCase()}`;
                 <div id="contract-content" className="bg-white p-2 sm:p-4 font-sans text-slate-800 print:p-2 text-xs">
                   {(() => {
                     const company = (settings.companyName || settings.userName || 'GESTÃO DE VENDAS').toUpperCase();
+                    const sellerName = (settings.userName || settings.companyName || 'VENDEDOR').toUpperCase();
                     const cleanId = selectedSaleForContract.id.substring(0, 8).toUpperCase();
                     const dateFormatted = selectedSaleForContract.date ? new Date(selectedSaleForContract.date).toLocaleDateString('pt-BR') : new Date().toLocaleDateString('pt-BR');
                     
@@ -3607,7 +3608,7 @@ Autenticação: ${targetSale.id.toUpperCase()}`;
                             <div className="text-center space-y-1">
                               <div className="h-[1.5px] bg-slate-700 w-full"></div>
                               <div className="flex flex-col">
-                                <strong className="text-[9.5px] font-bold uppercase text-slate-900">{company}</strong>
+                                <strong className="text-[9.5px] font-bold uppercase text-slate-900">{sellerName}</strong>
                                 <span className="text-[7.5px] text-slate-400 font-bold uppercase tracking-widest">Vendedor(a)</span>
                               </div>
                             </div>

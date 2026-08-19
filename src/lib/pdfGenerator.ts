@@ -14,6 +14,7 @@ export function createContractPDFDoc(
 ): jsPDF {
   const doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
   const companyName = (settings.companyName || settings.userName || 'GESTÃO DE VENDAS').toUpperCase();
+  const sellerName = (settings.userName || settings.companyName || 'VENDEDOR RESPONSÁVEL').toUpperCase();
   const dateFormatted = sale.date ? new Date(sale.date).toLocaleDateString('pt-BR') : new Date().toLocaleDateString('pt-BR');
   const cleanId = (sale.id || '').substring(0, 8).toUpperCase();
   
@@ -255,7 +256,7 @@ export function createContractPDFDoc(
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(8.8);
   doc.setTextColor(15, 23, 42);
-  doc.text(companyName.substring(0, 36), left + 44, y, { align: 'center' });
+  doc.text(sellerName.substring(0, 36), left + 44, y, { align: 'center' });
   doc.text(sale.client.toUpperCase().substring(0, 36), left + 136, y, { align: 'center' });
 
   y += 3.8;
@@ -583,6 +584,7 @@ export function fallbackPrintContract(sale: Sale, settings: Settings, installmen
  */
 export function buildContractHTML(sale: Sale, settings: Settings, installments?: Installment[]): string {
   const companyName = (settings.companyName || settings.userName || 'GESTÃO DE VENDAS').toUpperCase();
+  const sellerName = (settings.userName || settings.companyName || 'VENDEDOR RESPONSÁVEL').toUpperCase();
   const dateFormatted = sale.date ? new Date(sale.date).toLocaleDateString('pt-BR') : new Date().toLocaleDateString('pt-BR');
   const cleanId = (sale.id || '').substring(0, 8).toUpperCase();
   
@@ -739,7 +741,7 @@ export function buildContractHTML(sale: Sale, settings: Settings, installments?:
           <div style="display: flex; justify-content: space-between; gap: 36px; padding: 0 16px;">
             <div style="flex: 1; text-align: center;">
               <div style="border-top: 1.2px solid #334155; margin-bottom: 4px;"></div>
-              <strong style="font-size: 10px; text-transform: uppercase; color: #0f172a; display: block;">${companyName}</strong>
+              <strong style="font-size: 10px; text-transform: uppercase; color: #0f172a; display: block;">${sellerName}</strong>
               <span style="font-size: 8px; color: #64748b; font-weight: 700; text-transform: uppercase;">Vendedor(a)</span>
             </div>
             <div style="flex: 1; text-align: center;">
