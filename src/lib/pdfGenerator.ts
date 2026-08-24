@@ -5,7 +5,7 @@ const money = (val: number) =>
   new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val || 0);
 
 /**
- * Builds a vector-sharp 1-page A4 Contract PDF using jsPDF (fast, non-freezing, 0ms lag, guaranteed single page)
+ * Builds a vector-sharp 1-page A4 Contract PDF using jsPDF (fast, non-freezing, 0ms lag, utilizes 100% of single A4 page)
  */
 export function createContractPDFDoc(
   sale: Sale,
@@ -14,7 +14,7 @@ export function createContractPDFDoc(
 ): jsPDF {
   const doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
   const companyName = (settings.companyName || settings.userName || 'GESTÃO DE VENDAS').toUpperCase();
-  const sellerName = (settings.userName || settings.companyName || 'VENDEDOR RESPONSÁVEL').toUpperCase();
+  const sellerName = (settings.userName || (settings.currentOperator === 'operator2' ? settings.op2Name : settings.op1Name) || settings.companyName || 'VENDEDOR RESPONSÁVEL').toUpperCase();
   const dateFormatted = sale.date ? new Date(sale.date).toLocaleDateString('pt-BR') : new Date().toLocaleDateString('pt-BR');
   const cleanId = (sale.id || '').substring(0, 8).toUpperCase();
   
@@ -34,34 +34,34 @@ export function createContractPDFDoc(
   const isInterest = !!sale.isInterestOnly;
   const interestRate = sale.interestRate || 0;
 
-  const left = 15;
-  const right = 195;
-  const width = 180;
-  let y = 18;
+  const left = 14;
+  const right = 196;
+  const width = 182;
+  let y = 16;
 
   // 1. Cabeçalho Institucional
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(11.5);
+  doc.setFontSize(12);
   doc.setTextColor(180, 83, 9); // Amber 700
   doc.text(companyName, left, y);
 
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(9.5);
+  doc.setFontSize(10);
   doc.setTextColor(15, 23, 42);
   doc.text(`Nº: CT-${cleanId}`, right, y, { align: 'right' });
 
   y += 6.5;
-  doc.setFontSize(16);
+  doc.setFontSize(16.5);
   doc.setTextColor(15, 23, 42);
   doc.text('CONTRATO DE COMPRA E VENDA', left, y);
 
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(9);
+  doc.setFontSize(9.5);
   doc.setTextColor(100, 116, 139);
   doc.text(`Emissão: ${dateFormatted}`, right, y, { align: 'right' });
 
   y += 5;
-  doc.setFontSize(8.5);
+  doc.setFontSize(8.8);
   doc.text('Instrumento Particular de Compromisso de Venda e Confissão de Dívida', left, y);
 
   y += 4;
@@ -70,21 +70,21 @@ export function createContractPDFDoc(
   doc.line(left, y, right, y);
 
   // 2. Quadro-Resumo Box
-  y += 5;
+  y += 4.5;
   const boxTop = y;
-  const boxHeight = 56;
+  const boxHeight = 58;
   doc.setFillColor(248, 250, 252);
   doc.setDrawColor(203, 213, 225);
   doc.setLineWidth(0.35);
   doc.roundedRect(left, boxTop, width, boxHeight, 3, 3, 'FD');
 
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(9.5);
+  doc.setFontSize(10);
   doc.setTextColor(15, 23, 42);
   doc.text('QUADRO-RESUMO DA TRANSAÇÃO', left + 4, y + 6);
 
   const badgeText = isInterest ? `JUROS MENSAIS (${interestRate}% A.M.)` : 'PARCELAMENTO DIRETO';
-  doc.setFontSize(8.5);
+  doc.setFontSize(8.8);
   if (isInterest) {
     doc.setTextColor(146, 64, 14);
   } else {
@@ -94,11 +94,11 @@ export function createContractPDFDoc(
 
   doc.setDrawColor(226, 232, 240);
   doc.setLineWidth(0.25);
-  doc.line(left + 3, y + 9, right - 3, y + 9);
+  doc.line(left + 3, y + 9.5, right - 3, y + 9.5);
 
-  // Quadro-resumo campos (5 linhas balanceadas)
-  y += 15.5;
-  doc.setFontSize(9);
+  // Quadro-resumo campos (5 linhas balanceadas e nítidas)
+  y += 16;
+  doc.setFontSize(9.2);
 
   // Row 1
   doc.setFont('helvetica', 'bold');
@@ -106,65 +106,65 @@ export function createContractPDFDoc(
   doc.text('Comprador(a):', left + 4, y);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(15, 23, 42);
-  doc.text(sale.client.toUpperCase(), left + 28, y);
+  doc.text(sale.client.toUpperCase(), left + 30, y);
 
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(100, 116, 139);
-  doc.text('CPF / Doc:', left + 104, y);
+  doc.text('CPF / Doc:', left + 106, y);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(15, 23, 42);
-  doc.text(sale.clientCpf || 'Registrado em Sistema', left + 125, y);
+  doc.text(sale.clientCpf || 'Registrado em Sistema', left + 128, y);
 
   // Row 2
-  y += 7.5;
+  y += 7.8;
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(100, 116, 139);
   doc.text('Telefone:', left + 4, y);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(15, 23, 42);
-  doc.text(sale.clientPhone || 'N/A', left + 28, y);
+  doc.text(sale.clientPhone || 'N/A', left + 30, y);
 
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(100, 116, 139);
-  doc.text('Endereço:', left + 104, y);
+  doc.text('Endereço:', left + 106, y);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(15, 23, 42);
   const addr = (sale.clientAddress || 'Conforme cadastro no sistema').substring(0, 42);
-  doc.text(addr, left + 125, y);
+  doc.text(addr, left + 128, y);
 
   // Row 3
-  y += 7.5;
+  y += 7.8;
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(100, 116, 139);
   doc.text('Produto / Bem:', left + 4, y);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(15, 23, 42);
   const prod = (sale.productName || 'PRODUTO REGISTRADO').toUpperCase().substring(0, 75);
-  doc.text(prod, left + 28, y);
+  doc.text(prod, left + 30, y);
 
   // Row 4
-  y += 7.5;
+  y += 7.8;
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(100, 116, 139);
   doc.text('Valor Total:', left + 4, y);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(15, 23, 42);
-  doc.text(money(sale.total), left + 28, y);
+  doc.text(money(sale.total), left + 30, y);
 
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(100, 116, 139);
-  doc.text('Entrada Paga:', left + 104, y);
+  doc.text('Entrada Paga:', left + 106, y);
   doc.setFont('helvetica', 'bold');
   if (downPayment > 0) {
     doc.setTextColor(21, 128, 61);
-    doc.text(money(downPayment), left + 125, y);
+    doc.text(money(downPayment), left + 128, y);
   } else {
     doc.setTextColor(100, 116, 139);
-    doc.text('Sem entrada', left + 125, y);
+    doc.text('Sem entrada', left + 128, y);
   }
 
   // Row 5
-  y += 7.5;
+  y += 7.8;
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(100, 116, 139);
   doc.text('Plano Pagto:', left + 4, y);
@@ -173,22 +173,22 @@ export function createContractPDFDoc(
   const plan = isInterest 
     ? `${installmentsCount} parcelas de juros de ${money(installmentVal)}` 
     : `${installmentsCount} parcelas de ${money(installmentVal)}`;
-  doc.text(plan, left + 28, y);
+  doc.text(plan, left + 30, y);
 
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(100, 116, 139);
-  doc.text('Vencimento:', left + 104, y);
+  doc.text('Vencimento:', left + 106, y);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(15, 23, 42);
-  doc.text(`Todo dia ${dueDay} de cada mês`, left + 125, y);
+  doc.text(`Todo dia ${dueDay} de cada mês`, left + 128, y);
 
   // 3. Cláusulas Contratuais
-  y = boxTop + boxHeight + 6.5;
+  y = boxTop + boxHeight + 6;
 
   const clauses = [
     {
       title: 'CLÁUSULA 1ª – DAS PARTES CONTRATANTES',
-      body: `Pelo presente instrumento, de um lado denominada(o) VENDEDOR(A): ${companyName}; e de outro lado denominada(o) COMPRADOR(A): ${sale.client.toUpperCase()}, portador(a) do CPF/Doc nº ${sale.clientCpf || 'N/A'}, telefone ${sale.clientPhone || 'N/A'}${sale.clientAddress ? `, domiciliado(a) em ${sale.clientAddress}` : ''}, firmam o presente compromisso de compra e venda mercantil.`
+      body: `Pelo presente instrumento, de um lado denominada(o) VENDEDOR(A): ${companyName} (atendido por ${sellerName}); e de outro lado denominada(o) COMPRADOR(A): ${sale.client.toUpperCase()}, portador(a) do CPF/Doc nº ${sale.clientCpf || 'N/A'}, telefone ${sale.clientPhone || 'N/A'}${sale.clientAddress ? `, domiciliado(a) em ${sale.clientAddress}` : ''}, firmam o presente compromisso de compra e venda mercantil.`
     },
     {
       title: 'CLÁUSULA 2ª – DO OBJETO DA NEGOCIAÇÃO',
@@ -214,57 +214,56 @@ export function createContractPDFDoc(
 
   for (const c of clauses) {
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(8.5);
+    doc.setFontSize(8.8);
     doc.setTextColor(15, 23, 42);
     doc.text(c.title, left, y);
-    y += 4;
+    y += 4.2;
 
     doc.setFont('helvetica', 'normal');
-    doc.setFontSize(8);
+    doc.setFontSize(8.2);
     doc.setTextColor(51, 65, 85);
     const lines = doc.splitTextToSize(c.body, width);
     doc.text(lines, left, y);
-    y += (lines.length * 3.8) + 3.2;
+    y += (lines.length * 3.8) + 3.4;
   }
 
-  // 4. Declaração de Aceite & Assinaturas - posicionadas dinamicamente na parte inferior
-  const footerY = 283;
+  // 4. Declaração de Aceite & Assinaturas - posicionadas perfeitamente para preencher toda a folha
+  const footerY = 284;
   const minSignatureSpace = 34; // texto de aceite + linha + nomes + labels
   
-  // Preenche proporcionalmente a folha inteira
-  if (y + minSignatureSpace < footerY - 5) {
+  if (y + minSignatureSpace < footerY - 4) {
     y = footerY - minSignatureSpace - 4;
   }
 
   doc.setFont('helvetica', 'italic');
-  doc.setFontSize(8.2);
+  doc.setFontSize(8.5);
   doc.setTextColor(100, 116, 139);
   doc.text('E por estarem justos, acordados e de pleno acordo, firmam o presente compromisso.', 105, y, { align: 'center' });
 
-  // Espaço generoso para assinar
+  // Espaço proporcional e confortável para assinatura
   y += 18;
 
-  // Linha Vendedor
+  // Linha Vendedor (Lado Inferior Esquerdo - com nome do vendedor ativo)
   doc.setDrawColor(51, 65, 85);
-  doc.setLineWidth(0.5);
-  doc.line(left + 8, y, left + 80, y);
+  doc.setLineWidth(0.6);
+  doc.line(left + 6, y, left + 82, y);
 
-  // Linha Comprador
-  doc.line(left + 100, y, left + 172, y);
+  // Linha Comprador (Lado Inferior Direito)
+  doc.line(left + 100, y, left + 176, y);
 
   y += 4.5;
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8.8);
+  doc.setFontSize(9);
   doc.setTextColor(15, 23, 42);
   doc.text(sellerName.substring(0, 36), left + 44, y, { align: 'center' });
-  doc.text(sale.client.toUpperCase().substring(0, 36), left + 136, y, { align: 'center' });
+  doc.text(sale.client.toUpperCase().substring(0, 36), left + 138, y, { align: 'center' });
 
   y += 3.8;
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(7.5);
+  doc.setFontSize(7.8);
   doc.setTextColor(100, 116, 139);
   doc.text('VENDEDOR(A)', left + 44, y, { align: 'center' });
-  doc.text('COMPRADOR(A)', left + 136, y, { align: 'center' });
+  doc.text('COMPRADOR(A)', left + 138, y, { align: 'center' });
 
   // 5. Rodapé na base exata da folha A4
   doc.setDrawColor(203, 213, 225);
@@ -584,7 +583,7 @@ export function fallbackPrintContract(sale: Sale, settings: Settings, installmen
  */
 export function buildContractHTML(sale: Sale, settings: Settings, installments?: Installment[]): string {
   const companyName = (settings.companyName || settings.userName || 'GESTÃO DE VENDAS').toUpperCase();
-  const sellerName = (settings.userName || settings.companyName || 'VENDEDOR RESPONSÁVEL').toUpperCase();
+  const sellerName = (settings.userName || (settings.currentOperator === 'operator2' ? settings.op2Name : settings.op1Name) || settings.companyName || 'VENDEDOR RESPONSÁVEL').toUpperCase();
   const dateFormatted = sale.date ? new Date(sale.date).toLocaleDateString('pt-BR') : new Date().toLocaleDateString('pt-BR');
   const cleanId = (sale.id || '').substring(0, 8).toUpperCase();
   
@@ -609,7 +608,7 @@ export function buildContractHTML(sale: Sale, settings: Settings, installments?:
     : `<span style="display: inline-block; background-color: #e0f2fe; color: #0369a1; padding: 3px 8px; border-radius: 4px; font-weight: 800; font-size: 9.5px;">PARCELAMENTO DIRETO</span>`;
 
   return `
-    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #0f172a; background-color: #ffffff; padding: 20px 24px 14px 24px; max-width: 740px; min-height: 275mm; margin: 0 auto; line-height: 1.45; font-size: 10.5px; display: flex; flex-direction: column; justify-content: space-between; box-sizing: border-box;">
+    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #0f172a; background-color: #ffffff; padding: 18px 24px 12px 24px; max-width: 760px; min-height: 280mm; margin: 0 auto; line-height: 1.45; font-size: 10.5px; display: flex; flex-direction: column; justify-content: space-between; box-sizing: border-box;">
       
       <div>
         <!-- Cabeçalho Institucional -->
@@ -617,7 +616,7 @@ export function buildContractHTML(sale: Sale, settings: Settings, installments?:
           <div style="display: flex; justify-content: space-between; align-items: flex-start;">
             <div>
               <span style="font-size: 11px; font-weight: 900; color: #b45309; text-transform: uppercase; letter-spacing: 0.8px; display: block;">${companyName}</span>
-              <h1 style="font-size: 16px; font-weight: 900; text-transform: uppercase; margin: 2px 0; color: #0f172a; letter-spacing: 0.2px;">
+              <h1 style="font-size: 16.5px; font-weight: 900; text-transform: uppercase; margin: 2px 0; color: #0f172a; letter-spacing: 0.2px;">
                 Contrato de Compra e Venda
               </h1>
               <span style="font-size: 9.5px; color: #64748b; font-weight: 600;">Instrumento Particular de Compromisso de Venda e Confissão de Dívida</span>
@@ -680,7 +679,7 @@ export function buildContractHTML(sale: Sale, settings: Settings, installments?:
               Cláusula 1ª – Das Partes Contratantes
             </strong>
             <p style="margin: 2px 0 0 0; text-align: justify;">
-              Pelo presente instrumento, de um lado denominada(o) <strong>VENDEDOR(A)</strong>: <strong>${companyName}</strong>; e de outro lado denominada(o) <strong>COMPRADOR(A)</strong>: <strong>${sale.client.toUpperCase()}</strong>, CPF/Doc nº <strong>${sale.clientCpf || 'N/A'}</strong>, tel <strong>${sale.clientPhone || 'N/A'}</strong>${sale.clientAddress ? `, residente em ${sale.clientAddress}` : ''}, firmam o presente compromisso de compra e venda mercantil.
+              Pelo presente instrumento, de um lado denominada(o) <strong>VENDEDOR(A)</strong>: <strong>${companyName}</strong> (atendido por <strong>${sellerName}</strong>); e de outro lado denominada(o) <strong>COMPRADOR(A)</strong>: <strong>${sale.client.toUpperCase()}</strong>, CPF/Doc nº <strong>${sale.clientCpf || 'N/A'}</strong>, tel <strong>${sale.clientPhone || 'N/A'}</strong>${sale.clientAddress ? `, residente em ${sale.clientAddress}` : ''}, firmam o presente compromisso de compra e venda mercantil.
             </p>
           </div>
 

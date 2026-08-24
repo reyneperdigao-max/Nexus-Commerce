@@ -84,6 +84,13 @@ export function DashboardStats({ products, sales, installments, closings = [], o
   const currentProfit = monthlyDownPayments + monthlyPaidInstallments;
   const receivablesValue = installments.filter(i => i.status === 'Pendente').reduce((acc, i) => acc + i.value, 0);
 
+  // Capital Investido nos Produtos em Estoque
+  const investedCapital = products.reduce((acc, p) => {
+    const qty = Math.max(0, p.quantity !== undefined ? p.quantity : (p.status === 'Disponivel' ? 1 : 0));
+    const cost = Number(p.cost) || 0;
+    return acc + (cost * qty);
+  }, 0);
+
   // Health Rate (Credit / Adimplência Index)
   const paidCount = installments.filter(i => i.status === 'Pago').length;
   const overdueCount = installments.filter(i => {
@@ -124,6 +131,16 @@ export function DashboardStats({ products, sales, installments, closings = [], o
     return sortedPending.slice(0, 10).map(i => i.value);
   };
 
+  const getProductCostTrendPoints = (): number[] => {
+    const valid = products
+      .map(p => (Number(p.cost) || 0) * Math.max(0, p.quantity !== undefined ? p.quantity : (p.status === 'Disponivel' ? 1 : 0)))
+      .filter(val => val > 0);
+    if (valid.length < 3) {
+      return [120, 280, 210, 390, 320, 480, 410, 560];
+    }
+    return valid.slice(-10);
+  };
+
   const drawSparkline = (points: number[], width = 140, height = 36) => {
     if (points.length < 2) return "";
     const min = Math.min(...points);
@@ -148,7 +165,56 @@ export function DashboardStats({ products, sales, installments, closings = [], o
   const gaugeOffset = gaugeCircumference - (healthRate / 100) * gaugeCircumference;
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 sm:gap-6 px-1">
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 sm:gap-5 px-1">
+      
+      {/* Bento Card: Capital Investido */}
+      <div 
+        onClick={() => onNavigate('stock')}
+        className="glass-card group p-5 sm:p-6 flex flex-col justify-between border border-white/5 hover:border-amber-500/30 transition-all duration-500 hover:scale-[1.02] hover:-translate-y-1 relative overflow-hidden cursor-pointer active:scale-95 min-h-[160px]"
+      >
+        <div className="absolute -right-6 -top-6 w-32 h-32 rounded-full blur-3xl opacity-0 group-hover:opacity-10 transition-opacity duration-700 bg-amber-500" />
+        
+        <div className="flex items-center justify-between relative z-10">
+          <div className="w-11 h-11 rounded-xl flex items-center justify-center bg-amber-500/10 border border-amber-500/20 group-hover:border-amber-500/40 transition-all duration-500">
+            <Boxes size={20} className="text-amber-400 group-hover:scale-110 transition-transform duration-500" />
+          </div>
+          
+          {/* Glowing mini path */}
+          <div className="opacity-60 group-hover:opacity-100 transition-opacity duration-500">
+            <svg width="100" height="28" viewBox="0 0 100 28" className="overflow-visible">
+              <defs>
+                <linearGradient id="amber-grad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#f59e0b" stopOpacity="0.3" />
+                  <stop offset="100%" stopColor="#f59e0b" stopOpacity="0" />
+                </linearGradient>
+              </defs>
+              <path 
+                d={drawSparklineArea(getProductCostTrendPoints(), 100, 28)} 
+                fill="url(#amber-grad)" 
+              />
+              <path 
+                d={drawSparkline(getProductCostTrendPoints(), 100, 28)} 
+                fill="none" 
+                stroke="#f59e0b" 
+                strokeWidth="2" 
+                strokeLinecap="round" 
+                strokeLinejoin="round" 
+              />
+            </svg>
+          </div>
+        </div>
+
+        <div className="relative z-10 mt-2">
+          <span className="text-[10px] font-bold uppercase tracking-[0.2em] mb-1 block text-white/40">Capital Investido</span>
+          <strong className="text-2xl sm:text-3xl font-black block text-amber-400 group-hover:text-amber-300 transition-colors duration-500">
+            {money(investedCapital)}
+          </strong>
+          <div className="flex items-center gap-2 mt-2">
+            <div className="w-1.5 h-1.5 rounded-full bg-amber-400 shadow-[0_0_8px_#f59e0b]" />
+            <p className="text-[10px] font-bold uppercase tracking-wider text-white/30">Total em Produtos</p>
+          </div>
+        </div>
+      </div>
       
       {/* Bento Card 1: Valores a Receber */}
       <div 

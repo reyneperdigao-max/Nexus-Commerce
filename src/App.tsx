@@ -4,7 +4,7 @@ import { Sidebar } from './components/Sidebar';
 import { BottomNavigation } from './components/BottomNavigation';
 import { Logo, Topbar, DashboardStats } from './components/CommonUI';
 import { AnimatePresence, motion } from 'motion/react';
-import { Boxes, Plus, X, Search, ImagePlus, User, Wallet, ShoppingBag, ArrowLeft, ArrowRight, BadgeDollarSign, Activity, Zap, History, ChevronDown, Pencil, FileText, Download, DollarSign, Share2, Calculator, Package, MessageCircle, ShieldCheck, Lock, Mail, Image as ImageIcon, AlertCircle, Calendar, Camera, Trash2, Minus, TrendingUp, Percent, Printer, Copy, Check, ExternalLink } from 'lucide-react';
+import { Boxes, Plus, X, Search, ImagePlus, User, Wallet, ShoppingBag, ArrowLeft, ArrowRight, BadgeDollarSign, Activity, Zap, History, ChevronDown, Pencil, FileText, Download, DollarSign, Share2, Calculator, Package, MessageCircle, ShieldCheck, Lock, Mail, Image as ImageIcon, AlertCircle, Calendar, Camera, Trash2, Minus, TrendingUp, Percent, Printer, Copy, Check, ExternalLink, SlidersHorizontal } from 'lucide-react';
 import html2pdf from 'html2pdf.js';
 import { downloadContractAsPDF, fallbackPrintContract, shareContractFile, downloadReceiptAsPDF } from './lib/pdfGenerator';
 import { auth } from './lib/firebase';
@@ -88,21 +88,49 @@ export default function App() {
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const [showSaleForm, setShowSaleForm] = useState(false);
   const [saleFormSelectedProductId, setSaleFormSelectedProductId] = useState('');
+  const [saleFormCostPrice, setSaleFormCostPrice] = useState<string | number>('');
+  const [saleFormSalePrice, setSaleFormSalePrice] = useState<string | number>('');
   const [showAddProduct, setShowAddProduct] = useState(false);
   const [productToEdit, setProductToEdit] = useState<any>(null);
+  const [prodFormCost, setProdFormCost] = useState<string | number>('');
+  const [prodFormSale, setProdFormSale] = useState<string | number>('');
+  const [prodFormQty, setProdFormQty] = useState<string | number>(1);
   const [saleToEdit, setSaleToEdit] = useState<any>(null);
   const [isInterestOnlyForm, setIsInterestOnlyForm] = useState(false);
   const [interestRateForm, setInterestRateForm] = useState<string | number>(5);
+
+  // Capital Investido Management State (Modal & Bulk Update)
+  const [showCapitalManagerModal, setShowCapitalManagerModal] = useState(false);
+  const [capitalBatchCosts, setCapitalBatchCosts] = useState<{ [productId: string]: number }>({});
+  const [capitalBatchPercent, setCapitalBatchPercent] = useState<number>(0);
 
   useEffect(() => {
     if (saleToEdit) {
       setIsInterestOnlyForm(saleToEdit.isInterestOnly || false);
       setInterestRateForm(saleToEdit.interestRate !== undefined ? saleToEdit.interestRate : 5);
+      setSaleFormSelectedProductId(saleToEdit.productId || '');
+      setSaleFormCostPrice(saleToEdit.costPrice !== undefined ? saleToEdit.costPrice : '');
+      setSaleFormSalePrice(saleToEdit.total !== undefined ? saleToEdit.total : '');
     } else {
       setIsInterestOnlyForm(false);
       setInterestRateForm(5);
+      setSaleFormSelectedProductId('');
+      setSaleFormCostPrice('');
+      setSaleFormSalePrice('');
     }
   }, [saleToEdit, showSaleForm]);
+
+  useEffect(() => {
+    if (productToEdit) {
+      setProdFormCost(productToEdit.cost !== undefined ? productToEdit.cost : '');
+      setProdFormSale(productToEdit.sale !== undefined ? productToEdit.sale : '');
+      setProdFormQty(productToEdit.quantity !== undefined ? productToEdit.quantity : 1);
+    } else {
+      setProdFormCost('');
+      setProdFormSale('');
+      setProdFormQty(1);
+    }
+  }, [productToEdit, showAddProduct]);
 
   const [searchTerm, setSearchTerm] = useState('');
   const [txSearch, setTxSearch] = useState('');
@@ -341,10 +369,39 @@ export default function App() {
    
   const [simValue, setSimValue] = useState<number>(0);
   const [simProductName, setSimProductName] = useState<string>('');
+  const [simSelectedProductId, setSimSelectedProductId] = useState<string>('');
+  const [simCashPrice, setSimCashPrice] = useState<number>(0);
+  const [simDownPayment, setSimDownPayment] = useState<number>(0);
   const [simRate, setSimRate] = useState<number>(0);
   const [simInstallments, setSimInstallments] = useState<number>(12);
   const [simPmt, setSimPmt] = useState<string>('');
   const [isEditingPmt, setIsEditingPmt] = useState(false);
+
+  const handleSimCashPriceChange = (val: number) => {
+    const num = isNaN(val) ? 0 : Math.max(0, val);
+    setSimCashPrice(num);
+    const calculatedPV = Math.max(0, num - simDownPayment);
+    setSimValue(calculatedPV);
+  };
+
+  const handleSimDownPaymentChange = (val: number) => {
+    const num = isNaN(val) ? 0 : Math.max(0, val);
+    setSimDownPayment(num);
+    const basePrice = simCashPrice > 0 ? simCashPrice : (simValue + simDownPayment);
+    setSimValue(Math.max(0, basePrice - num));
+  };
+
+  const handleSelectProductForSim = (productId: string) => {
+    setSimSelectedProductId(productId);
+    if (!productId) return;
+    const prod = products.find(p => p.id === productId);
+    if (prod) {
+      setSimProductName(prod.name);
+      const cashVal = Number(prod.sale) || 0;
+      setSimCashPrice(cashVal);
+      setSimValue(Math.max(0, cashVal - simDownPayment));
+    }
+  };
 
   // Helper numerical solver to find interest rate (i) given pv, pmt, and n using bisection
   const calculateRateFromPmt = (pv: number, pmt: number, n: number): number => {
@@ -396,7 +453,113 @@ export default function App() {
     }
   };
 
+  const handleLaunchSaleFromSim = () => {
+    const i = simRate / 100;
+    const n = simInstallments || 1;
+    const pv = simValue || 0;
+    const rawPmt = i === 0 ? pv / n : pv * (i * Math.pow(1 + i, n)) / (Math.pow(1 + i, n) - 1);
+    const pmt = Math.round(rawPmt);
+    const totalPrazo = (pmt * n) + (simDownPayment || 0);
+
+    setSaleToEdit(null);
+    setSaleFormSelectedProductId(simSelectedProductId);
+    const matchingProd = products.find(p => p.id === simSelectedProductId);
+    if (matchingProd) {
+      setSaleFormCostPrice(matchingProd.cost !== undefined ? matchingProd.cost : '');
+    } else {
+      setSaleFormCostPrice('');
+    }
+    setSaleFormSalePrice(totalPrazo);
+    setIsInterestOnlyForm(false);
+    setInterestRateForm(simRate);
+    setShowSaleForm(true);
+    showToast('Simulação transferida com sucesso para o formulário de venda!');
+  };
+
   const money = (val: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
+
+  // Reactive Stock Financials & Capital Calculations
+  const stockFinancials = useMemo(() => {
+    let totalInvested = 0;
+    let totalProjectedSale = 0;
+    let totalUnits = 0;
+    let availableModels = 0;
+
+    products.forEach(p => {
+      const qty = Math.max(0, p.quantity !== undefined ? p.quantity : (p.status === 'Disponivel' ? 1 : 0));
+      const cost = Number(p.cost) || 0;
+      const salePrice = Number(p.sale) || 0;
+
+      if (qty > 0) {
+        totalInvested += (cost * qty);
+        totalProjectedSale += (salePrice * qty);
+        totalUnits += qty;
+        availableModels += 1;
+      }
+    });
+
+    const totalProjectedProfit = totalProjectedSale - totalInvested;
+    const marginPct = totalProjectedSale > 0 ? ((totalProjectedProfit / totalProjectedSale) * 100).toFixed(1) : '0';
+
+    return {
+      totalInvested,
+      totalProjectedSale,
+      totalProjectedProfit,
+      totalUnits,
+      availableModels,
+      marginPct
+    };
+  }, [products]);
+
+  const handleSaleProductSelect = (productId: string) => {
+    setSaleFormSelectedProductId(productId);
+    const selected = products.find(p => p.id === productId);
+    if (selected) {
+      setSaleFormCostPrice(selected.cost !== undefined ? selected.cost : 0);
+      setSaleFormSalePrice(selected.sale !== undefined ? selected.sale : 0);
+    } else {
+      setSaleFormCostPrice('');
+      setSaleFormSalePrice('');
+    }
+  };
+
+  const openCapitalManager = () => {
+    const initialMap: { [productId: string]: number } = {};
+    products.forEach(p => {
+      initialMap[p.id] = p.cost !== undefined ? p.cost : 0;
+    });
+    setCapitalBatchCosts(initialMap);
+    setCapitalBatchPercent(0);
+    setShowCapitalManagerModal(true);
+  };
+
+  const handleApplyCapitalBatchPercent = (pct: number) => {
+    setCapitalBatchPercent(pct);
+    const updated: { [productId: string]: number } = {};
+    products.forEach(p => {
+      const baseCost = p.cost !== undefined ? p.cost : 0;
+      if (pct === 0) {
+        updated[p.id] = baseCost;
+      } else {
+        const factor = 1 + (pct / 100);
+        updated[p.id] = Math.round(baseCost * factor * 100) / 100;
+      }
+    });
+    setCapitalBatchCosts(updated);
+  };
+
+  const handleSaveCapitalBatch = async () => {
+    let count = 0;
+    for (const p of products) {
+      const newCost = capitalBatchCosts[p.id];
+      if (newCost !== undefined && newCost !== p.cost) {
+        await updateProduct(p.id, { cost: newCost });
+        count++;
+      }
+    }
+    showToast(`Capital investido atualizado com sucesso (${count} produto(s) sincronizados).`);
+    setShowCapitalManagerModal(false);
+  };
 
   const handleConfirmPayment = async () => {
     if (!selectedInstallmentForPayment) return;
@@ -522,6 +685,7 @@ export default function App() {
     const targetSale = saleToCopy || selectedSaleForContract;
     if (!targetSale) return;
     const company = (settings.companyName || settings.userName || 'GESTÃO DE VENDAS').toUpperCase();
+    const sellerName = (settings.userName || (settings.currentOperator === 'operator2' ? settings.op2Name : settings.op1Name) || settings.companyName || 'VENDEDOR RESPONSÁVEL').toUpperCase();
     const cleanId = (targetSale.id || '').substring(0, 8).toUpperCase();
     const dateFormatted = targetSale.date ? new Date(targetSale.date).toLocaleDateString('pt-BR') : new Date().toLocaleDateString('pt-BR');
     
@@ -546,7 +710,7 @@ Emissão: ${dateFormatted} • ${company}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 📌 QUADRO-RESUMO DA TRANSAÇÃO
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-• Vendedor(a): ${company}
+• Vendedor(a): ${company} (Operador: ${sellerName})
 • Comprador(a): ${targetSale.client.toUpperCase()}
 • CPF/Doc: ${targetSale.clientCpf || 'Registrado em Sistema'}
 • Telefone: ${targetSale.clientPhone || 'N/A'}${targetSale.clientAddress ? `\n• Endereço: ${targetSale.clientAddress}` : ''}
@@ -565,7 +729,7 @@ Emissão: ${dateFormatted} • ${company}
 5. EFICÁCIA: Documento reconhecido como título de crédito e confissão de dívida líquida e certa (Art. 784, CPC).
 
 Assinado Eletronicamente:
-• Vendedor(a): ${company}
+• Vendedor(a): ${sellerName}
 • Comprador(a): ${targetSale.client.toUpperCase()}
 Autenticação: ${targetSale.id.toUpperCase()}`;
 
@@ -621,10 +785,29 @@ Autenticação: ${targetSale.id.toUpperCase()}`;
   const shareSimulationWhatsApp = () => {
     const date = new Date().toLocaleDateString('pt-BR');
     const i = simRate / 100;
-    const rawPmt = i === 0 ? simValue / simInstallments : (simValue * i * Math.pow(1 + i, simInstallments)) / (Math.pow(1 + i, simInstallments) - 1);
+    const n = simInstallments || 1;
+    const pv = simValue || 0;
+    const rawPmt = i === 0 ? pv / n : (pv * i * Math.pow(1 + i, n)) / (Math.pow(1 + i, n) - 1);
     const pmt = Math.round(rawPmt);
+    const totalInstallments = pmt * n;
+    const totalPrazo = totalInstallments + (simDownPayment || 0);
+    const effectiveCashPrice = simCashPrice > 0 ? simCashPrice : (pv + (simDownPayment || 0));
+    const company = (settings.companyName || settings.userName || 'GESTÃO DE VENDAS').toUpperCase();
+
     const productText = simProductName ? `💎 *Produto:* ${simProductName}\n` : '';
-    const text = `*SIMULAÇÃO - ${date}*\n\n${productText}📦 *Parcelas:* ${simInstallments}x\n💰 *Valor:* ${money(pmt)}\n📊 *Total:* ${money(pmt * simInstallments)}`;
+    const cashText = effectiveCashPrice > 0 ? `💵 *Valor À Vista:* ${money(effectiveCashPrice)}\n` : '';
+    const downPaymentText = simDownPayment > 0 ? `💰 *Entrada:* ${money(simDownPayment)}\n` : '';
+    
+    let diffText = '';
+    if (effectiveCashPrice > 0 && totalPrazo > effectiveCashPrice) {
+      const diff = totalPrazo - effectiveCashPrice;
+      const pct = ((diff / effectiveCashPrice) * 100).toFixed(1);
+      diffText = `📈 *Acréscimo no Parcelamento:* +${money(diff)} (+${pct}%)\n`;
+    } else if (effectiveCashPrice > 0 && totalPrazo === effectiveCashPrice) {
+      diffText = `✨ *Condição Especial:* 0% Juros (Mesmo preço do à vista)\n`;
+    }
+
+    const text = `*SIMULAÇÃO COMERCIAL - ${company}*\n📅 *Data:* ${date}\n\n${productText}${cashText}${downPaymentText}📦 *Plano de Pagamento:* ${n}x de ${money(pmt)}\n📊 *Total a Prazo:* ${money(totalPrazo)}\n${diffText}\n_Proposta comercial sujeita a disponibilidade e análise cadastral._`;
     window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
   };
 
@@ -1414,11 +1597,12 @@ Autenticação: ${targetSale.id.toUpperCase()}`;
               )}
 
               {activeView === 'stock' && (
-                <div className="flex flex-col gap-8 animate-view-enter">
+                <div className="flex flex-col gap-6 animate-view-enter">
+                  {/* TOP HEADER */}
                   <div className="flex flex-col lg:flex-row items-center justify-between gap-4 px-1">
                     <div>
                       <h2 className="text-xl sm:text-3xl font-black tracking-tight text-white italic uppercase">Estoque de Produtos</h2>
-                      <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mt-0.5">Gerenciamento e Disponibilidade de Ativos</p>
+                      <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mt-0.5">Gerenciamento, Custos e Disponibilidade de Ativos</p>
                     </div>
                     <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto">
                       <div className="relative group flex-1 min-w-[200px] sm:w-64">
@@ -1431,6 +1615,14 @@ Autenticação: ${targetSale.id.toUpperCase()}`;
                           className="w-full h-11 bg-[rgba(0,0,0,0.4)] border border-line-strong rounded-xl sm:rounded-[14px] pl-11 pr-4 outline-none focus:border-gold transition-all font-bold text-[11px] sm:text-xs text-white"
                         />
                       </div>
+                      <button 
+                        onClick={openCapitalManager} 
+                        className="h-11 px-4 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-400 rounded-xl text-[10px] sm:text-xs font-black uppercase tracking-wider transition-all flex items-center gap-2 cursor-pointer active:scale-95 shadow-sm"
+                        title="Calibrar e atualizar valores investidos em lote"
+                      >
+                        <SlidersHorizontal size={15} />
+                        <span>Atualizar Capital</span>
+                      </button>
                       <button 
                         onClick={() => handleGlobalQuickPaymentClick()} 
                         className="h-11 px-4 bg-green-500/10 hover:bg-green-500/20 border border-green-500/30 text-green-neon rounded-xl text-[10px] sm:text-xs font-black uppercase tracking-wider transition-all flex items-center gap-2 cursor-pointer active:scale-95"
@@ -1455,24 +1647,113 @@ Autenticação: ${targetSale.id.toUpperCase()}`;
                     </div>
                   </div>
 
+                  {/* ESTOQUE FINANCIAL OVERVIEW BENTO BANNER */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 px-1">
+                    {/* Card 1: Capital Total Investido */}
+                    <div className="glass-card p-5 border border-amber-500/20 bg-gradient-to-br from-amber-500/10 via-black/40 to-black/60 rounded-2xl flex flex-col justify-between relative overflow-hidden group">
+                      <div className="flex items-center justify-between">
+                        <div className="w-10 h-10 rounded-xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-amber-400">
+                          <Boxes size={20} />
+                        </div>
+                        <button
+                          onClick={openCapitalManager}
+                          className="h-7 px-2.5 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 cursor-pointer active:scale-95 shadow-sm"
+                          title="Atualizar custos de aquisição ou calibrar valores em lote"
+                        >
+                          <SlidersHorizontal size={11} />
+                          <span>Atualizar Custos</span>
+                        </button>
+                      </div>
+                      <div className="mt-3">
+                        <span className="text-[10px] font-bold uppercase tracking-widest text-amber-400/80 block">Capital Total Investido</span>
+                        <strong className="text-2xl sm:text-3xl font-black text-amber-400 tracking-tight block mt-0.5">
+                          {money(stockFinancials.totalInvested)}
+                        </strong>
+                        <p className="text-[9px] text-zinc-400 font-medium mt-1 flex items-center gap-1.5">
+                          <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+                          Atualizado automaticamente em tempo real
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Card 2: Faturamento Bruto Projetado */}
+                    <div className="glass-card p-5 border border-blue-500/20 bg-gradient-to-br from-blue-500/10 via-black/40 to-black/60 rounded-2xl flex flex-col justify-between">
+                      <div className="flex items-center justify-between">
+                        <div className="w-10 h-10 rounded-xl bg-blue-500/20 border border-blue-500/30 flex items-center justify-center text-blue-400">
+                          <TrendingUp size={20} />
+                        </div>
+                        <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300 border border-blue-500/30">
+                          Preço Venda
+                        </span>
+                      </div>
+                      <div className="mt-3">
+                        <span className="text-[10px] font-bold uppercase tracking-widest text-blue-400/80 block">Faturamento Projetado</span>
+                        <strong className="text-2xl sm:text-3xl font-black text-blue-400 tracking-tight block mt-0.5">
+                          {money(stockFinancials.totalProjectedSale)}
+                        </strong>
+                        <p className="text-[9px] text-zinc-400 font-medium mt-1">Valor total de venda do estoque</p>
+                      </div>
+                    </div>
+
+                    {/* Card 3: Lucro Bruto Projetado */}
+                    <div className="glass-card p-5 border border-green-500/20 bg-gradient-to-br from-green-500/10 via-black/40 to-black/60 rounded-2xl flex flex-col justify-between">
+                      <div className="flex items-center justify-between">
+                        <div className="w-10 h-10 rounded-xl bg-green-500/20 border border-green-500/30 flex items-center justify-center text-green-400">
+                          <BadgeDollarSign size={20} />
+                        </div>
+                        <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full bg-green-500/20 text-green-300 border border-green-500/30">
+                          +{stockFinancials.marginPct}% margem
+                        </span>
+                      </div>
+                      <div className="mt-3">
+                        <span className="text-[10px] font-bold uppercase tracking-widest text-green-400/80 block">Lucro Bruto Estimado</span>
+                        <strong className="text-2xl sm:text-3xl font-black text-green-400 tracking-tight block mt-0.5">
+                          {money(stockFinancials.totalProjectedProfit)}
+                        </strong>
+                        <p className="text-[9px] text-zinc-400 font-medium mt-1">Faturamento menos custo de entrada</p>
+                      </div>
+                    </div>
+
+                    {/* Card 4: Volume Físico */}
+                    <div className="glass-card p-5 border border-white/10 bg-gradient-to-br from-white/5 via-black/40 to-black/60 rounded-2xl flex flex-col justify-between">
+                      <div className="flex items-center justify-between">
+                        <div className="w-10 h-10 rounded-xl bg-white/10 border border-white/20 flex items-center justify-center text-white">
+                          <Package size={20} />
+                        </div>
+                        <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full bg-white/10 text-white/80 border border-white/20">
+                          {stockFinancials.availableModels} Modelos
+                        </span>
+                      </div>
+                      <div className="mt-3">
+                        <span className="text-[10px] font-bold uppercase tracking-widest text-white/70 block">Volume em Estoque</span>
+                        <strong className="text-2xl sm:text-3xl font-black text-white tracking-tight block mt-0.5">
+                          {stockFinancials.totalUnits} <span className="text-sm font-semibold text-zinc-400">unidades</span>
+                        </strong>
+                        <p className="text-[9px] text-zinc-400 font-medium mt-1">Ativos físicos disponíveis</p>
+                      </div>
+                    </div>
+                  </div>
+
                   {/* PRO TABULAR / ROW LEDGER STOCK */}
                   <div className="glass-card border border-line-strong overflow-hidden bg-black/40 backdrop-blur-md">
                     <div className="overflow-x-auto custom-scrollbar">
-                      <table className="w-full border-collapse text-left min-w-[900px]">
+                      <table className="w-full border-collapse text-left min-w-[960px]">
                         <thead>
                           <tr className="border-b border-line-strong bg-black/80 text-[10px] font-black uppercase text-gray-400 tracking-[0.2em] h-14">
                             <th className="p-4 pl-6">Produto / Modelo (Edição em Linha)</th>
-                            <th className="p-4 text-center w-40">Categoria</th>
-                            <th className="p-4 text-center w-36">Valor Saída (R$)</th>
-                            <th className="p-4 text-center w-48">Estoque (Qtd)</th>
-                            <th className="p-4 text-center w-36">Estado</th>
+                            <th className="p-4 text-center w-32">Categoria</th>
+                            <th className="p-4 text-center w-32">Custo Unitário (R$)</th>
+                            <th className="p-4 text-center w-36">Total Investido (R$)</th>
+                            <th className="p-4 text-center w-32">Valor Saída (R$)</th>
+                            <th className="p-4 text-center w-44">Estoque (Qtd)</th>
+                            <th className="p-4 text-center w-28">Estado</th>
                             <th className="p-4 pr-6 text-right w-32">Ações</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-[rgba(255,255,255,0.05)] text-gray-300">
                           {filteredProducts.length === 0 ? (
                             <tr>
-                              <td colSpan={6} className="p-16 text-center">
+                              <td colSpan={8} className="p-16 text-center">
                                 <div className="flex flex-col items-center gap-3">
                                   <Package size={48} className="text-gray-600 animate-pulse" />
                                   <h4 className="text-sm font-black uppercase tracking-widest text-white italic">Nenhum Produto Localizado</h4>
@@ -1562,6 +1843,38 @@ Autenticação: ${targetSale.id.toUpperCase()}`;
                                       <option value="Hardware">Hardware</option>
                                       <option value="Acessório">Acessório</option>
                                     </select>
+                                  </td>
+
+                                  {/* COST PRICE INLINE */}
+                                  <td className="p-4 text-center">
+                                    <div className="flex items-center gap-1 bg-zinc-950 border border-line-strong rounded-lg px-2.5 h-9 w-28 mx-auto focus-within:border-amber-500 transition-colors" title="Clique para editar o custo unitário e atualizar o Capital Investido">
+                                      <span className="text-[10px] text-amber-400 font-bold">R$</span>
+                                      <input 
+                                        type="number" 
+                                        step="0.01" 
+                                        defaultValue={p.cost !== undefined ? p.cost : 0} 
+                                        onBlur={(e) => {
+                                          const val = parseFloat(e.target.value) || 0;
+                                          if (val !== p.cost) {
+                                            updateProduct(p.id, { cost: val });
+                                            showToast(`Custo de "${p.name}" atualizado. Capital Investido recalculado!`);
+                                          }
+                                        }}
+                                        className="bg-transparent text-xs font-black text-white outline-none w-full min-w-0"
+                                      />
+                                    </div>
+                                  </td>
+
+                                  {/* TOTAL INVESTED IN THIS ITEM */}
+                                  <td className="p-4 text-center">
+                                    <div className="inline-flex flex-col items-center justify-center">
+                                      <span className="px-2.5 py-1 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-400 font-mono font-black text-xs">
+                                        {money((Number(p.cost) || 0) * qty)}
+                                      </span>
+                                      <span className="text-[8px] text-zinc-500 uppercase font-bold mt-0.5">
+                                        {qty}x de {money(Number(p.cost) || 0)}
+                                      </span>
+                                    </div>
                                   </td>
 
                                   {/* SALE PRICE INLINE */}
@@ -2816,93 +3129,199 @@ Autenticação: ${targetSale.id.toUpperCase()}`;
             })()}
 
               {activeView === 'simulation' && (
-                <div className="grid grid-cols-1 lg:grid-cols-[420px_1fr] gap-6 sm:gap-10 animate-view-enter">
+                <div className="grid grid-cols-1 lg:grid-cols-[440px_1fr] gap-6 sm:gap-10 animate-view-enter">
                   <div className="flex flex-col gap-4 sm:gap-6">
-                    <div className="glass-card p-6 sm:p-10 flex flex-col gap-6 sm:gap-8 border border-[rgba(255,255,255,0.05)] relative overflow-hidden group">
-                      <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity hidden sm:block">
+                    <div className="glass-card p-6 sm:p-10 flex flex-col gap-6 border border-[rgba(255,255,255,0.05)] relative overflow-hidden group">
+                      <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity hidden sm:block pointer-events-none">
                          <Calculator size={80} />
                       </div>
                       <div>
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="w-2 h-2 rounded-full bg-gold animate-pulse" />
+                          <span className="text-[9px] font-black uppercase text-gold tracking-widest">Simulador Comercial</span>
+                        </div>
                         <h3 className="text-xl sm:text-2xl font-black italic uppercase text-white tracking-tighter">Engenharia Financeira</h3>
-                        <p className="text-[9px] sm:text-[10px] text-gray-500 font-bold uppercase tracking-[0.3em] mt-1">Cálculo de Viabilidade e Price</p>
+                        <p className="text-[9px] sm:text-[10px] text-gray-500 font-bold uppercase tracking-[0.2em] mt-1">Cálculo de Preço À Vista & Parcelamento</p>
                       </div>
                       
-                      <div className="flex flex-col gap-4 sm:gap-6">
+                      <div className="flex flex-col gap-4 sm:gap-5">
+                        {/* Puxar Produto do Estoque */}
                         <div className="flex flex-col gap-2">
-                           <label className="text-[10px] font-black uppercase text-gray-500 ml-3 tracking-widest">Nome do Ativo</label>
-                           <input type="text" value={simProductName} onChange={(e) => setSimProductName(e.target.value)} className="h-12 sm:h-14 bg-black border border-line-strong rounded-xl sm:rounded-2xl px-6 font-black text-sm text-white italic outline-none focus:border-gold transition-all" placeholder="Opcional: Ex. iPhone 15 Pro" />
+                           <label className="text-[9px] sm:text-[10px] font-black uppercase text-gold/80 ml-2 tracking-widest flex items-center justify-between">
+                             <span>Puxar do Estoque (Opcional)</span>
+                             <span className="text-gray-500 font-normal">Auto-preenche</span>
+                           </label>
+                           <select 
+                             value={simSelectedProductId}
+                             onChange={(e) => handleSelectProductForSim(e.target.value)}
+                             className="h-12 bg-black border border-line-strong rounded-xl px-4 font-bold text-xs sm:text-sm text-white outline-none focus:border-gold transition-all cursor-pointer"
+                           >
+                             <option value="">Digitar Manualmente...</option>
+                             {products.map(p => (
+                               <option key={p.id} value={p.id}>
+                                 {p.name} — À Vista: {money(p.sale)} (Estoque: {p.quantity || 0})
+                               </option>
+                             ))}
+                           </select>
+                        </div>
+
+                        {/* Nome do Produto */}
+                        <div className="flex flex-col gap-2">
+                           <label className="text-[9px] sm:text-[10px] font-black uppercase text-gray-400 ml-2 tracking-widest">Nome do Ativo / Modelo</label>
+                           <input 
+                             type="text" 
+                             value={simProductName} 
+                             onChange={(e) => setSimProductName(e.target.value)} 
+                             className="h-12 sm:h-14 bg-black border border-line-strong rounded-xl sm:rounded-2xl px-5 font-black text-sm text-white italic outline-none focus:border-gold transition-all" 
+                             placeholder="Ex: iPhone 15 Pro Max 256GB" 
+                           />
                         </div>
                         
-                        <div className="flex flex-col gap-2 relative">
-                           <label className="text-[10px] font-black uppercase text-gray-500 ml-3 tracking-widest">Valor do Ativo (PV)</label>
-                           <input type="number" value={simValue || ''} onChange={(e) => setSimValue(Number(e.target.value))} className="h-14 sm:h-16 bg-black border border-line-strong rounded-xl sm:rounded-[24px] px-6 sm:px-8 font-black text-lg sm:text-xl text-gold italic outline-none focus:border-gold transition-all" placeholder="0,00" />
-                           <div className="absolute right-6 top-[3rem] sm:top-[3.25rem] text-gold font-black opacity-30 italic text-sm">BRL</div>
+                        {/* Valor de À Vista do Produto */}
+                        <div className="flex flex-col gap-2 relative bg-gold/[0.03] border border-gold/20 rounded-2xl p-4 sm:p-5">
+                           <div className="flex items-center justify-between mb-1">
+                             <label className="text-[10px] sm:text-[11px] font-black uppercase text-gold tracking-widest flex items-center gap-1.5">
+                               <DollarSign size={14} className="text-gold" />
+                               Valor À Vista do Produto
+                             </label>
+                             <span className="text-[8px] font-black uppercase px-2 py-0.5 rounded-full bg-gold/10 text-gold border border-gold/20">Preço Base</span>
+                           </div>
+                           <div className="relative">
+                             <input 
+                               type="number" 
+                               step="0.01"
+                               value={simCashPrice || ''} 
+                               onChange={(e) => handleSimCashPriceChange(Number(e.target.value))} 
+                               className="w-full h-12 sm:h-14 bg-black/80 border border-gold/30 rounded-xl px-5 font-black text-lg sm:text-xl text-gold italic outline-none focus:border-gold transition-all" 
+                               placeholder="0,00" 
+                             />
+                             <div className="absolute right-4 top-3 text-gold font-black opacity-40 italic text-xs sm:text-sm">BRL (À VISTA)</div>
+                           </div>
+                           <p className="text-[8px] sm:text-[9px] text-gray-500 font-semibold mt-1">Preço unitário com desconto para pagamento imediato.</p>
                         </div>
 
-                        <div className="flex flex-col gap-2 relative">
-                           <label className="text-[10px] font-black uppercase text-gray-500 ml-3 tracking-widest">Valor da Parcela (PMT)</label>
-                           <input 
-                             type="number" 
-                             step="0.01" 
-                             value={simPmt} 
-                             onFocus={() => setIsEditingPmt(true)}
-                             onBlur={() => setIsEditingPmt(false)}
-                             onChange={(e) => handleSimPmtChange(e.target.value)} 
-                             className="h-14 sm:h-16 bg-black border border-line-strong rounded-xl sm:rounded-[24px] px-6 sm:px-8 font-black text-lg sm:text-xl text-amber-200 italic outline-none focus:border-gold transition-all" 
-                             placeholder="0,00" 
-                           />
-                           <div className="absolute right-6 top-[3rem] sm:top-[3.25rem] text-amber-200 font-black opacity-30 italic text-sm">BRL</div>
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-4 sm:gap-6">
-                          <div className="flex flex-col gap-2">
-                             <label className="text-[9px] sm:text-[10px] font-black uppercase text-gray-500 ml-3 tracking-widest">Taxa Mensal (%)</label>
-                             <input type="number" value={simRate || ''} onChange={(e) => setSimRate(Number(e.target.value))} className="h-12 sm:h-14 bg-black border border-line-strong rounded-xl sm:rounded-2xl px-5 sm:px-6 font-black text-white italic outline-none focus:border-gold transition-all text-xs sm:text-base" placeholder="0.00" />
+                        {/* Valor de Entrada & Saldo Financiado */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                          <div className="flex flex-col gap-1.5">
+                             <label className="text-[9px] sm:text-[10px] font-black uppercase text-gray-400 ml-2 tracking-widest">Entrada (Opcional)</label>
+                             <input 
+                               type="number" 
+                               step="0.01"
+                               value={simDownPayment || ''} 
+                               onChange={(e) => handleSimDownPaymentChange(Number(e.target.value))} 
+                               className="h-12 bg-black border border-line-strong rounded-xl px-4 font-bold text-sm text-blue-400 italic outline-none focus:border-gold transition-all" 
+                               placeholder="0,00" 
+                             />
                           </div>
-                          <div className="flex flex-col gap-2">
-                             <label className="text-[9px] sm:text-[10px] font-black uppercase text-gray-500 ml-3 tracking-widest">Nº Parcelas</label>
-                             <input type="number" value={simInstallments || ''} onChange={(e) => setSimInstallments(Number(e.target.value))} className="h-12 sm:h-14 bg-black border border-line-strong rounded-xl sm:rounded-2xl px-5 sm:px-6 font-black text-white italic outline-none focus:border-gold transition-all text-xs sm:text-base" placeholder="12" />
+                          <div className="flex flex-col gap-1.5">
+                             <label className="text-[9px] sm:text-[10px] font-black uppercase text-gray-400 ml-2 tracking-widest">Saldo a Parcelar (PV)</label>
+                             <input 
+                               type="number" 
+                               step="0.01"
+                               value={simValue || ''} 
+                               onChange={(e) => {
+                                 const v = Number(e.target.value);
+                                 setSimValue(v);
+                                 if (simCashPrice === 0) setSimCashPrice(v + simDownPayment);
+                               }} 
+                               className="h-12 bg-black border border-line-strong rounded-xl px-4 font-bold text-sm text-zinc-100 italic outline-none focus:border-gold transition-all" 
+                               placeholder="0,00" 
+                             />
+                          </div>
+                        </div>
+
+                        {/* Valor da Parcela (PMT) */}
+                        <div className="flex flex-col gap-2 relative">
+                           <label className="text-[10px] font-black uppercase text-gray-400 ml-3 tracking-widest flex items-center justify-between">
+                             <span>Valor da Parcela (PMT)</span>
+                             <span className="text-gray-500 font-normal text-[9px]">Calcula taxa automaticamente</span>
+                           </label>
+                           <div className="relative">
+                             <input 
+                               type="number" 
+                               step="0.01" 
+                               value={simPmt} 
+                               onFocus={() => setIsEditingPmt(true)}
+                               onBlur={() => setIsEditingPmt(false)}
+                               onChange={(e) => handleSimPmtChange(e.target.value)} 
+                               className="w-full h-12 sm:h-14 bg-black border border-line-strong rounded-xl px-5 font-black text-lg text-amber-200 italic outline-none focus:border-gold transition-all" 
+                               placeholder="0,00" 
+                             />
+                             <div className="absolute right-4 top-3 text-amber-200 font-black opacity-30 italic text-xs">BRL / MÊS</div>
+                           </div>
+                        </div>
+
+                        {/* Taxa e Parcelas */}
+                        <div className="grid grid-cols-2 gap-3 sm:gap-4">
+                          <div className="flex flex-col gap-1.5">
+                             <label className="text-[9px] sm:text-[10px] font-black uppercase text-gray-400 ml-2 tracking-widest">Taxa Mensal (%)</label>
+                             <input 
+                               type="number" 
+                               step="0.01"
+                               value={simRate || ''} 
+                               onChange={(e) => setSimRate(Number(e.target.value))} 
+                               className="h-12 bg-black border border-line-strong rounded-xl px-4 font-black text-white italic outline-none focus:border-gold transition-all text-xs sm:text-sm" 
+                               placeholder="0.00" 
+                             />
+                          </div>
+                          <div className="flex flex-col gap-1.5">
+                             <label className="text-[9px] sm:text-[10px] font-black uppercase text-gray-400 ml-2 tracking-widest">Nº Parcelas</label>
+                             <input 
+                               type="number" 
+                               min="1"
+                               value={simInstallments || ''} 
+                               onChange={(e) => setSimInstallments(Number(e.target.value))} 
+                               className="h-12 bg-black border border-line-strong rounded-xl px-4 font-black text-white italic outline-none focus:border-gold transition-all text-xs sm:text-sm" 
+                               placeholder="12" 
+                             />
                           </div>
                         </div>
                       </div>
 
-                      <div className="p-4 sm:p-6 bg-gold-soft border border-[rgba(255,215,0,0.1)] rounded-xl sm:rounded-[28px] mt-2 shadow-inner">
-                         <div className="flex items-start gap-3 sm:gap-4">
-                            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-gold text-black flex items-center justify-center shrink-0 shadow-lg">
-                               <BadgeDollarSign size={18} />
+                      <div className="p-4 bg-gold-soft border border-[rgba(255,215,0,0.1)] rounded-xl mt-1 shadow-inner">
+                         <div className="flex items-start gap-3">
+                            <div className="w-8 h-8 rounded-lg bg-gold text-black flex items-center justify-center shrink-0 shadow-lg">
+                               <BadgeDollarSign size={16} />
                             </div>
                             <div>
-                               <h4 className="text-[10px] sm:text-xs font-black text-gold uppercase tracking-widest">Análise de Risco</h4>
-                               <p className="text-[8px] sm:text-[9px] text-[rgba(255,215,0,0.6)] font-bold uppercase mt-1 leading-relaxed italic">Validar score do cliente antes de formalizar.</p>
+                               <h4 className="text-[10px] sm:text-xs font-black text-gold uppercase tracking-widest">Engenharia de Preços</h4>
+                               <p className="text-[8px] sm:text-[9px] text-[rgba(255,215,0,0.7)] font-semibold uppercase mt-0.5 leading-relaxed">
+                                 Ajuste o valor à vista, parcelas ou taxa mensal para gerar propostas comerciais instantâneas.
+                               </p>
                             </div>
                          </div>
                       </div>
                     </div>
 
-                    <div className="glass-card p-6 border border-line-strong flex flex-col gap-4">
+                    <div className="glass-card p-5 border border-line-strong flex flex-col gap-3">
                        <h4 className="text-[10px] font-black uppercase text-gray-500 tracking-[0.3em] flex items-center gap-2">
-                          <Zap size={14} className="text-gold" /> Atalhos Rápidos
+                          <Zap size={14} className="text-gold" /> Atalhos Rápidos de Taxa
                        </h4>
-                       <div className="grid grid-cols-2 gap-3">
-                          <button onClick={() => { setSimRate(2); setSimInstallments(12); }} className="h-12 bg-[rgba(255,255,255,0.03)] border border-line hover:border-[rgba(255,215,0,0.3)] rounded-2xl text-[9px] sm:text-[10px] font-black uppercase tracking-widest transition-all">Padrão 2%</button>
-                          <button onClick={() => { setSimRate(0); setSimInstallments(12); }} className="h-12 bg-[rgba(255,255,255,0.03)] border border-line hover:border-[rgba(255,215,0,0.3)] rounded-2xl text-[9px] sm:text-[10px] font-black uppercase tracking-widest transition-all">Sem Juros</button>
+                       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                          <button onClick={() => { setSimRate(0); }} className="h-10 bg-[rgba(255,255,255,0.03)] border border-line hover:border-[rgba(255,215,0,0.3)] rounded-xl text-[9px] font-black uppercase tracking-wider transition-all">0% Juros</button>
+                          <button onClick={() => { setSimRate(2); }} className="h-10 bg-[rgba(255,255,255,0.03)] border border-line hover:border-[rgba(255,215,0,0.3)] rounded-xl text-[9px] font-black uppercase tracking-wider transition-all">2.0% a.m.</button>
+                          <button onClick={() => { setSimRate(3.5); }} className="h-10 bg-[rgba(255,255,255,0.03)] border border-line hover:border-[rgba(255,215,0,0.3)] rounded-xl text-[9px] font-black uppercase tracking-wider transition-all">3.5% a.m.</button>
+                          <button onClick={() => { setSimRate(5); }} className="h-10 bg-[rgba(255,255,255,0.03)] border border-line hover:border-[rgba(255,215,0,0.3)] rounded-xl text-[9px] font-black uppercase tracking-wider transition-all">5.0% a.m.</button>
                        </div>
                     </div>
                   </div>
 
                   <div className="flex flex-col gap-4 sm:gap-6 animate-view-enter" style={{ animationDelay: '0.1s' }}>
-                    <div className="glass-card p-6 sm:p-12 bg-[rgba(0,0,0,0.4)] border border-line-strong flex flex-col relative overflow-hidden" id="simulation-content">
+                    <div className="glass-card p-6 sm:p-10 bg-[rgba(0,0,0,0.4)] border border-line-strong flex flex-col relative overflow-hidden" id="simulation-content">
                        <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-[rgba(255,215,0,0.5)] to-transparent opacity-30" />
                        
-                       <div className="flex items-center justify-between mb-8 sm:mb-16 px-2">
+                       <div className="flex items-center justify-between mb-6 sm:mb-8 px-1">
                           <div>
-                             <h4 className="text-[10px] sm:text-xs font-black uppercase text-gray-600 tracking-[0.4em]">Projeção Operacional</h4>
-                             <p className="text-[8px] sm:text-[9px] text-gray-700 font-bold uppercase mt-1">
-                                {simProductName ? `Ativo: ${simProductName}` : 'Simulação para proposta comercial'}
+                             <div className="flex items-center gap-2">
+                               <span className="text-[10px] sm:text-xs font-black uppercase text-gold tracking-[0.3em]">Proposta Comercial</span>
+                               <span className="text-[8px] font-bold uppercase px-2 py-0.5 rounded bg-white/5 text-gray-400 border border-white/10">{new Date().toLocaleDateString('pt-BR')}</span>
+                             </div>
+                             <p className="text-sm sm:text-base text-white font-black italic uppercase mt-1">
+                                {simProductName ? simProductName : 'Simulação de Venda Personalizada'}
                              </p>
                           </div>
-                          <div className="w-10 h-10 sm:w-12 sm:h-12 border border-[rgba(255,215,0,0.2)] rounded-xl sm:rounded-2xl bg-[rgba(255,215,0,0.05)] text-gold flex items-center justify-center shadow-inner">
-                             <Zap size={20} sm:size={24} />
+                          <div className="w-10 h-10 sm:w-12 sm:h-12 border border-[rgba(255,215,0,0.2)] rounded-xl sm:rounded-2xl bg-[rgba(255,215,0,0.05)] text-gold flex items-center justify-center shadow-inner shrink-0">
+                             <Zap size={20} />
                           </div>
                        </div>
 
@@ -2912,33 +3331,106 @@ Autenticação: ${targetSale.id.toUpperCase()}`;
                         const pv = simValue || 0;
                         const rawPmt = i === 0 ? pv / n : pv * (i * Math.pow(1 + i, n)) / (Math.pow(1 + i, n) - 1);
                         const pmt = Math.round(rawPmt);
+                        const totalInstallments = pmt * n;
+                        const totalPrazo = totalInstallments + (simDownPayment || 0);
+                        const effectiveCash = simCashPrice > 0 ? simCashPrice : (pv + (simDownPayment || 0));
+                        const diffVal = totalPrazo - effectiveCash;
+                        const diffPct = effectiveCash > 0 ? ((diffVal / effectiveCash) * 100).toFixed(1) : '0';
+
                         return (
                           <>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-8 mb-8 sm:mb-16">
-                              <div className="p-6 sm:p-10 border border-[rgba(255,255,255,0.05)] rounded-2xl sm:rounded-[40px] bg-[rgba(0,0,0,0.6)] shadow-2xl relative overflow-hidden group/card text-center sm:text-left">
-                                <span className="text-[9px] sm:text-[10px] uppercase font-black text-gray-500 block mb-2 sm:mb-3 tracking-[0.3em]">Custo Mensal</span>
-                                <strong className="text-3xl sm:text-5xl text-gold font-bold block">{money(pmt)}</strong>
+                            {/* Cards de Comparativo À Vista vs A Prazo */}
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+                              {/* Valor À Vista */}
+                              <div className="p-5 sm:p-6 border border-gold/30 rounded-2xl bg-gold/[0.04] relative overflow-hidden flex flex-col justify-between">
+                                <div>
+                                  <span className="text-[9px] uppercase font-black text-gold/80 block mb-1 tracking-widest">Valor de À Vista</span>
+                                  <strong className="text-2xl sm:text-3xl text-gold font-black block">{money(effectiveCash)}</strong>
+                                </div>
+                                <span className="text-[8px] text-gold/60 font-bold uppercase mt-3 pt-2 border-t border-gold/10">Preço Especial à Vista</span>
                               </div>
-                              <div className="p-6 sm:p-10 border border-[rgba(255,255,255,0.05)] rounded-2xl sm:rounded-[40px] bg-[rgba(0,0,0,0.6)] shadow-2xl relative overflow-hidden group/card text-center sm:text-left">
-                                <span className="text-[9px] sm:text-[10px] uppercase font-black text-gray-500 block mb-2 sm:mb-3 tracking-[0.3em]">Total Quitação</span>
-                                <strong className="text-3xl sm:text-5xl text-green-neon font-bold block">{money(pmt * n)}</strong>
+
+                              {/* Parcela Mensal */}
+                              <div className="p-5 sm:p-6 border border-white/10 rounded-2xl bg-black/60 relative overflow-hidden flex flex-col justify-between">
+                                <div>
+                                  <span className="text-[9px] uppercase font-black text-gray-400 block mb-1 tracking-widest">Parcelamento ({n}x)</span>
+                                  <strong className="text-2xl sm:text-3xl text-white font-black block">{money(pmt)}</strong>
+                                </div>
+                                <span className="text-[8px] text-gray-500 font-bold uppercase mt-3 pt-2 border-t border-white/5">Valor por parcela</span>
+                              </div>
+
+                              {/* Total a Prazo */}
+                              <div className="p-5 sm:p-6 border border-green-500/30 rounded-2xl bg-green-500/[0.04] relative overflow-hidden flex flex-col justify-between sm:col-span-2 lg:col-span-1">
+                                <div>
+                                  <span className="text-[9px] uppercase font-black text-green-400 block mb-1 tracking-widest">Total a Prazo</span>
+                                  <strong className="text-2xl sm:text-3xl text-green-neon font-black block">{money(totalPrazo)}</strong>
+                                </div>
+                                <span className="text-[8px] text-green-500/80 font-bold uppercase mt-3 pt-2 border-t border-green-500/10">
+                                  {diffVal > 0 ? `+${money(diffVal)} (+${diffPct}%)` : (diffVal === 0 ? '0% Juros (Mesmo preço)' : 'Com desconto')}
+                                </span>
                               </div>
                             </div>
 
-                            <div className="flex flex-col sm:flex-row justify-between items-center gap-4 sm:gap-6 p-6 sm:p-8 border border-dashed border-line-strong rounded-2xl sm:rounded-[32px] bg-[rgba(255,255,255,0.02)] no-print">
-                               <div className="flex items-center gap-4 w-full sm:w-auto">
-                                  <div className="w-10 h-10 sm:w-12 sm:h-12 bg-white text-black rounded-xl sm:rounded-2xl flex items-center justify-center shadow-lg shrink-0">
-                                     <Share2 size={20} sm:size={24} />
+                            {/* Tabela de Detalhamento da Engenharia da Venda */}
+                            <div className="bg-black/60 border border-line-strong rounded-2xl p-5 sm:p-6 mb-6 flex flex-col gap-3">
+                              <h5 className="text-[10px] font-black uppercase text-gray-400 tracking-widest border-b border-white/5 pb-2">
+                                Demonstrativo Comparativo de Condições
+                              </h5>
+                              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                                <div className="flex flex-col">
+                                  <span className="text-[8px] text-gray-500 uppercase font-black">Preço À Vista</span>
+                                  <span className="font-bold text-gold text-sm">{money(effectiveCash)}</span>
+                                </div>
+                                <div className="flex flex-col">
+                                  <span className="text-[8px] text-gray-500 uppercase font-black">Entrada Paga</span>
+                                  <span className="font-bold text-blue-400 text-sm">{simDownPayment > 0 ? money(simDownPayment) : 'Sem Entrada'}</span>
+                                </div>
+                                <div className="flex flex-col">
+                                  <span className="text-[8px] text-gray-500 uppercase font-black">Saldo Parcelado</span>
+                                  <span className="font-bold text-white text-sm">{money(pv)}</span>
+                                </div>
+                                <div className="flex flex-col">
+                                  <span className="text-[8px] text-gray-500 uppercase font-black">Taxa de Juros</span>
+                                  <span className="font-bold text-amber-200 text-sm">{simRate.toFixed(2)}% a.m.</span>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Ações de Compartilhamento e Venda */}
+                            <div className="flex flex-col sm:flex-row justify-between items-center gap-4 p-5 sm:p-6 border border-dashed border-line-strong rounded-2xl bg-[rgba(255,255,255,0.02)] no-print">
+                               <div className="flex items-center gap-3 w-full sm:w-auto">
+                                  <div className="w-10 h-10 bg-gold text-black rounded-xl flex items-center justify-center shadow-lg shrink-0">
+                                     <Share2 size={18} />
                                   </div>
                                   <div>
-                                     <h5 className="text-[11px] sm:text-sm font-black text-white italic uppercase">Apresentar Proposta</h5>
+                                     <h5 className="text-xs sm:text-sm font-black text-white italic uppercase">Apresentar Proposta</h5>
+                                     <p className="text-[9px] text-gray-500 font-semibold">Compartilhe no WhatsApp ou lance direto no estoque</p>
                                   </div>
-                               </div>
-                               <div className="flex gap-2 sm:gap-3 w-full sm:w-auto">
-                                  <button onClick={shareSimulationWhatsApp} className="w-full sm:w-auto h-12 sm:h-14 px-8 bg-green-neon text-black rounded-xl sm:rounded-2xl font-black uppercase text-[10px] sm:text-xs shadow-xl active:scale-95 hover:brightness-110 transition-all flex items-center justify-center gap-2">
-                                    Enviar via WhatsApp
-                                  </button>
-                               </div>
+                                </div>
+                                <div className="flex flex-wrap sm:flex-nowrap gap-2 sm:gap-3 w-full sm:w-auto">
+                                   <button 
+                                     onClick={downloadSimulationPDF}
+                                     className="h-11 px-4 bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-white rounded-xl font-black uppercase text-[10px] transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                                     title="Baixar PDF da Simulação"
+                                   >
+                                     <Download size={14} />
+                                     PDF
+                                   </button>
+                                   <button 
+                                     onClick={shareSimulationWhatsApp} 
+                                     className="flex-1 sm:flex-initial h-11 px-5 bg-[#25D366] text-white rounded-xl font-black uppercase text-[10px] shadow-lg active:scale-95 hover:brightness-110 transition-all flex items-center justify-center gap-2 cursor-pointer"
+                                   >
+                                     <MessageCircle size={15} />
+                                     WhatsApp
+                                   </button>
+                                   <button 
+                                     onClick={handleLaunchSaleFromSim}
+                                     className="flex-1 sm:flex-initial h-11 px-5 bg-gold text-black rounded-xl font-black uppercase text-[10px] shadow-lg active:scale-95 hover:brightness-110 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                                   >
+                                     <Plus size={14} />
+                                     Lançar Venda
+                                   </button>
+                                </div>
                             </div>
                           </>
                         );
@@ -3378,10 +3870,15 @@ Autenticação: ${targetSale.id.toUpperCase()}`;
                     </div>
                   </div>
                 </div>
-                <div className="flex flex-col gap-2">
-                  <input name="cost" type="hidden" defaultValue={productToEdit?.cost || "0"} />
-                  <label className="text-[9px] sm:text-[10px] font-black text-gray-500 uppercase ml-2">Valor de Saída (Venda)</label>
-                  <input name="sale" type="number" step="0.01" required defaultValue={productToEdit?.sale || ''} placeholder="R$" className="w-full h-12 sm:h-14 bg-zinc-900 border border-line-strong rounded-xl px-5 text-gold text-xs sm:text-sm font-bold" />
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="flex flex-col gap-2">
+                    <label className="text-[9px] sm:text-[10px] font-black text-gray-500 uppercase ml-2">Custo de Aquisição (R$)</label>
+                    <input name="cost" type="number" step="0.01" defaultValue={productToEdit?.cost !== undefined ? productToEdit.cost : ''} placeholder="0,00" className="w-full h-12 sm:h-14 bg-zinc-900 border border-line-strong rounded-xl px-5 text-white text-xs sm:text-sm font-bold outline-none focus:border-gold" />
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    <label className="text-[9px] sm:text-[10px] font-black text-gray-500 uppercase ml-2">Valor de Saída / Venda (R$)</label>
+                    <input name="sale" type="number" step="0.01" required defaultValue={productToEdit?.sale || ''} placeholder="0,00" className="w-full h-12 sm:h-14 bg-zinc-900 border border-line-strong rounded-xl px-5 text-gold text-xs sm:text-sm font-bold outline-none focus:border-gold" />
+                  </div>
                 </div>
                 <div className="flex flex-col gap-2">
                   <label className="text-[9px] sm:text-[10px] font-black text-gray-500 uppercase ml-2">Quantidade em Estoque</label>
@@ -3460,7 +3957,7 @@ Autenticação: ${targetSale.id.toUpperCase()}`;
                 <div id="contract-content" className="bg-white p-2 sm:p-4 font-sans text-slate-800 print:p-2 text-xs">
                   {(() => {
                     const company = (settings.companyName || settings.userName || 'GESTÃO DE VENDAS').toUpperCase();
-                    const sellerName = (settings.userName || settings.companyName || 'VENDEDOR').toUpperCase();
+                    const sellerName = (settings.userName || (settings.currentOperator === 'operator2' ? settings.op2Name : settings.op1Name) || settings.companyName || 'VENDEDOR RESPONSÁVEL').toUpperCase();
                     const cleanId = selectedSaleForContract.id.substring(0, 8).toUpperCase();
                     const dateFormatted = selectedSaleForContract.date ? new Date(selectedSaleForContract.date).toLocaleDateString('pt-BR') : new Date().toLocaleDateString('pt-BR');
                     
