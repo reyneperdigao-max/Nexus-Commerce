@@ -1,6 +1,6 @@
 {
   "name": "Nexus Commerce, gestão de vendas",
-  "description": "Sistema de gestão comercial de alto padrão focado em vendas, controle de estoque e fluxo de recebíveis.",
+  "description": "Sistema de gestão comercial de alto padrão focado em vendas, controle de estoque, previsão mensal de parcelas a receber e fluxo financeiro.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

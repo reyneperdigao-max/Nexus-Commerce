@@ -3,8 +3,10 @@ import { useNexusState } from './useNexusState';
 import { Sidebar } from './components/Sidebar';
 import { BottomNavigation } from './components/BottomNavigation';
 import { Logo, Topbar, DashboardStats } from './components/CommonUI';
+import { MonthlyInstallmentsReport } from './components/MonthlyInstallmentsReport';
+import { LoginScreen } from './components/LoginScreen';
 import { AnimatePresence, motion } from 'motion/react';
-import { Boxes, Plus, X, Search, ImagePlus, User, Wallet, ShoppingBag, ArrowLeft, ArrowRight, BadgeDollarSign, Activity, Zap, History, ChevronDown, Pencil, FileText, Download, DollarSign, Share2, Calculator, Package, MessageCircle, ShieldCheck, Lock, Mail, Image as ImageIcon, AlertCircle, Calendar, Camera, Trash2, Minus, TrendingUp, Percent, Printer, Copy, Check, ExternalLink, SlidersHorizontal } from 'lucide-react';
+import { Boxes, Plus, X, Search, ImagePlus, User, Wallet, ShoppingBag, ArrowLeft, ArrowRight, BadgeDollarSign, Activity, Zap, History, ChevronDown, Pencil, FileText, Download, DollarSign, Share2, Calculator, Package, MessageCircle, ShieldCheck, Lock, Mail, Image as ImageIcon, AlertCircle, Calendar, Camera, Trash2, Minus, TrendingUp, Percent, Printer, Copy, Check, CheckCircle2, ExternalLink, SlidersHorizontal } from 'lucide-react';
 import html2pdf from 'html2pdf.js';
 import { downloadContractAsPDF, fallbackPrintContract, shareContractFile, downloadReceiptAsPDF } from './lib/pdfGenerator';
 import { auth } from './lib/firebase';
@@ -27,8 +29,13 @@ export default function App() {
   }, [closings]);
 
   const activeSales = useMemo(() => {
-    return sales.filter(s => s.createdAt > lastClosingDate);
-  }, [sales, lastClosingDate]);
+    return sales.filter(s => {
+      const sInsts = installments.filter(i => i.saleId === s.id);
+      const isFullyPaid = s.status === 'Liquidada' || (sInsts.length > 0 && sInsts.every(i => i.status === 'Pago'));
+      if (isFullyPaid) return false;
+      return !lastClosingDate || s.createdAt > lastClosingDate;
+    });
+  }, [sales, lastClosingDate, installments]);
 
   const [activeView, setActiveView] = useState('dashboard');
   const [activeSettingsTab, setActiveSettingsTab] = useState<string | null>(null);
@@ -907,11 +914,16 @@ Autenticação: ${targetSale.id.toUpperCase()}`;
   const filteredProducts = products.filter(p => !searchTerm || [p.name, p.category, p.status].some(v => v.toLowerCase().includes(searchTerm.toLowerCase())));
   
   const filteredSales = sales.filter(s => {
+    // Excluir contratos que já estão totalmente pagos
+    const sInsts = installments.filter(i => i.saleId === s.id);
+    const isFullyPaid = sInsts.length > 0 && sInsts.every(i => i.status === 'Pago');
+    if (isFullyPaid) return false;
+
     const matchesSearch = !searchTerm || [s.client, s.productName, s.status].some(v => v.toLowerCase().includes(searchTerm.toLowerCase()));
     
     if (filterStatus === 'Atrasados') {
-      const hasOverdue = installments.some(i => {
-        if (i.saleId !== s.id || i.status !== 'Pendente') return false;
+      const hasOverdue = sInsts.some(i => {
+        if (i.status !== 'Pendente') return false;
         const d = new Date(i.dueDate);
         d.setHours(0,0,0,0);
         return d.getTime() < todayTime.getTime();
@@ -920,8 +932,8 @@ Autenticação: ${targetSale.id.toUpperCase()}`;
     }
     
     if (filterStatus === 'Hoje') {
-      const hasDueToday = installments.some(i => {
-        if (i.saleId !== s.id || i.status !== 'Pendente') return false;
+      const hasDueToday = sInsts.some(i => {
+        if (i.status !== 'Pendente') return false;
         const d = new Date(i.dueDate);
         d.setHours(0,0,0,0);
         return d.getTime() === todayTime.getTime();
@@ -942,111 +954,7 @@ Autenticação: ${targetSale.id.toUpperCase()}`;
   if (!authReady) return null;
 
   if (!isAuthenticated) {
-    return (
-      <div className="min-h-screen bg-[#020202] flex flex-col md:flex-row relative overflow-hidden font-sans select-none">
-        {/* Atmosphere Background */}
-        <div className="absolute inset-0 z-0">
-          <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-br from-[rgba(24,24,27,0.2)] via-transparent to-transparent" />
-          <div className="absolute top-[20%] left-[10%] w-[40%] h-[40%] bg-[rgba(255,215,0,0.05)] rounded-full blur-[120px] animate-pulse" />
-        </div>
-
-        {/* Left Side: Brand Experience */}
-        <div className="hidden md:flex md:w-[60%] relative flex-col justify-between p-20 z-10">
-          <Logo />
-
-          <div className="max-w-2xl">
-             <motion.div initial={{ opacity: 0, x: -30 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 1 }}>
-                <h1 className="text-7xl font-black text-white leading-tight tracking-tighter">
-                   A Nova Era do<br />
-                   <span className="bg-gradient-to-r from-blue-400 via-blue-500 to-indigo-600 bg-clip-text text-transparent">Comércio de Produtos</span>
-                </h1>
-                
-                <div className="mt-16 grid grid-cols-2 gap-12">
-                   <div className="space-y-4">
-                      <h4 className="text-[11px] font-black text-zinc-400 uppercase tracking-[0.3em] border-l-2 border-gold pl-4">Segurança</h4>
-                      <p className="text-zinc-500 text-xs font-medium leading-relaxed">Infraestrutura baseada em nuvem com criptografia de ponta a ponta.</p>
-                   </div>
-                   <div className="space-y-4">
-                      <h4 className="text-[11px] font-black text-zinc-400 uppercase tracking-[0.3em] border-l-2 border-gold pl-4">Performance</h4>
-                      <p className="text-zinc-500 text-xs font-medium leading-relaxed">Algoritmos inteligentes para gestão de liquidez instantânea.</p>
-                   </div>
-                </div>
-             </motion.div>
-          </div>
-
-          <div className="flex flex-col gap-1">
-             <p className="text-[10px] text-zinc-600 font-bold uppercase tracking-wider">© 2026 NEXUS GESTÃO DE VENDAS</p>
-          </div>
-        </div>
-
-        {/* Right Side: Floating Login Card */}
-        <div className="flex-1 flex flex-col items-center justify-center p-6 relative z-10">
-          <motion.div 
-            initial={{ opacity: 0, scale: 0.95 }} 
-            animate={{ opacity: 1, scale: 1 }} 
-            transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
-            className="w-full max-w-[420px]"
-          >
-            {/* Mobile Branding Only */}
-            <div className="md:hidden flex flex-col items-center mb-10">
-               <Logo className="scale-125" />
-            </div>
-
-            <div className="bg-[rgba(15,15,17,0.8)] backdrop-blur-3xl p-8 sm:p-14 border border-[rgba(255,255,255,0.05)] rounded-3xl sm:rounded-[40px] shadow-[0_50px_100px_rgba(0,0,0,0.8)]">
-               <div className="mb-8 sm:mb-12">
-                  <h3 className="text-xl sm:text-2xl font-black text-white tracking-tight">Acesso Restrito</h3>
-                  <p className="text-gold text-[9px] sm:text-[10px] font-black uppercase tracking-[0.4em] mt-2">NEXUS GESTÃO DE VENDAS</p>
-               </div>
-
-               <form className="space-y-4 sm:y-6" onSubmit={(e) => { e.preventDefault(); setIsAuthenticated(true); }}>
-                  <div className="space-y-2 group">
-                     <label className="text-[9px] sm:text-[10px] font-black text-zinc-600 uppercase tracking-widest ml-1 transition-colors group-focus-within:text-gold">E-MAIL</label>
-                     <div className="relative">
-                        <Mail className="absolute left-5 sm:left-6 top-1/2 -translate-y-1/2 text-zinc-700 group-focus-within:text-gold transition-colors" size={16} />
-                        <input 
-                           type="email" 
-                           required 
-                           placeholder="email@nexuscommerce.com" 
-                           className="w-full h-14 sm:h-16 bg-[rgba(26,26,28,0.6)] border border-[rgba(39,39,42,0.5)] rounded-xl sm:rounded-2xl pl-14 sm:pl-16 pr-6 outline-none focus:border-[rgba(255,215,0,0.3)] text-xs sm:text-sm font-medium text-white transition-all placeholder:text-zinc-700" 
-                        />
-                     </div>
-                  </div>
-
-                  <div className="space-y-2 group">
-                     <label className="text-[9px] sm:text-[10px] font-black text-zinc-600 uppercase tracking-widest ml-1 transition-colors group-focus-within:text-gold">SENHA</label>
-                     <div className="relative">
-                        <Lock className="absolute left-5 sm:left-6 top-1/2 -translate-y-1/2 text-zinc-700 group-focus-within:text-gold transition-colors" size={16} />
-                        <input 
-                           type="password" 
-                           required 
-                           placeholder="••••••••••••" 
-                           className="w-full h-14 sm:h-16 bg-[rgba(26,26,28,0.6)] border border-[rgba(39,39,42,0.5)] rounded-xl sm:rounded-2xl pl-14 sm:pl-16 pr-6 outline-none focus:border-[rgba(255,215,0,0.3)] text-xs sm:text-sm font-medium text-white transition-all placeholder:text-zinc-700 tracking-widest" 
-                        />
-                     </div>
-                  </div>
-
-                  <button 
-                     type="submit" 
-                     className="relative w-full h-14 sm:h-16 mt-6 sm:mt-10 overflow-hidden rounded-xl sm:rounded-2xl group/btn active:scale-95 transition-all duration-300"
-                  >
-                     {/* Blue/Cyan Gradient Button with Shimmer */}
-                     <div className="absolute inset-0 bg-gradient-to-r from-blue-500 via-white to-blue-400 group-hover:via-blue-300 transition-all duration-700" />
-                     <div className="absolute inset-[1px] bg-[#020202] rounded-[15px] opacity-10" />
-                     <div className="relative flex items-center justify-center h-full">
-                        <span className="text-[11px] font-black uppercase text-white tracking-[0.4em] drop-shadow-sm">Entrar</span>
-                     </div>
-                     <div className="absolute inset-0 bg-gradient-to-r from-transparent via-bg-[rgba(255,255,255,0.2)] to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000 ease-in-out" />
-                  </button>
-               </form>
-            </div>
-            
-            <div className="mt-8 text-center opacity-30">
-               <p className="text-[9px] font-black text-zinc-600 uppercase tracking-[0.6em]">Verificação de Identidade Segura</p>
-            </div>
-          </motion.div>
-        </div>
-      </div>
-    );
+    return <LoginScreen onLogin={() => setIsAuthenticated(true)} settings={settings} />;
   }
 
 
@@ -1847,7 +1755,7 @@ Autenticação: ${targetSale.id.toUpperCase()}`;
 
                                   {/* COST PRICE INLINE */}
                                   <td className="p-4 text-center">
-                                    <div className="flex items-center gap-1 bg-zinc-950 border border-line-strong rounded-lg px-2.5 h-9 w-28 mx-auto focus-within:border-amber-500 transition-colors" title="Clique para editar o custo unitário e atualizar o Capital Investido">
+                                    <div className="flex items-center gap-1 bg-zinc-950 border border-line-strong rounded-lg px-2.5 h-9 w-28 mx-auto focus-within:border-amber-500 transition-colors" title="Clique para editar o custo unitário">
                                       <span className="text-[10px] text-amber-400 font-bold">R$</span>
                                       <input 
                                         type="number" 
@@ -1857,7 +1765,7 @@ Autenticação: ${targetSale.id.toUpperCase()}`;
                                           const val = parseFloat(e.target.value) || 0;
                                           if (val !== p.cost) {
                                             updateProduct(p.id, { cost: val });
-                                            showToast(`Custo de "${p.name}" atualizado. Capital Investido recalculado!`);
+                                            showToast(`Custo de "${p.name}" atualizado com sucesso!`);
                                           }
                                         }}
                                         className="bg-transparent text-xs font-black text-white outline-none w-full min-w-0"
@@ -2188,7 +2096,12 @@ Autenticação: ${targetSale.id.toUpperCase()}`;
                                onClick={() => setFilterStatus('Todos')}
                                className={`h-9 px-5 rounded-lg text-[10px] sm:text-xs font-black uppercase tracking-wider transition-all cursor-pointer ${filterStatus === 'Todos' ? 'bg-gold text-black font-extrabold shadow-lg shadow-gold/10' : 'text-gray-400 hover:text-white'}`}
                             >
-                               Todos ({sales.length})
+                               Ativos ({
+                                  sales.filter(s => {
+                                     const sInsts = installments.filter(i => i.saleId === s.id);
+                                     return !(sInsts.length > 0 && sInsts.every(i => i.status === 'Pago'));
+                                  }).length
+                               })
                             </button>
                             <button 
                                type="button"
@@ -2197,8 +2110,10 @@ Autenticação: ${targetSale.id.toUpperCase()}`;
                             >
                                Atrasados ({
                                   sales.filter(s => {
-                                     const sInsts = installments.filter(i => i.saleId === s.id && i.status === 'Pendente');
-                                     return sInsts.some(i => {
+                                     const sInsts = installments.filter(i => i.saleId === s.id);
+                                     if (sInsts.length > 0 && sInsts.every(i => i.status === 'Pago')) return false;
+                                     const pendingInsts = sInsts.filter(i => i.status === 'Pendente');
+                                     return pendingInsts.some(i => {
                                         const d = new Date(i.dueDate);
                                         d.setHours(0,0,0,0);
                                         return d.getTime() < todayTime.getTime();
@@ -2213,8 +2128,10 @@ Autenticação: ${targetSale.id.toUpperCase()}`;
                             >
                                Vence Hoje ({
                                   sales.filter(s => {
-                                     const sInsts = installments.filter(i => i.saleId === s.id && i.status === 'Pendente');
-                                     return sInsts.some(i => {
+                                     const sInsts = installments.filter(i => i.saleId === s.id);
+                                     if (sInsts.length > 0 && sInsts.every(i => i.status === 'Pago')) return false;
+                                     const pendingInsts = sInsts.filter(i => i.status === 'Pendente');
+                                     return pendingInsts.some(i => {
                                         const d = new Date(i.dueDate);
                                         d.setHours(0,0,0,0);
                                         return d.getTime() === todayTime.getTime();
@@ -2232,21 +2149,29 @@ Autenticação: ${targetSale.id.toUpperCase()}`;
                       </div>
 
                       {filteredSales.length === 0 ? (
-                        <div className={`glass-card p-20 border flex flex-col items-center justify-center text-center gap-6 animate-pulse ${filterStatus === 'Atrasados' ? 'border-red-500/30 bg-red-500/5' : 'border-purple-500/30 bg-purple-500/5'}`}>
-                           <div className={`w-20 h-20 rounded-3xl grid place-items-center mb-2 ${filterStatus === 'Atrasados' ? 'bg-red-500 text-white shadow-[0_0_50px_rgba(239,68,68,0.3)]' : 'bg-purple-500 text-white shadow-[0_0_50px_rgba(168,85,247,0.3)]'}`}>
-                              {filterStatus === 'Atrasados' ? <AlertCircle size={40} /> : <Calendar size={40} />}
+                        <div className={`glass-card p-20 border flex flex-col items-center justify-center text-center gap-6 animate-pulse ${filterStatus === 'Atrasados' ? 'border-red-500/30 bg-red-500/5' : filterStatus === 'Hoje' ? 'border-purple-500/30 bg-purple-500/5' : 'border-line bg-black/40'}`}>
+                           <div className={`w-20 h-20 rounded-3xl grid place-items-center mb-2 ${filterStatus === 'Atrasados' ? 'bg-red-500 text-white shadow-[0_0_50px_rgba(239,68,68,0.3)]' : filterStatus === 'Hoje' ? 'bg-purple-500 text-white shadow-[0_0_50px_rgba(168,85,247,0.3)]' : 'bg-gold/10 text-gold border border-gold/20'}`}>
+                              {filterStatus === 'Atrasados' ? <AlertCircle size={40} /> : filterStatus === 'Hoje' ? <Calendar size={40} /> : <CheckCircle2 size={40} />}
                            </div>
                            <h3 className="text-3xl font-black italic uppercase text-white tracking-widest">
-                             {filterStatus === 'Atrasados' ? 'Nenhum Contrato em Atraso' : 'Sem Vencimentos Programados'}
+                             {filterStatus === 'Atrasados' 
+                               ? 'Nenhum Contrato em Atraso' 
+                               : filterStatus === 'Hoje' 
+                                 ? 'Sem Vencimentos Programados' 
+                                 : 'Nenhum Contrato Ativo'}
                            </h3>
                            <p className="max-w-md text-gray-500 font-bold uppercase text-[10px] tracking-[0.4em] leading-relaxed">
                              {filterStatus === 'Atrasados' 
                                ? 'Sua carteira de recebíveis está 100% em conformidade técnica. Não foram localizados registros de inadimplência pendente.' 
-                               : 'Não existem ciclos operacionais com vencimento datado para o presente momento.'}
+                               : filterStatus === 'Hoje' 
+                                 ? 'Não existem ciclos operacionais com vencimento datado para o presente momento.'
+                                 : 'Todos os contratos foram quitados integralmente e os cadastros dos clientes permanecem salvos na aba Clientes.'}
                            </p>
-                           <button onClick={() => setFilterStatus('Todos')} className="h-12 px-10 bg-white/5 border border-white/10 hover:bg-white/10 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all">
-                              Ver Todos os Contratos
-                           </button>
+                           {filterStatus !== 'Todos' && (
+                             <button onClick={() => setFilterStatus('Todos')} className="h-12 px-10 bg-white/5 border border-white/10 hover:bg-white/10 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer">
+                                Ver Todos os Contratos Ativos
+                             </button>
+                           )}
                         </div>
                       ) : (
                         <div className="glass-card border border-line-strong overflow-hidden bg-black/40 backdrop-blur-md">
@@ -2789,344 +2714,21 @@ Autenticação: ${targetSale.id.toUpperCase()}`;
                 </div>
               )}
 
-              {activeView === 'reports' && (() => {
-                const totalGross = activeSales.reduce((acc, s) => acc + (s.total || 0), 0);
-                const totalRealProfit = activeSales.reduce((acc, s) => acc + (s.profit || 0), 0);
-                const profitMargin = totalGross > 0 ? (totalRealProfit / totalGross) * 100 : 0;
-                const totalMonthlyProfit = activeSales.reduce((acc, s) => acc + (s.installmentValue || 0), 0);
-                const totalDownPayments = activeSales.reduce((acc, s) => acc + (s.downPayment || 0), 0);
-
-                return (
-                  <div className="flex flex-col gap-6 sm:gap-8 animate-view-enter">
-                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 px-1">
-                       <div>
-                          <h2 className="text-xl sm:text-3xl font-black tracking-tight text-white italic uppercase">Relatório de Resultados</h2>
-                          <p className="text-[9px] sm:text-[10px] text-gray-500 font-bold uppercase tracking-[0.3em] mt-1">Dados Consolidados do Ciclo Comercial Aberto</p>
-                       </div>
-                       <button
-                          onClick={handleDownloadReportPDF}
-                          className="flex items-center gap-2 px-6 h-11 bg-gold text-black hover:bg-gold/90 font-black uppercase text-[10px] tracking-widest rounded-xl transition-all shadow-lg shadow-gold/10 cursor-pointer active:scale-95 shrink-0 w-full sm:w-auto justify-center"
-                       >
-                          <FileText size={14} />
-                          Gerar Relatório (PDF)
-                       </button>
-                    </div>
-
-                    {/* Bento Grid dos Dados Atuais do Ciclo */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 sm:gap-6">
-                      <div className="glass-card p-5 border border-zinc-850 flex flex-col justify-between h-[155px] relative overflow-hidden group">
-                        <div className="absolute right-3 top-3 opacity-5 text-white"><DollarSign size={60} /></div>
-                        <span className="text-[9px] text-zinc-500 font-bold uppercase tracking-wider">Lucro Real (Líquido)</span>
-                        <strong className="text-xl font-black text-green-neon mt-2">{money(totalRealProfit)}</strong>
-                        <span className="text-[8px] text-zinc-400 mt-2 block leading-normal">Faturamento residual deduzida a aquisição</span>
-                      </div>
-
-                      <div className="glass-card p-5 border border-zinc-850 flex flex-col justify-between h-[155px] relative overflow-hidden group">
-                        <div className="absolute right-3 top-3 opacity-5 text-white"><Activity size={60} /></div>
-                        <span className="text-[9px] text-zinc-500 font-bold uppercase tracking-wider">Valor Bruto (Faturamento)</span>
-                        <strong className="text-xl font-black text-white mt-2">{money(totalGross)}</strong>
-                        <span className="text-[8px] text-zinc-400 mt-2 block leading-normal">Volume comercial integral contratualizado</span>
-                      </div>
-
-                      <div className="glass-card p-5 border border-zinc-850 flex flex-col justify-between h-[155px] relative overflow-hidden group">
-                        <div className="absolute right-3 top-3 opacity-5 text-white"><TrendingUp size={60} /></div>
-                        <span className="text-[9px] text-zinc-500 font-bold uppercase tracking-wider">Lucro em Cima (Margem)</span>
-                        <strong className="text-xl font-black text-blue-400 mt-2">{profitMargin.toFixed(2)}%</strong>
-                        <span className="text-[8px] text-zinc-400 mt-2 block leading-normal">Margem líquida sobre o volume de vendas</span>
-                      </div>
-
-                      <div className="glass-card p-5 border border-zinc-850 flex flex-col justify-between h-[155px] relative overflow-hidden group">
-                        <div className="absolute right-3 top-3 opacity-5 text-white"><Wallet size={60} /></div>
-                        <span className="text-[9px] text-zinc-500 font-bold uppercase tracking-wider">Lucro do Ciclo (Recebido)</span>
-                        <strong className="text-xl font-black text-gold mt-2">{money(totalMonthlyProfit)}</strong>
-                        <span className="text-[8px] text-zinc-400 mt-2 block leading-normal border-t border-white/5 pt-1">Total de parcelas recebidas no ciclo</span>
-                      </div>
-
-                      <div className="glass-card p-5 border border-zinc-850 flex flex-col justify-between h-[155px] relative overflow-hidden group">
-                        <div className="absolute right-3 top-3 opacity-5 text-white"><ShoppingBag size={60} /></div>
-                        <span className="text-[9px] text-zinc-500 font-bold uppercase tracking-wider">Vendas no Ciclo</span>
-                        <strong className="text-xl font-black text-zinc-100 mt-2">{activeSales.length} Uni.</strong>
-                        <span className="text-[8px] text-zinc-400 mt-2 block leading-normal">Volume físico de contratos ativos</span>
-                      </div>
-
-                      <div className="glass-card p-5 border border-zinc-850 flex flex-col justify-between h-[155px] relative overflow-hidden group">
-                        <div className="absolute right-3 top-3 opacity-5 text-white"><Wallet size={60} /></div>
-                        <span className="text-[9px] text-zinc-500 font-bold uppercase tracking-wider">Valor em Entradas</span>
-                        <strong className="text-xl font-black text-blue-400 mt-2">{money(totalDownPayments)}</strong>
-                        <span className="text-[8px] text-zinc-400 mt-2 block leading-normal">Montante imediato de caixas iniciais</span>
-                      </div>
-                    </div>
-
-                    {/* Detalhamento das Operações Ativas de Conferencia */}
-                    <div className="glass-card border border-line-strong overflow-hidden bg-black/40 backdrop-blur-md">
-                      <div className="p-6 border-b border-line-strong flex justify-between items-center sm:flex-row flex-col gap-4">
-                        <div>
-                          <h3 className="text-lg font-black italic uppercase text-white">Detalhamento das Operações Ativas</h3>
-                          <p className="text-[9px] text-gray-500 font-bold uppercase tracking-wider mt-0.5">Vendas individuais cadastradas neste ciclo</p>
-                        </div>
-                        <span className="px-3 py-1 rounded bg-zinc-800 text-zinc-300 text-[10px] font-black uppercase tracking-widest">{activeSales.length} Contratos</span>
-                      </div>
-
-                      {activeSales.length === 0 ? (
-                        <div className="p-12 text-center text-gray-500 uppercase font-black text-xs tracking-widest">
-                          Nenhuma venda registrada ou ativa para o período corrente.
-                        </div>
-                      ) : (
-                        <div className="overflow-x-auto custom-scrollbar">
-                          <table className="w-full text-left min-w-[750px]">
-                            <thead>
-                              <tr className="border-b border-line-strong text-[10px] uppercase text-zinc-500 font-black bg-white/2 h-12">
-                                <th className="p-4 pl-6">Cliente / Produto</th>
-                                <th className="p-4 text-center">Custo Unitário</th>
-                                <th className="p-4 text-center">Valor Bruto</th>
-                                <th className="p-4 text-center text-green-neon">Lucro Real</th>
-                                <th className="p-4 text-right pr-6">Rendimento (% margem)</th>
-                              </tr>
-                            </thead>
-                            <tbody className="divide-y divide-zinc-900">
-                              {activeSales.map((sale) => {
-                                const saleCost = sale.costPrice !== undefined ? sale.costPrice : ((sale.total || 0) - (sale.profit || 0));
-                                const saleMargin = sale.total > 0 ? ((sale.profit || 0) / sale.total) * 100 : 0;
-                                return (
-                                  <tr key={sale.id} className="hover:bg-white/[0.01] transition-colors h-14">
-                                    <td className="p-4 pl-6">
-                                      <div className="flex flex-col">
-                                        <span className="uppercase text-white font-bold tracking-wide text-xs">{sale.client}</span>
-                                        <span className="text-[9px] text-zinc-500 font-bold mt-0.5">{sale.productName}</span>
-                                      </div>
-                                    </td>
-                                    <td className="p-4 text-xs text-zinc-400 font-bold text-center">
-                                      {money(saleCost)}
-                                    </td>
-                                    <td className="p-4 text-sm text-zinc-100 font-bold text-center">
-                                      {money(sale.total || 0)}
-                                    </td>
-                                    <td className="p-4 text-sm font-black text-green-neon text-center">
-                                      {money(sale.profit || 0)}
-                                    </td>
-                                    <td className="p-4 text-sm font-black text-right text-blue-400 pr-6">
-                                      {saleMargin.toFixed(1)}% lucros
-                                    </td>
-                                  </tr>
-                                );
-                              })}
-                            </tbody>
-                          </table>
-                        </div>
-                      )}
-                    </div>
-
-                  {/* Seção de Fechamento de Caixa */}
-                  <div className="glass-card p-6 border border-amber-500/20 bg-amber-500/[0.02] rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-6">
-                    <div className="flex flex-col gap-2">
-                      <div className="flex items-center gap-2">
-                        <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
-                        <h3 className="text-sm font-black text-amber-200 uppercase tracking-wider">Consolidar Período e Fechar Caixa</h3>
-                      </div>
-                      <p className="text-xs text-amber-100/60 max-w-xl">
-                        Ao realizar o fechamento do caixa mensal, o montante de lucro atual de <strong className="text-gold font-bold">{money(activeSales.reduce((acc, s) => acc + (s.installmentValue || 0), 0))}</strong> e as informações deste ciclo serão arquivados. O card de lucros do dashboard será reiniciado em zero para iniciar um novo ciclo comercial.
-                      </p>
-                    </div>
-                    <div className="flex gap-3 shrink-0 items-center">
-                      <input 
-                        type="text"
-                        placeholder="Ex: Maio de 2026"
-                        id="closingPeriodInput"
-                        className="h-11 px-4 bg-black/60 border border-zinc-700 rounded-xl outline-none text-xs font-semibold text-white focus:border-gold min-w-[150px]"
-                      />
-                      <button
-                        onClick={() => {
-                          const inputEl = document.getElementById('closingPeriodInput') as HTMLInputElement;
-                          const periodVal = inputEl?.value?.trim() || `Ciclo - ${new Date().toLocaleDateString('pt-BR')}`;
-                          const currentActiveProfit = activeSales.reduce((acc, s) => acc + (s.installmentValue || 0), 0);
-                          const currentActiveRevenue = activeSales.reduce((acc, s) => acc + (s.total || 0), 0);
-                          const currentActiveCount = activeSales.length;
-
-                          if (currentActiveCount === 0) {
-                            showToast('Nenhuma operação ativa para ser fechada neste ciclo!');
-                            return;
-                          }
-                          if (confirm(`Confirmar encerramento de período? O lucro atual de ${money(currentActiveProfit)} será zerado e arquivado para iniciar um novo ciclo.`)) {
-                            closeMonthlyRegister(periodVal, currentActiveProfit, currentActiveRevenue, currentActiveCount);
-                            if (inputEl) inputEl.value = '';
-                            showToast('Encerramento efetuado com absoluto sucesso!');
-                          }
-                        }}
-                        className="h-11 px-6 bg-amber-500 hover:bg-amber-600 text-black font-black uppercase text-[10px] sm:text-xs tracking-wider rounded-xl transition-all shadow-lg active:scale-95"
-                      >
-                        Fechar Caixa
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Histórico de Fechamentos */}
-                  <div className="glass-card border border-line-strong overflow-hidden">
-                    <div className="p-6 border-b border-line-strong flex justify-between items-center">
-                      <div>
-                        <h3 className="text-lg font-black italic uppercase text-white">Ciclos Consolidados (Arquivados)</h3>
-                        <p className="text-[9px] text-gray-500 font-bold uppercase tracking-wider mt-0.5">Histórico completo de períodos encerrados</p>
-                      </div>
-                      <span className="px-3 py-1 rounded bg-zinc-800 text-zinc-300 text-[10px] font-black uppercase tracking-widest">{closings?.length || 0} Fechamentos</span>
-                    </div>
-
-                    {!closings || closings.length === 0 ? (
-                      <div className="p-12 text-center text-gray-500 uppercase font-black text-xs tracking-widest">
-                        Nenhum encerramento de caixa arquivado até o momento.
-                      </div>
-                    ) : (
-                      <div className="overflow-x-auto custom-scrollbar">
-                        <table className="w-full text-left min-w-[700px]">
-                          <thead>
-                            <tr className="border-b border-line text-[10px] uppercase text-zinc-500 font-black bg-white/2">
-                              <th className="p-5 font-black tracking-widest">Período Consolidado</th>
-                              <th className="p-5 font-black tracking-widest text-center">Data de Fechamento</th>
-                              <th className="p-5 font-black tracking-widest text-center">Quantidade de Vendas</th>
-                              <th className="p-5 font-black tracking-widest text-center">Capital Movimentado</th>
-                              <th className="p-5 font-black tracking-widest text-green-neon text-right">Lucro Líquido Arquivado</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-zinc-900">
-                            {closings
-                              .sort((a, b) => b.closedAt.localeCompare(a.closedAt))
-                              .map((c) => (
-                                <tr key={c.id} className="hover:bg-white/[0.01] transition-colors">
-                                  <td className="p-5 font-black text-sm text-white italic uppercase">
-                                    📁 {c.periodName}
-                                  </td>
-                                  <td className="p-5 text-xs text-zinc-400 font-bold uppercase text-center">
-                                    {new Date(c.closedAt).toLocaleString('pt-BR')}
-                                  </td>
-                                  <td className="p-5 text-sm text-zinc-200 font-bold text-center">
-                                    {c.salesCount} venda(s)
-                                  </td>
-                                  <td className="p-5 text-sm text-zinc-200 font-bold text-center">
-                                    {money(c.totalSales || 0)}
-                                  </td>
-                                  <td className="p-5 text-sm font-black text-green-neon text-right">
-                                    {money(c.profit || 0)}
-                                  </td>
-                                </tr>
-                              ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* OFFSCREEN PRINTABLE REPORT TEMPLATE */}
-                  <div className="absolute left-[-9999px] top-[-9999px]">
-                    <div id="report-pdf-content" className="bg-white p-12 text-zinc-900 w-[790px] font-sans flex flex-col gap-6" style={{ width: '790px' }}>
-                      
-                      {/* Header */}
-                      <div className="border-b-2 border-zinc-900 pb-4 flex justify-between items-end">
-                        <div>
-                          <h1 className="text-2xl font-extrabold uppercase tracking-tight text-zinc-900">Gestão de Vendas - Relatório Comercial</h1>
-                          <p className="text-xs font-semibold uppercase text-zinc-500 tracking-wider mt-1">NEXUS PRIVATE SYNERGY PLATFORM</p>
-                        </div>
-                        <div className="text-right">
-                          <span className="text-[10px] font-bold uppercase text-zinc-400 block">Gerado em:</span>
-                          <span className="text-xs font-bold text-zinc-700 block">{new Date().toLocaleString('pt-BR')}</span>
-                        </div>
-                      </div>
-
-                      {/* Operador Details */}
-                      <div className="bg-zinc-50 p-5 rounded-xl border border-zinc-150 grid grid-cols-2 gap-4 text-xs">
-                        <div>
-                          <span className="block text-[9px] text-zinc-400 font-bold uppercase tracking-wider">Operador Responsável</span>
-                          <strong className="block text-sm text-zinc-800 mt-1 uppercase">{settings.userName || 'N/A'}</strong>
-                          <span className="block text-zinc-500 mt-0.5">{settings.userRole || 'Operador'} - {settings.userFunction || 'N/A'}</span>
-                        </div>
-                        <div className="text-right">
-                          <span className="block text-[9px] text-zinc-400 font-bold uppercase tracking-wider">Contato Eletrônico</span>
-                          <strong className="block text-sm text-zinc-800 mt-1">{settings.userEmail || 'N/A'}</strong>
-                          <span className="block text-zinc-400 mt-0.5 text-[10px]">CICLO COMERCIAL ATUAL EM ABERTO</span>
-                        </div>
-                      </div>
-
-                      {/* Key Financial KPIs */}
-                      <div className="grid grid-cols-3 gap-4 my-2">
-                        <div className="p-5 border border-zinc-200 bg-zinc-50/50 rounded-xl text-center">
-                          <span className="text-[9px] text-zinc-400 font-bold uppercase tracking-widest block mb-1">Valor Bruto (Faturamento)</span>
-                          <strong className="text-xl font-black text-zinc-900">{money(totalGross)}</strong>
-                        </div>
-                        <div className="p-5 border border-zinc-200 bg-zinc-50/50 rounded-xl text-center">
-                          <span className="text-[9px] text-zinc-400 font-bold uppercase tracking-widest block mb-1 text-green-700 font-bold">Lucro Real (Líquido)</span>
-                          <strong className="text-xl font-black text-green-700">{money(totalRealProfit)}</strong>
-                        </div>
-                        <div className="p-5 border border-zinc-150 bg-zinc-100 rounded-xl text-center">
-                          <span className="text-[9px] text-zinc-400 font-bold uppercase tracking-widest block mb-1">Lucro em Cima (Margem)</span>
-                          <strong className="text-xl font-black text-blue-600">{profitMargin.toFixed(2)}%</strong>
-                        </div>
-                      </div>
-
-                      {/* Aux indicators */}
-                      <div className="grid grid-cols-3 gap-4 text-xs border-y border-zinc-100 py-3">
-                        <div>
-                          <span className="text-zinc-500 font-medium font-sans">Quantidade de Contratos:</span>
-                          <strong className="text-zinc-800 ml-1.5 font-sans">{activeSales.length} Uni.</strong>
-                        </div>
-                        <div className="text-center">
-                          <span className="text-zinc-500 font-medium font-sans">Sinal / Entradas:</span>
-                          <strong className="text-zinc-800 ml-1.5 font-sans">{money(totalDownPayments)}</strong>
-                        </div>
-                        <div className="text-right">
-                          <span className="text-zinc-500 font-medium font-sans">Lucro de Parcelas:</span>
-                          <strong className="text-zinc-800 ml-1.5 font-sans">{money(totalMonthlyProfit)}</strong>
-                        </div>
-                      </div>
-
-                      {/* Detailed Table */}
-                      <div className="mt-2 flex flex-col gap-3">
-                        <h3 className="text-xs font-black uppercase text-zinc-800 tracking-wider">Demonstrativo Detalhado de Vendas</h3>
-                        <table className="w-full text-xs text-left border-collapse border border-zinc-200 rounded-xl overflow-hidden">
-                          <thead>
-                            <tr className="bg-zinc-900 text-white text-[9px] uppercase font-bold text-center">
-                              <th className="p-3 text-left">Cliente / Produto</th>
-                              <th className="p-3">Custo Unitário</th>
-                              <th className="p-3">Valor Bruto</th>
-                              <th className="p-3">Lucro Real</th>
-                              <th className="p-3 text-right">Margem d'Lucro</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-zinc-200">
-                            {activeSales.map((sale) => {
-                              const saleCost = sale.costPrice !== undefined ? sale.costPrice : ((sale.total || 0) - (sale.profit || 0));
-                              const saleMargin = sale.total > 0 ? ((sale.profit || 0) / sale.total) * 100 : 0;
-                              return (
-                                <tr key={sale.id} className="text-center">
-                                  <td className="p-3 text-left font-bold text-zinc-900 border-r border-zinc-100">
-                                    <div className="flex flex-col">
-                                      <span className="uppercase text-zinc-900 font-bold text-xs">{sale.client}</span>
-                                      <span className="text-[8px] text-zinc-400 font-normal">{sale.productName}</span>
-                                    </div>
-                                  </td>
-                                  <td className="p-3 text-zinc-650">{money(saleCost)}</td>
-                                  <td className="p-3 text-zinc-800 font-semibold">{money(sale.total || 0)}</td>
-                                  <td className="p-3 font-bold text-green-700">{money(sale.profit || 0)}</td>
-                                  <td className="p-3 text-right font-bold text-zinc-550">{saleMargin.toFixed(1)}%</td>
-                                </tr>
-                              );
-                            })}
-                          </tbody>
-                        </table>
-                      </div>
-
-                      {/* Footer / Signatures */}
-                      <div className="mt-12 border-t border-zinc-200 pt-6 flex justify-between items-center text-[10px] text-zinc-400 uppercase font-mono">
-                        <div>
-                          <span>CONCILIAÇÃO COMERCIAL AUTOMATIZADA</span>
-                        </div>
-                        <div>
-                          <span>PÁGINA 1 DE 1</span>
-                        </div>
-                      </div>
-
-                    </div>
-                  </div>
-
-                </div>
-              );
-            })()}
+              {activeView === 'reports' && (
+                <MonthlyInstallmentsReport
+                  sales={sales}
+                  activeSales={activeSales}
+                  installments={installments}
+                  closings={closings}
+                  settings={settings}
+                  money={money}
+                  onPayInstallment={(inst) => setSelectedInstallmentForPayment(inst)}
+                  onViewReceipt={(inst) => setSelectedInstallmentForReceipt(inst)}
+                  onDownloadPDF={handleDownloadReportPDF}
+                  onCloseRegister={closeMonthlyRegister}
+                  showToast={showToast}
+                />
+              )}
 
               {activeView === 'simulation' && (
                 <div className="grid grid-cols-1 lg:grid-cols-[440px_1fr] gap-6 sm:gap-10 animate-view-enter">

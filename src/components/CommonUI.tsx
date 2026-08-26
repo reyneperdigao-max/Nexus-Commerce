@@ -3,14 +3,21 @@ import { Product, Sale, Installment } from '../types';
 
 export function Logo({ className = "", showText = true }: { className?: string, showText?: boolean }) {
   return (
-    <div className={`flex items-center gap-3 sm:gap-4 ${className} overflow-hidden`}>
-      <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-gradient-to-br from-gold to-yellow-600 flex items-center justify-center text-black font-black text-lg sm:text-xl shadow-[0_0_20px_rgba(255,215,0,0.3)] shrink-0 transition-transform hover:rotate-12">
+    <div className={`flex items-center gap-3 sm:gap-3.5 ${className} overflow-hidden`}>
+      <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-gradient-to-br from-gold via-amber-400 to-yellow-600 flex items-center justify-center text-black font-black text-base sm:text-lg shadow-[0_0_24px_rgba(255,215,0,0.25)] border border-gold/40 shrink-0 transition-transform duration-300 hover:scale-105">
         NC
       </div>
       {showText && (
-        <div className="flex flex-col">
-          <h2 className="text-lg sm:text-xl font-black text-white tracking-widest leading-none shrink-0 uppercase">NEXUS <span className="text-white/60">COMMERCE</span></h2>
-          <span className="text-[8px] sm:text-[10px] text-gold font-bold uppercase tracking-[0.3em] mt-1 shrink-0">GESTÃO DE VENDAS</span>
+        <div className="flex flex-col min-w-0">
+          <h2 className="text-base sm:text-lg font-black text-white tracking-widest leading-none shrink-0 uppercase">
+            NEXUS <span className="text-white/50 font-extrabold">COMMERCE</span>
+          </h2>
+          <div className="flex items-center gap-1.5 mt-1">
+            <span className="w-1.5 h-1.5 rounded-full bg-gold animate-pulse" />
+            <span className="text-[8px] sm:text-[9px] text-gold font-black uppercase tracking-[0.25em] shrink-0">
+              SISTEMA EXECUTIVO
+            </span>
+          </div>
         </div>
       )}
     </div>
@@ -25,31 +32,40 @@ export function Topbar({ onOpenSettings, onOpenMobileMenu, onToggleDesktopSideba
   viewTitle: string;
 }) {
   return (
-    <header className="h-16 sm:h-20 bg-black/80 backdrop-blur-md border-b border-line-strong px-4 sm:px-10 flex items-center justify-between sticky top-0 z-40">
+    <header className="h-16 sm:h-20 bg-black/85 backdrop-blur-2xl border-b border-white/[0.08] px-4 sm:px-8 flex items-center justify-between sticky top-0 z-40">
       <div className="flex items-center gap-3 sm:gap-4 overflow-hidden">
         {/* Mobile menu button */}
-        <button onClick={onOpenMobileMenu} className="sm:hidden w-10 h-10 rounded-xl border border-line flex items-center justify-center text-gray-400 active:scale-90 transition-transform">
+        <button 
+          onClick={onOpenMobileMenu} 
+          className="sm:hidden w-10 h-10 rounded-xl bg-card border border-white/[0.08] flex items-center justify-center text-gray-300 active:scale-90 transition-transform cursor-pointer"
+        >
           <Menu size={20} />
         </button>
 
         {/* Desktop toggle button to fully hide/show sidebar */}
         <button 
           onClick={onToggleDesktopSidebar} 
-          className="hidden sm:flex w-10 h-10 rounded-xl border border-line-strong bg-card items-center justify-center text-gray-400 hover:text-gold hover:border-gold/30 transition-all active:scale-90"
+          className="hidden sm:flex w-10 h-10 rounded-xl border border-white/[0.08] bg-white/[0.03] hover:bg-white/[0.06] items-center justify-center text-gray-300 hover:text-gold hover:border-gold/30 transition-all active:scale-90 cursor-pointer"
           title={desktopSidebarOpen ? "Ocultar Menu Lateral" : "Exibir Menu Lateral"}
         >
-          <Menu size={20} />
+          <Menu size={18} />
         </button>
 
-        <h2 className="text-sm sm:text-lg font-black text-white italic uppercase tracking-tight truncate">{viewTitle}</h2>
+        <div className="flex items-center gap-2">
+          <span className="hidden sm:inline-block w-1.5 h-4 bg-gold rounded-full" />
+          <h2 className="text-sm sm:text-base font-black text-white uppercase tracking-wider truncate">
+            {viewTitle}
+          </h2>
+        </div>
       </div>
 
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-3">
         <button 
           onClick={onOpenSettings}
-          className="w-10 h-10 bg-card border border-line rounded-xl flex items-center justify-center text-gray-400 hover:text-gold hover:border-gold/30 transition-all group active:scale-90"
+          className="w-10 h-10 bg-white/[0.03] border border-white/[0.08] hover:border-gold/30 hover:bg-white/[0.06] rounded-xl flex items-center justify-center text-gray-300 hover:text-gold transition-all group active:scale-90 cursor-pointer"
+          title="Configurações do Sistema"
         >
-          <SettingsIcon size={20} className="group-hover:rotate-90 transition-transform duration-500" />
+          <SettingsIcon size={18} className="group-hover:rotate-90 transition-transform duration-500" />
         </button>
       </div>
     </header>
@@ -83,13 +99,6 @@ export function DashboardStats({ products, sales, installments, closings = [], o
 
   const currentProfit = monthlyDownPayments + monthlyPaidInstallments;
   const receivablesValue = installments.filter(i => i.status === 'Pendente').reduce((acc, i) => acc + i.value, 0);
-
-  // Capital Investido nos Produtos em Estoque
-  const investedCapital = products.reduce((acc, p) => {
-    const qty = Math.max(0, p.quantity !== undefined ? p.quantity : (p.status === 'Disponivel' ? 1 : 0));
-    const cost = Number(p.cost) || 0;
-    return acc + (cost * qty);
-  }, 0);
 
   // Health Rate (Credit / Adimplência Index)
   const paidCount = installments.filter(i => i.status === 'Pago').length;
@@ -131,16 +140,6 @@ export function DashboardStats({ products, sales, installments, closings = [], o
     return sortedPending.slice(0, 10).map(i => i.value);
   };
 
-  const getProductCostTrendPoints = (): number[] => {
-    const valid = products
-      .map(p => (Number(p.cost) || 0) * Math.max(0, p.quantity !== undefined ? p.quantity : (p.status === 'Disponivel' ? 1 : 0)))
-      .filter(val => val > 0);
-    if (valid.length < 3) {
-      return [120, 280, 210, 390, 320, 480, 410, 560];
-    }
-    return valid.slice(-10);
-  };
-
   const drawSparkline = (points: number[], width = 140, height = 36) => {
     if (points.length < 2) return "";
     const min = Math.min(...points);
@@ -165,57 +164,7 @@ export function DashboardStats({ products, sales, installments, closings = [], o
   const gaugeOffset = gaugeCircumference - (healthRate / 100) * gaugeCircumference;
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 sm:gap-5 px-1">
-      
-      {/* Bento Card: Capital Investido */}
-      <div 
-        onClick={() => onNavigate('stock')}
-        className="glass-card group p-5 sm:p-6 flex flex-col justify-between border border-white/5 hover:border-amber-500/30 transition-all duration-500 hover:scale-[1.02] hover:-translate-y-1 relative overflow-hidden cursor-pointer active:scale-95 min-h-[160px]"
-      >
-        <div className="absolute -right-6 -top-6 w-32 h-32 rounded-full blur-3xl opacity-0 group-hover:opacity-10 transition-opacity duration-700 bg-amber-500" />
-        
-        <div className="flex items-center justify-between relative z-10">
-          <div className="w-11 h-11 rounded-xl flex items-center justify-center bg-amber-500/10 border border-amber-500/20 group-hover:border-amber-500/40 transition-all duration-500">
-            <Boxes size={20} className="text-amber-400 group-hover:scale-110 transition-transform duration-500" />
-          </div>
-          
-          {/* Glowing mini path */}
-          <div className="opacity-60 group-hover:opacity-100 transition-opacity duration-500">
-            <svg width="100" height="28" viewBox="0 0 100 28" className="overflow-visible">
-              <defs>
-                <linearGradient id="amber-grad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#f59e0b" stopOpacity="0.3" />
-                  <stop offset="100%" stopColor="#f59e0b" stopOpacity="0" />
-                </linearGradient>
-              </defs>
-              <path 
-                d={drawSparklineArea(getProductCostTrendPoints(), 100, 28)} 
-                fill="url(#amber-grad)" 
-              />
-              <path 
-                d={drawSparkline(getProductCostTrendPoints(), 100, 28)} 
-                fill="none" 
-                stroke="#f59e0b" 
-                strokeWidth="2" 
-                strokeLinecap="round" 
-                strokeLinejoin="round" 
-              />
-            </svg>
-          </div>
-        </div>
-
-        <div className="relative z-10 mt-2">
-          <span className="text-[10px] font-bold uppercase tracking-[0.2em] mb-1 block text-white/40">Capital Investido</span>
-          <strong className="text-2xl sm:text-3xl font-black block text-amber-400 group-hover:text-amber-300 transition-colors duration-500">
-            {money(investedCapital)}
-          </strong>
-          <div className="flex items-center gap-2 mt-2">
-            <div className="w-1.5 h-1.5 rounded-full bg-amber-400 shadow-[0_0_8px_#f59e0b]" />
-            <p className="text-[10px] font-bold uppercase tracking-wider text-white/30">Total em Produtos</p>
-          </div>
-        </div>
-      </div>
-      
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-4 gap-4 sm:gap-5 px-1">
       {/* Bento Card 1: Valores a Receber */}
       <div 
         onClick={() => onNavigate('sales')}
