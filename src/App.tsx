@@ -9,6 +9,7 @@ import { AnimatePresence, motion } from 'motion/react';
 import { Boxes, Plus, X, Search, ImagePlus, User, Wallet, ShoppingBag, ArrowLeft, ArrowRight, BadgeDollarSign, Activity, Zap, History, ChevronDown, Pencil, FileText, Download, DollarSign, Share2, Calculator, Package, MessageCircle, ShieldCheck, Lock, Mail, Image as ImageIcon, AlertCircle, Calendar, Camera, Trash2, Minus, TrendingUp, Percent, Printer, Copy, Check, CheckCircle2, ExternalLink, SlidersHorizontal } from 'lucide-react';
 import html2pdf from 'html2pdf.js';
 import { downloadContractAsPDF, fallbackPrintContract, shareContractFile, downloadReceiptAsPDF } from './lib/pdfGenerator';
+import { formatLocalDateBR, getLocalDateString, getFutureLocalDateString, extractDueDay, parseDateToMidnight } from './lib/dateUtils';
 import { auth } from './lib/firebase';
 import { signInAnonymously, onAuthStateChanged } from 'firebase/auth';
 
@@ -694,16 +695,17 @@ export default function App() {
     const company = (settings.companyName || settings.userName || 'GESTÃO DE VENDAS').toUpperCase();
     const sellerName = (settings.userName || (settings.currentOperator === 'operator2' ? settings.op2Name : settings.op1Name) || settings.companyName || 'VENDEDOR RESPONSÁVEL').toUpperCase();
     const cleanId = (targetSale.id || '').substring(0, 8).toUpperCase();
-    const dateFormatted = targetSale.date ? new Date(targetSale.date).toLocaleDateString('pt-BR') : new Date().toLocaleDateString('pt-BR');
+    const dateFormatted = formatLocalDateBR(targetSale.date || targetSale.createdAt || new Date());
     
     let dueDay = '—';
-    if (targetSale.date) {
-      dueDay = String(new Date(targetSale.date).getUTCDate());
-    } else if (installments && installments.length > 0) {
+    if (installments && installments.length > 0) {
       const matchingInst = installments.find(i => i.saleId === targetSale.id);
       if (matchingInst?.dueDate) {
-        dueDay = String(new Date(matchingInst.dueDate).getUTCDate());
+        dueDay = extractDueDay(matchingInst.dueDate);
       }
+    }
+    if (dueDay === '—' && targetSale.date) {
+      dueDay = extractDueDay(targetSale.date);
     }
 
     const isInterest = !!targetSale.isInterestOnly;
@@ -833,7 +835,7 @@ Autenticação: ${targetSale.id.toUpperCase()}`;
     text += `(Considerando a entrada + as ${sale.installmentsCount} parcelas para compor o total)\n\n`;
     
     saleInsts.forEach((inst, idx) => {
-      const dueDate = new Date(inst.dueDate).toLocaleDateString('pt-BR');
+      const dueDate = formatLocalDateBR(inst.dueDate);
       const statusIcon = inst.status === 'Pago' ? ' ✅' : '';
       text += `• ${String(idx + 1).padStart(2, '0')}º Vencimento: ${dueDate}${statusIcon}\n`;
     });
@@ -848,7 +850,7 @@ Autenticação: ${targetSale.id.toUpperCase()}`;
     
     const formattedParcela = `${inst.number}/${inst.total || sale.installmentsCount}`;
     const formattedValor = money(inst.value);
-    const formattedVencimento = new Date(inst.dueDate).toLocaleDateString('pt-BR');
+    const formattedVencimento = formatLocalDateBR(inst.dueDate);
     
     const text = template
       .replace(/{cliente}/g, inst.client || sale.client || 'Cliente')
@@ -867,13 +869,7 @@ Autenticação: ${targetSale.id.toUpperCase()}`;
 
   const getWhatsAppShareLink = (tx: any) => {
     const valueStr = money(tx.value);
-    const dateStr = new Date(tx.date).toLocaleDateString('pt-BR', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
+    const dateStr = formatLocalDateBR(tx.date, { showTime: true });
     
     const typeLabel = tx.type === 'entrada' ? 'Valor de Entrada' : `Parcela ${tx.installmentDetails?.number}/${tx.installmentDetails?.total}`;
 
@@ -924,8 +920,7 @@ Autenticação: ${targetSale.id.toUpperCase()}`;
     if (filterStatus === 'Atrasados') {
       const hasOverdue = sInsts.some(i => {
         if (i.status !== 'Pendente') return false;
-        const d = new Date(i.dueDate);
-        d.setHours(0,0,0,0);
+        const d = parseDateToMidnight(i.dueDate);
         return d.getTime() < todayTime.getTime();
       });
       return matchesSearch && hasOverdue;
@@ -934,8 +929,7 @@ Autenticação: ${targetSale.id.toUpperCase()}`;
     if (filterStatus === 'Hoje') {
       const hasDueToday = sInsts.some(i => {
         if (i.status !== 'Pendente') return false;
-        const d = new Date(i.dueDate);
-        d.setHours(0,0,0,0);
+        const d = parseDateToMidnight(i.dueDate);
         return d.getTime() === todayTime.getTime();
       });
       return matchesSearch && hasDueToday;
@@ -945,7 +939,7 @@ Autenticação: ${targetSale.id.toUpperCase()}`;
   });
   const filteredInstallments = installments.filter(i => {
     const matchesSearch = !searchTerm || [i.client, i.productName, i.status].some(v => v.toLowerCase().includes(searchTerm.toLowerCase()));
-    const day = (new Date(i.dueDate).getUTCDate()).toString();
+    const day = extractDueDay(i.dueDate);
     return matchesSearch && (!filterDay || day === filterDay);
   });
   const clientsList = Array.from(new Set(sales.map(s => s.client))) as string[];
@@ -1374,8 +1368,7 @@ Autenticação: ${targetSale.id.toUpperCase()}`;
                                              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-3">
                                                 {installments.filter(i => i.saleId === sale.id).sort((a,b) => a.number - b.number).map(inst => {
                                                    const isPaid = inst.status === 'Pago';
-                                                   const dueDateObj = new Date(inst.dueDate);
-                                                   dueDateObj.setHours(0,0,0,0);
+                                                   const dueDateObj = parseDateToMidnight(inst.dueDate);
                                                    
                                                    const isOverdue = !isPaid && dueDateObj.getTime() < todayTime.getTime();
                                                    const isDueToday = !isPaid && dueDateObj.getTime() === todayTime.getTime();
@@ -1412,7 +1405,7 @@ Autenticação: ${targetSale.id.toUpperCase()}`;
                                                          </div>
                                                          <div>
                                                             <p className="text-[13px] font-bold text-white tracking-wide">{money(inst.value)}</p>
-                                                            <p className="text-[9px] font-black text-gray-500 uppercase mt-0.5">{new Date(inst.dueDate).toLocaleDateString('pt-BR')}</p>
+                                                            <p className="text-[9px] font-black text-gray-500 uppercase mt-0.5">{formatLocalDateBR(inst.dueDate)}</p>
                                                          </div>
                                                          <div className="absolute inset-0 bg-[rgba(0,0,0,0.85)] flex items-center justify-center p-3 opacity-0 group-hover/inst:opacity-100 transition-all rounded-2xl backdrop-blur-sm">
                                                             {inst.status === 'Pendente' && (<>
@@ -1919,7 +1912,8 @@ Autenticação: ${targetSale.id.toUpperCase()}`;
                           clientCpf: f.clientCpf.value, 
                           clientAddress: f.clientAddress?.value || "",
                           installments: Number(f.installments.value), 
-                          firstDueDate: f.date.value, 
+                          saleDate: f.saleDate?.value || getLocalDateString(),
+                          firstDueDate: f.firstDueDate?.value || f.date?.value || getFutureLocalDateString(30), 
                           percentageAdjustment: 0, 
                           manualSalePrice: Number(f.manualSalePrice.value), 
                           downPayment: Number(f.downPayment.value),
@@ -1975,7 +1969,7 @@ Autenticação: ${targetSale.id.toUpperCase()}`;
                            <input name="clientAddress" defaultValue={saleToEdit?.clientAddress || ''} placeholder="Ex: Av. Paulista, 1000, Apto 12 - São Paulo / SP" className="h-12 sm:h-14 bg-[rgba(0,0,0,0.4)] border border-line-strong rounded-xl sm:rounded-2xl px-5 sm:px-6 outline-none focus:border-gold transition-all font-bold text-xs sm:text-sm" />
                         </div>
 
-                        <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 sm:gap-6">
+                        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 sm:gap-6">
                            <div className="flex flex-col gap-2">
                               <label className="text-[9px] sm:text-[10px] font-black text-gray-500 uppercase ml-3">Preço de Custo</label>
                               <div className="relative">
@@ -2002,8 +1996,12 @@ Autenticação: ${targetSale.id.toUpperCase()}`;
                               <input name="installments" type="number" defaultValue={saleToEdit?.installmentsCount || "12"} className="h-12 sm:h-14 bg-[rgba(0,0,0,0.4)] border border-line-strong rounded-xl sm:rounded-2xl px-5 sm:px-6 outline-none focus:border-gold transition-all font-black text-xs sm:text-sm" />
                            </div>
                            <div className="flex flex-col gap-2">
+                              <label className="text-[9px] sm:text-[10px] font-black text-gold uppercase ml-3">Data da Compra</label>
+                              <input name="saleDate" type="date" required defaultValue={saleToEdit?.date ? getLocalDateString(saleToEdit.date) : getLocalDateString()} className="h-12 sm:h-14 bg-[rgba(255,215,0,0.05)] border border-[rgba(255,215,0,0.3)] rounded-xl sm:rounded-2xl px-4 sm:px-5 outline-none focus:border-gold transition-all font-bold text-xs sm:text-sm text-gold" />
+                           </div>
+                           <div className="flex flex-col gap-2">
                               <label className="text-[9px] sm:text-[10px] font-black text-gray-500 uppercase ml-3">1º Vencimento</label>
-                              <input name="date" type="date" required defaultValue={saleToEdit?.date ? new Date(saleToEdit.date).toISOString().split('T')[0] : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]} className="h-12 sm:h-14 bg-[rgba(0,0,0,0.4)] border border-line-strong rounded-xl sm:rounded-2xl px-5 sm:px-6 outline-none focus:border-gold transition-all font-bold text-xs sm:text-sm" />
+                              <input name="firstDueDate" type="date" required defaultValue={getFutureLocalDateString(30)} className="h-12 sm:h-14 bg-[rgba(0,0,0,0.4)] border border-line-strong rounded-xl sm:rounded-2xl px-4 sm:px-5 outline-none focus:border-gold transition-all font-bold text-xs sm:text-sm" />
                            </div>
                         </div>
 
@@ -2216,7 +2214,7 @@ Autenticação: ${targetSale.id.toUpperCase()}`;
                                                 {/* ATIVO */}
                                                 <td className="p-4 text-center cursor-pointer" onClick={() => setExpandedSaleId(isExpanded ? null : sale.id)}>
                                                    <span className="text-xs font-bold text-gray-300 uppercase block">{sale.productName}</span>
-                                                   <span className="text-[8px] text-gray-650 font-black uppercase tracking-wider block mt-0.5">Lançamento</span>
+                                                   <span className="text-[8px] text-gray-500 font-black uppercase tracking-wider block mt-0.5">Venda: {formatLocalDateBR(sale.date || sale.createdAt)}</span>
                                                 </td>
 
                                                 {/* VALOR TOTAL */}
@@ -2380,8 +2378,7 @@ Autenticação: ${targetSale.id.toUpperCase()}`;
                                                             <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-3">
                                                                {sInstallments.sort((a,b) => a.number - b.number).map(inst => {
                                                                   const isPaid = inst.status === 'Pago';
-                                                                  const dueDateObj = new Date(inst.dueDate);
-                                                                  dueDateObj.setHours(0,0,0,0);
+                                                                  const dueDateObj = parseDateToMidnight(inst.dueDate);
                                                                   
                                                                   const isOverdue = !isPaid && dueDateObj.getTime() < todayTime.getTime();
                                                                   const isDueToday = !isPaid && dueDateObj.getTime() === todayTime.getTime();
@@ -2418,7 +2415,7 @@ Autenticação: ${targetSale.id.toUpperCase()}`;
                                                                         </div>
                                                                         <div>
                                                                            <p className="text-[13px] font-bold text-white tracking-wide">{money(inst.value)}</p>
-                                                                           <p className="text-[9px] font-black text-gray-500 uppercase mt-0.5">{new Date(inst.dueDate).toLocaleDateString('pt-BR')}</p>
+                                                                           <p className="text-[9px] font-black text-gray-500 uppercase mt-0.5">{formatLocalDateBR(inst.dueDate)}</p>
                                                                         </div>
                                                                         <div className="absolute inset-0 bg-[rgba(0,0,0,0.85)] flex items-center justify-center p-3 opacity-0 group-hover/inst:opacity-100 transition-all rounded-xl backdrop-blur-sm">
                                                                            {inst.status === 'Pendente' && (<>
@@ -2657,13 +2654,7 @@ Autenticação: ${targetSale.id.toUpperCase()}`;
                                 </td>
                                 <td className="p-4">
                                   <span className="text-gray-400 text-xs font-sans">
-                                    {new Date(tx.date).toLocaleDateString('pt-BR', {
-                                      day: '2-digit',
-                                      month: '2-digit',
-                                      year: 'numeric',
-                                      hour: '2-digit',
-                                      minute: '2-digit'
-                                    })}
+                                    {formatLocalDateBR(tx.date, { showTime: true })}
                                   </span>
                                 </td>
                                 <td className="p-4 text-right">
@@ -3561,16 +3552,17 @@ Autenticação: ${targetSale.id.toUpperCase()}`;
                     const company = (settings.companyName || settings.userName || 'GESTÃO DE VENDAS').toUpperCase();
                     const sellerName = (settings.userName || (settings.currentOperator === 'operator2' ? settings.op2Name : settings.op1Name) || settings.companyName || 'VENDEDOR RESPONSÁVEL').toUpperCase();
                     const cleanId = selectedSaleForContract.id.substring(0, 8).toUpperCase();
-                    const dateFormatted = selectedSaleForContract.date ? new Date(selectedSaleForContract.date).toLocaleDateString('pt-BR') : new Date().toLocaleDateString('pt-BR');
+                    const dateFormatted = formatLocalDateBR(selectedSaleForContract.date || selectedSaleForContract.createdAt || new Date());
                     
                     let dueDay = '—';
-                    if (selectedSaleForContract.date) {
-                      dueDay = String(new Date(selectedSaleForContract.date).getUTCDate());
-                    } else if (installments && installments.length > 0) {
+                    if (installments && installments.length > 0) {
                       const matchingInst = installments.find(i => i.saleId === selectedSaleForContract.id);
                       if (matchingInst?.dueDate) {
-                        dueDay = String(new Date(matchingInst.dueDate).getUTCDate());
+                        dueDay = extractDueDay(matchingInst.dueDate);
                       }
+                    }
+                    if (dueDay === '—' && selectedSaleForContract.date) {
+                      dueDay = extractDueDay(selectedSaleForContract.date);
                     }
 
                     const downPayment = selectedSaleForContract.downPayment || 0;
@@ -3786,7 +3778,7 @@ Autenticação: ${targetSale.id.toUpperCase()}`;
                       </div>
                       <div className="text-left sm:text-right flex flex-col sm:items-end gap-1">
                         <span className="px-3 py-1 bg-zinc-100 rounded-lg text-[9px] font-mono text-zinc-750 font-black uppercase tracking-wider block">ID: {cleanId.substring(0, 12)}</span>
-                        <span className="text-[10px] font-bold text-zinc-500 uppercase mt-1">Emitido em: {new Date(transactionDate).toLocaleDateString('pt-BR')} às {new Date(transactionDate).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
+                        <span className="text-[10px] font-bold text-zinc-500 uppercase mt-1">Emitido em: {formatLocalDateBR(transactionDate, { showTime: true })}</span>
                       </div>
                     </div>
 
@@ -3854,7 +3846,7 @@ Autenticação: ${targetSale.id.toUpperCase()}`;
                         <div className="grid grid-cols-1 sm:grid-cols-2 p-3 sm:p-4 gap-1 hover:bg-zinc-50/30 transition-colors">
                           <span className="text-zinc-500 font-semibold uppercase text-[10px]">Vencimento Nominal da Parcela:</span>
                           <span className="text-zinc-950 font-bold">
-                            {selectedInstallmentForReceipt.dueDate ? new Date(selectedInstallmentForReceipt.dueDate).toLocaleDateString('pt-BR') : new Date(transactionDate).toLocaleDateString('pt-BR')}
+                            {formatLocalDateBR(selectedInstallmentForReceipt.dueDate || transactionDate)}
                           </span>
                         </div>
                         <div className="grid grid-cols-1 sm:grid-cols-2 p-3 sm:p-4 gap-1 hover:bg-zinc-50/30 transition-colors">
@@ -4287,7 +4279,7 @@ Autenticação: ${targetSale.id.toUpperCase()}`;
                                   Parcela {inst.number}
                                 </span>
                                 <span className="text-[9px] font-bold text-zinc-400 uppercase">
-                                  Venc: {new Date(inst.dueDate).toLocaleDateString('pt-BR')}
+                                  Venc: {formatLocalDateBR(inst.dueDate)}
                                 </span>
                               </div>
                               <span className="text-[11px] text-zinc-400 font-medium">

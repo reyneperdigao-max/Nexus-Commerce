@@ -1,13 +1,14 @@
 import { useState, useEffect } from 'react';
 import { Product, Sale, Installment, Settings, Closing } from './types';
 import { db, handleFirestoreError, OperationType, cleanData } from './lib/firebase';
+import { getLocalDateString } from './lib/dateUtils';
 import { 
   collection, 
   onSnapshot, 
   doc, 
   setDoc, 
   deleteDoc, 
-  updateDoc,
+  updateDoc, 
   writeBatch
 } from 'firebase/firestore';
 
@@ -204,6 +205,7 @@ export function useNexusState() {
     clientCpf: string;
     clientAddress?: string;
     installments: number;
+    saleDate?: string;
     firstDueDate: string;
     percentageAdjustment: number;
     manualSalePrice: number;
@@ -230,6 +232,7 @@ export function useNexusState() {
     const costForProfit = data.costPrice !== undefined ? data.costPrice : (product.cost || 0);
     const profit = finalTotal - costForProfit;
 
+    const actualSaleDate = data.saleDate || getLocalDateString();
     const saleId = crypto.randomUUID();
     const newSale: Sale = {
       id: saleId,
@@ -244,7 +247,7 @@ export function useNexusState() {
       profit: profit,
       installmentsCount: data.installments,
       installmentValue: installmentValue,
-      date: data.firstDueDate,
+      date: actualSaleDate,
       status: 'Ativa',
       createdAt: new Date().toISOString(),
       isInterestOnly: data.isInterestOnly || false,
@@ -270,7 +273,7 @@ export function useNexusState() {
 
     const [y, m, d] = data.firstDueDate.split('-').map(Number);
     for (let i = 1; i <= data.installments; i++) {
-      const dueDate = new Date(y, m - 1 + (i - 1), d, 12);
+      const dueDate = new Date(y, m - 1 + (i - 1), d, 12, 0, 0);
       if (dueDate.getDate() !== d) dueDate.setDate(0);
       
       const instId = crypto.randomUUID();
@@ -462,6 +465,7 @@ export function useNexusState() {
     clientCpf: string;
     clientAddress?: string;
     installments: number;
+    saleDate?: string;
     firstDueDate: string;
     percentageAdjustment: number;
     manualSalePrice: number;
@@ -493,6 +497,7 @@ export function useNexusState() {
 
     const batch = writeBatch(db);
 
+    const updatedSaleDate = data.saleDate || sale.date || getLocalDateString();
     const updatedSale: Partial<Sale> = {
       client: data.client,
       clientPhone: data.clientPhone,
@@ -503,7 +508,7 @@ export function useNexusState() {
       profit: profit,
       installmentsCount: data.installments,
       installmentValue: installmentValue,
-      date: data.firstDueDate,
+      date: updatedSaleDate,
       isInterestOnly: data.isInterestOnly || false,
       interestRate: data.interestRate || 0,
       costPrice: costForProfit
@@ -513,11 +518,11 @@ export function useNexusState() {
 
     const needsRegen = sale.installmentsCount !== data.installments || 
                        sale.total !== finalTotal || 
-                       sale.date !== data.firstDueDate ||
                        sale.isInterestOnly !== data.isInterestOnly ||
-                       sale.interestRate !== data.interestRate;
+                       sale.interestRate !== data.interestRate ||
+                       (data.firstDueDate && data.firstDueDate !== '');
 
-    if (needsRegen) {
+    if (needsRegen && data.firstDueDate) {
       // Delete old
       installments.filter(i => i.saleId === id).forEach(i => {
         batch.delete(doc(db, 'installments', i.id));
@@ -525,7 +530,7 @@ export function useNexusState() {
 
       const [y, m, d] = data.firstDueDate.split('-').map(Number);
       for (let i = 1; i <= data.installments; i++) {
-        const dueDate = new Date(y, m - 1 + (i - 1), d, 12);
+        const dueDate = new Date(y, m - 1 + (i - 1), d, 12, 0, 0);
         if (dueDate.getDate() !== d) dueDate.setDate(0);
         
         const instId = crypto.randomUUID();

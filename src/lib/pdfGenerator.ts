@@ -1,5 +1,6 @@
 import { jsPDF } from 'jspdf';
 import { Sale, Settings, Installment } from '../types';
+import { formatLocalDateBR, extractDueDay } from './dateUtils';
 
 const money = (val: number) =>
   new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val || 0);
@@ -15,17 +16,18 @@ export function createContractPDFDoc(
   const doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
   const companyName = (settings.companyName || settings.userName || 'GESTÃO DE VENDAS').toUpperCase();
   const sellerName = (settings.userName || (settings.currentOperator === 'operator2' ? settings.op2Name : settings.op1Name) || settings.companyName || 'VENDEDOR RESPONSÁVEL').toUpperCase();
-  const dateFormatted = sale.date ? new Date(sale.date).toLocaleDateString('pt-BR') : new Date().toLocaleDateString('pt-BR');
+  const dateFormatted = formatLocalDateBR(sale.date || sale.createdAt || new Date());
   const cleanId = (sale.id || '').substring(0, 8).toUpperCase();
   
   let dueDay = '—';
-  if (sale.date) {
-    dueDay = String(new Date(sale.date).getUTCDate());
-  } else if (installments && installments.length > 0) {
+  if (installments && installments.length > 0) {
     const matchingInst = installments.find(i => i.saleId === sale.id);
     if (matchingInst?.dueDate) {
-      dueDay = String(new Date(matchingInst.dueDate).getUTCDate());
+      dueDay = extractDueDay(matchingInst.dueDate);
     }
+  }
+  if (dueDay === '—' && sale.date) {
+    dueDay = extractDueDay(sale.date);
   }
 
   const downPayment = sale.downPayment || 0;
@@ -291,8 +293,10 @@ export function createReceiptPDFDoc(
   const companyName = (settings?.companyName || settings?.userName || 'GESTÃO DE VENDAS').toUpperCase();
   const transactionDate = installment.paidAt || installment.dueDate || new Date().toISOString();
   const cleanId = (installment.id || '').toUpperCase().substring(0, 12);
-  const dateFormatted = new Date(transactionDate).toLocaleDateString('pt-BR');
-  const timeFormatted = new Date(transactionDate).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  const dateFormatted = formatLocalDateBR(transactionDate);
+  const timeFormatted = transactionDate.includes('T') 
+    ? new Date(transactionDate).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+    : '12:00';
 
   let y = 20;
   const left = 20;
@@ -584,17 +588,18 @@ export function fallbackPrintContract(sale: Sale, settings: Settings, installmen
 export function buildContractHTML(sale: Sale, settings: Settings, installments?: Installment[]): string {
   const companyName = (settings.companyName || settings.userName || 'GESTÃO DE VENDAS').toUpperCase();
   const sellerName = (settings.userName || (settings.currentOperator === 'operator2' ? settings.op2Name : settings.op1Name) || settings.companyName || 'VENDEDOR RESPONSÁVEL').toUpperCase();
-  const dateFormatted = sale.date ? new Date(sale.date).toLocaleDateString('pt-BR') : new Date().toLocaleDateString('pt-BR');
+  const dateFormatted = formatLocalDateBR(sale.date || sale.createdAt || new Date());
   const cleanId = (sale.id || '').substring(0, 8).toUpperCase();
   
   let dueDay = '—';
-  if (sale.date) {
-    dueDay = String(new Date(sale.date).getUTCDate());
-  } else if (installments && installments.length > 0) {
+  if (installments && installments.length > 0) {
     const matchingInst = installments.find(i => i.saleId === sale.id);
     if (matchingInst?.dueDate) {
-      dueDay = String(new Date(matchingInst.dueDate).getUTCDate());
+      dueDay = extractDueDay(matchingInst.dueDate);
     }
+  }
+  if (dueDay === '—' && sale.date) {
+    dueDay = extractDueDay(sale.date);
   }
 
   const downPayment = sale.downPayment || 0;
