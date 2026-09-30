@@ -89,12 +89,21 @@ export function DashboardStats({ products, sales, installments, closings = [], o
     return date.getFullYear() === now.getFullYear() && date.getMonth() === now.getMonth();
   };
 
+  const isAfterLastClosing = (dateStr?: string) => {
+    if (!lastClosingDate) return true;
+    if (!dateStr) return false;
+    const itemTime = new Date(dateStr).getTime();
+    const closingTime = new Date(lastClosingDate).getTime();
+    if (isNaN(itemTime) || isNaN(closingTime)) return false;
+    return itemTime > closingTime;
+  };
+
   const monthlyDownPayments = sales
-    .filter(s => isCurrentMonth(s.createdAt))
+    .filter(s => isCurrentMonth(s.createdAt || s.date) && isAfterLastClosing(s.createdAt || s.date))
     .reduce((acc, s) => acc + (s.downPayment || 0), 0);
 
   const monthlyPaidInstallments = installments
-    .filter(i => i.status === 'Pago' && isCurrentMonth(i.paidAt || i.dueDate))
+    .filter(i => i.status === 'Pago' && isCurrentMonth(i.paidAt || i.dueDate) && isAfterLastClosing(i.paidAt || i.dueDate))
     .reduce((acc, i) => acc + (i.value || 0), 0);
 
   const currentProfit = monthlyDownPayments + monthlyPaidInstallments;
@@ -122,10 +131,14 @@ export function DashboardStats({ products, sales, installments, closings = [], o
 
   // SVG Sparkline path helper
   const getSalesTrendPoints = (): number[] => {
-    const sorted = [...sales]
-      .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+    if (currentProfit === 0) {
+      return [0, 0, 0, 0, 0];
+    }
+    const cycleSales = sales.filter(s => isAfterLastClosing(s.createdAt || s.date));
+    const sorted = [...cycleSales]
+      .sort((a, b) => new Date(a.createdAt || a.date).getTime() - new Date(b.createdAt || b.date).getTime());
     if (sorted.length < 3) {
-      return [300, 420, 310, 580, 490, 720, 610, 890]; // Elegant modern mock-wave
+      return [currentProfit * 0.3, currentProfit * 0.6, currentProfit * 0.8, currentProfit];
     }
     return sorted.slice(-10).map(s => s.total);
   };
@@ -214,10 +227,11 @@ export function DashboardStats({ products, sales, installments, closings = [], o
         </div>
       </div>
 
-      {/* Bento Card 2: Faturamento Realizado (Recebido no Mês) */}
+      {/* Bento Card 2: Faturamento Realizado (Recebido no Mês / Ciclo Aberto) */}
       <div 
         onClick={() => onNavigate('reports')}
         className="glass-card group p-5 sm:p-6 flex flex-col justify-between border border-white/5 hover:border-gold/30 transition-all duration-500 hover:scale-[1.02] hover:-translate-y-1 relative overflow-hidden cursor-pointer active:scale-95 min-h-[160px]"
+        title="Clique para acessar os Relatórios Mensais"
       >
         <div className="absolute -right-6 -top-6 w-32 h-32 rounded-full blur-3xl opacity-0 group-hover:opacity-10 transition-opacity duration-700 bg-gold" />
         
@@ -252,13 +266,22 @@ export function DashboardStats({ products, sales, installments, closings = [], o
         </div>
 
         <div className="relative z-10 mt-2">
-          <span className="text-[10px] font-bold uppercase tracking-[0.2em] mb-1 block text-white/40">Faturamento Realizado</span>
+          <div className="flex items-center justify-between gap-1 mb-1">
+            <span className="text-[10px] font-bold uppercase tracking-[0.2em] block text-white/40">Faturamento Realizado</span>
+            {lastClosingDate && (
+              <span className="text-[8px] font-black uppercase px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-300 border border-amber-500/20">
+                Ciclo Aberto
+              </span>
+            )}
+          </div>
           <strong className="text-2xl sm:text-3xl font-black block text-gold group-hover:text-amber-300 transition-colors duration-500">
             {money(currentProfit)}
           </strong>
           <div className="flex items-center gap-2 mt-2">
-            <div className="w-1.5 h-1.5 rounded-full bg-gold shadow-[0_0_8px_#ffd700]" />
-            <p className="text-[10px] font-bold uppercase tracking-wider text-white/30">Total Recebido no Mês</p>
+            <div className={`w-1.5 h-1.5 rounded-full ${currentProfit > 0 ? 'bg-gold shadow-[0_0_8px_#ffd700]' : 'bg-zinc-600'}`} />
+            <p className="text-[10px] font-bold uppercase tracking-wider text-white/30 truncate">
+              {currentProfit === 0 && lastClosingDate ? 'Caixa Zerado pós-fechamento' : 'Total Recebido no Mês'}
+            </p>
           </div>
         </div>
       </div>

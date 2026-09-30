@@ -6,7 +6,7 @@ import { Logo, Topbar, DashboardStats } from './components/CommonUI';
 import { MonthlyInstallmentsReport } from './components/MonthlyInstallmentsReport';
 import { LoginScreen } from './components/LoginScreen';
 import { AnimatePresence, motion } from 'motion/react';
-import { Boxes, Plus, X, Search, ImagePlus, User, Wallet, ShoppingBag, ArrowLeft, ArrowRight, BadgeDollarSign, Activity, Zap, History, ChevronDown, Pencil, FileText, Download, DollarSign, Share2, Calculator, Package, MessageCircle, ShieldCheck, Lock, Mail, Image as ImageIcon, AlertCircle, Calendar, Camera, Trash2, Minus, TrendingUp, Percent, Printer, Copy, Check, CheckCircle2, ExternalLink, SlidersHorizontal } from 'lucide-react';
+import { Boxes, Plus, X, Search, ImagePlus, User, Wallet, ShoppingBag, ArrowLeft, ArrowRight, BadgeDollarSign, Activity, Zap, History, ChevronDown, Pencil, FileText, Download, DollarSign, Share2, Calculator, Package, MessageCircle, ShieldCheck, Lock, Mail, Image as ImageIcon, AlertCircle, Calendar, Camera, Trash2, Minus, TrendingUp, Percent, Printer, Copy, Check, CheckCircle2, ExternalLink, SlidersHorizontal, Layers } from 'lucide-react';
 import html2pdf from 'html2pdf.js';
 import { downloadContractAsPDF, fallbackPrintContract, shareContractFile, downloadReceiptAsPDF } from './lib/pdfGenerator';
 import { formatLocalDateBR, getLocalDateString, getFutureLocalDateString, extractDueDay, parseDateToMidnight } from './lib/dateUtils';
@@ -14,9 +14,10 @@ import { auth } from './lib/firebase';
 import { signInAnonymously, onAuthStateChanged } from 'firebase/auth';
 
 export default function App() {
-  const { products, sales, installments, closings, settings, setSettings, addProduct, deleteProduct, registerSale, deleteSale, deleteClient, updateProduct, updateSaleFull, payInstallment, amortizeSale, advanceInstallments, closeMonthlyRegister } = useNexusState();
+  const { products, sales, installments, closings, settings, setSettings, addProduct, deleteProduct, registerSale, deleteSale, deleteClient, updateProduct, updateSaleFull, payInstallment, amortizeSale, advanceInstallments, closeMonthlyRegister, deleteClosing } = useNexusState();
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [authReady, setAuthReady] = useState(false);
+  const [reportsTab, setReportsTab] = useState<'installments' | 'closings'>('installments');
 
   useEffect(() => {
     // We set authReady to true immediately since anonymous sign-in is restricted
@@ -969,13 +970,26 @@ Autenticação: ${targetSale.id.toUpperCase()}`;
             <motion.div key={activeView} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }}>
               {activeView === 'dashboard' && (
                 <div className="flex flex-col gap-4 sm:gap-8 animate-view-enter">
-                  <div className="flex flex-col pl-1 sm:pl-0">
-                     <h1 className="text-lg sm:text-xl font-bold text-white tracking-tight">
-                        Olá, <span className="text-white font-black italic">{settings.userName ? settings.userName.trim().split(' ')[0].charAt(0).toUpperCase() + settings.userName.trim().split(' ')[0].slice(1).substring(0).toLowerCase() : ''}</span>.
-                     </h1>
-                     <p className="text-[9px] text-zinc-550 font-bold uppercase mt-0.5 tracking-[0.25em]" style={{ color: '#71717a' }}>
-                        gerencie suas vendas
-                     </p>
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pl-1 sm:pl-0">
+                     <div className="flex flex-col">
+                        <h1 className="text-lg sm:text-xl font-bold text-white tracking-tight">
+                           Olá, <span className="text-white font-black italic">{settings.userName ? settings.userName.trim().split(' ')[0].charAt(0).toUpperCase() + settings.userName.trim().split(' ')[0].slice(1).substring(0).toLowerCase() : ''}</span>.
+                        </h1>
+                        <p className="text-[9px] text-zinc-550 font-bold uppercase mt-0.5 tracking-[0.25em]" style={{ color: '#71717a' }}>
+                           gerencie suas vendas
+                        </p>
+                     </div>
+                     <button
+                       onClick={() => {
+                         setSaleToEdit(null);
+                         setShowSaleForm(true);
+                         setActiveView('sales');
+                       }}
+                       className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-gold hover:bg-amber-400 text-black font-black uppercase text-[10px] sm:text-xs tracking-wider rounded-xl transition-all shadow-md active:scale-95 cursor-pointer self-start sm:self-auto"
+                     >
+                       <Plus size={14} />
+                       <span>Nova Venda</span>
+                     </button>
                   </div>
 
                   <DashboardStats 
@@ -985,7 +999,11 @@ Autenticação: ${targetSale.id.toUpperCase()}`;
                     closings={closings}
                     onNavigate={(view, filter) => {
                       setActiveView(view);
-                      if (filter) setFilterStatus(filter as any);
+                      if (filter === 'closings' || filter === 'installments') {
+                        setReportsTab(filter);
+                      } else if (filter) {
+                        setFilterStatus(filter as any);
+                      }
                     }} 
                   />
                   
@@ -2717,6 +2735,9 @@ Autenticação: ${targetSale.id.toUpperCase()}`;
                   onViewReceipt={(inst) => setSelectedInstallmentForReceipt(inst)}
                   onDownloadPDF={handleDownloadReportPDF}
                   onCloseRegister={closeMonthlyRegister}
+                  onDeleteClosing={deleteClosing}
+                  initialTab={reportsTab}
+                  onTabChange={setReportsTab}
                   showToast={showToast}
                 />
               )}

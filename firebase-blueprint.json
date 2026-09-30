@@ -74,6 +74,19 @@
         "theme": { "type": "string" }
       },
       "required": ["userName", "userEmail", "theme"]
+    },
+    "Closing": {
+      "title": "Closing",
+      "description": "Register closing records",
+      "type": "object",
+      "properties": {
+        "closedAt": { "type": "string", "format": "date-time" },
+        "periodName": { "type": "string" },
+        "profit": { "type": "number" },
+        "totalSales": { "type": "number" },
+        "salesCount": { "type": "number" }
+      },
+      "required": ["closedAt", "periodName", "profit", "totalSales", "salesCount"]
     }
   },
   "firestore": {
@@ -88,6 +101,10 @@
     "/installments/{installmentId}": {
       "schema": "Installment",
       "description": "Payment installments collection"
+    },
+    "/closings/{closingId}": {
+      "schema": "Closing",
+      "description": "Cash register closing history"
     },
     "/settings/config": {
       "schema": "Settings",

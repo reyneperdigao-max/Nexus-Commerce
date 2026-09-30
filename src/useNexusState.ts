@@ -623,6 +623,14 @@ export function useNexusState() {
     }
   };
 
+  const deleteClosing = async (id: string) => {
+    try {
+      await deleteDoc(doc(db, 'closings', id));
+    } catch (err) {
+      handleFirestoreError(err, OperationType.DELETE, `closings/${id}`);
+    }
+  };
+
   return {
     products,
     sales,
@@ -641,6 +649,7 @@ export function useNexusState() {
     setInstallments,
     deleteSale,
     deleteClient,
-    closeMonthlyRegister
+    closeMonthlyRegister,
+    deleteClosing
   };
 }

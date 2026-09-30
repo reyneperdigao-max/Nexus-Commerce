@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { 
   Sale, 
   Installment, 
@@ -31,7 +31,8 @@ import {
   Receipt,
   Wallet,
   RotateCcw,
-  Check
+  Check,
+  Trash2
 } from 'lucide-react';
 
 interface MonthlyInstallmentsReportProps {
@@ -45,6 +46,9 @@ interface MonthlyInstallmentsReportProps {
   onViewReceipt: (installment: Installment) => void;
   onDownloadPDF: () => void;
   onCloseRegister: (periodName: string, profit: number, revenue: number, count: number) => void;
+  onDeleteClosing?: (closingId: string) => void;
+  initialTab?: 'installments' | 'closings';
+  onTabChange?: (tab: 'installments' | 'closings') => void;
   showToast: (msg: string, type?: 'success' | 'error') => void;
 }
 
@@ -115,6 +119,9 @@ export function MonthlyInstallmentsReport({
   onViewReceipt,
   onDownloadPDF,
   onCloseRegister,
+  onDeleteClosing,
+  initialTab,
+  onTabChange,
   showToast
 }: MonthlyInstallmentsReportProps) {
   // Current Date logic
@@ -124,9 +131,58 @@ export function MonthlyInstallmentsReport({
   const initialMonthStr = `${currentYear}-${String(currentMonthNum).padStart(2, '0')}`;
 
   const [selectedMonth, setSelectedMonth] = useState<string>(initialMonthStr);
-  const [activeTab, setActiveTab] = useState<'installments' | 'closings'>('installments');
+  const [activeTab, setActiveTab] = useState<'installments' | 'closings'>(initialTab || 'installments');
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'paid' | 'overdue'>('all');
   const [searchTerm, setSearchTerm] = useState('');
+
+  useEffect(() => {
+    if (initialTab) {
+      setActiveTab(initialTab);
+    }
+  }, [initialTab]);
+
+  const handleTabChange = (tab: 'installments' | 'closings') => {
+    setActiveTab(tab);
+    onTabChange?.(tab);
+  };
+
+  // 3. MÉTRICAS DO CICLO ABERTO (Fechamento de Caixa - Padrão Nexus Private)
+  const lastClosingDate = useMemo(() => {
+    if (!closings || closings.length === 0) return '';
+    return closings.reduce((latest, c) => c.closedAt > latest ? c.closedAt : latest, '');
+  }, [closings]);
+
+  const isAfterLastClosing = (dateStr?: string) => {
+    if (!lastClosingDate) return true;
+    if (!dateStr) return false;
+    const itemTime = new Date(dateStr).getTime();
+    const closingTime = new Date(lastClosingDate).getTime();
+    if (isNaN(itemTime) || isNaN(closingTime)) return false;
+    return itemTime > closingTime;
+  };
+
+  const isCurrentMonthNow = (dateStr?: string) => {
+    if (!dateStr) return false;
+    const date = new Date(dateStr);
+    const curr = new Date();
+    return date.getFullYear() === curr.getFullYear() && date.getMonth() === curr.getMonth();
+  };
+
+  const cycleDownPayments = useMemo(() => {
+    return sales
+      .filter(s => isCurrentMonthNow(s.createdAt || s.date) && isAfterLastClosing(s.createdAt || s.date))
+      .reduce((acc, s) => acc + (s.downPayment || 0), 0);
+  }, [sales, lastClosingDate]);
+
+  const cyclePaidInstallments = useMemo(() => {
+    return installments
+      .filter(i => i.status === 'Pago' && isCurrentMonthNow(i.paidAt || i.dueDate) && isAfterLastClosing(i.paidAt || i.dueDate))
+      .reduce((acc, i) => acc + (i.value || 0), 0);
+  }, [installments, lastClosingDate]);
+
+  const cycleRealizedFaturamento = cycleDownPayments + cyclePaidInstallments;
+  const cycleSalesVolume = activeSales.reduce((acc, s) => acc + (Number(s.total) || 0), 0);
+  const cycleSalesCount = activeSales.length;
 
   // Parse Year and Month from selectedMonth (YYYY-MM)
   const [selectedYear, selectedMonthIndex] = useMemo(() => {
@@ -449,7 +505,7 @@ export function MonthlyInstallmentsReport({
           {/* Aba de Navegação Simples */}
           <div className="flex items-center bg-black/60 p-1 rounded-xl border border-line-strong">
             <button
-              onClick={() => setActiveTab('installments')}
+              onClick={() => handleTabChange('installments')}
               className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-black uppercase tracking-wider transition-all cursor-pointer ${
                 activeTab === 'installments'
                   ? 'bg-gold text-black shadow-lg shadow-gold/20'
@@ -460,7 +516,7 @@ export function MonthlyInstallmentsReport({
               <span>Previsão de Parcelas</span>
             </button>
             <button
-              onClick={() => setActiveTab('closings')}
+              onClick={() => handleTabChange('closings')}
               className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-black uppercase tracking-wider transition-all cursor-pointer ${
                 activeTab === 'closings'
                   ? 'bg-gold text-black shadow-lg shadow-gold/20'
@@ -1029,47 +1085,108 @@ export function MonthlyInstallmentsReport({
       {/* ========================================================================= */}
       {activeTab === 'closings' && (
         <div className="flex flex-col gap-6">
-          {/* Card de Ação para Fechar Caixa */}
-          <div className="glass-card p-6 border border-amber-500/30 bg-amber-500/[0.02] rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-6">
-            <div className="flex flex-col gap-2">
-              <div className="flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
-                <h3 className="text-base font-black text-amber-200 uppercase tracking-wider">
-                  Consolidar e Fechar Caixa Mensal
-                </h3>
+          {/* Card de Ação para Fechar Caixa (Configuração Nexus Private) */}
+          <div className="glass-card p-6 border border-amber-500/30 bg-amber-500/[0.03] rounded-2xl flex flex-col gap-6">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="flex flex-col gap-1.5">
+                <div className="flex items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse shadow-[0_0_8px_#f59e0b]" />
+                  <h3 className="text-base sm:text-lg font-black text-amber-200 uppercase tracking-wider">
+                    Consolidar e Fechar Caixa Mensal
+                  </h3>
+                  <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                    Padrão Nexus Private
+                  </span>
+                </div>
+                <p className="text-xs text-amber-100/80 max-w-2xl leading-relaxed">
+                  Ao consolidar o fechamento de caixa, o faturamento realizado no ciclo (<strong className="text-gold">{money(cycleRealizedFaturamento)}</strong>) será arquivado para registro contábil e o <strong className="text-white">faturamento do mês no Dashboard será ZERADO</strong> para a abertura de um novo ciclo comercial.
+                </p>
               </div>
-              <p className="text-xs text-amber-100/70 max-w-xl">
-                Ao fechar o caixa, o montante atual de vendas ativas de <strong className="text-gold">{money(portfolioMonthlyEstimate.monthlySum)}</strong> será consolidado e arquivado para registro contábil.
-              </p>
+
+              {/* Status do Ciclo */}
+              <div className="px-3.5 py-2 rounded-xl bg-black/60 border border-amber-500/20 text-right shrink-0">
+                <span className="text-[9px] font-bold text-zinc-400 uppercase tracking-widest block">Status do Caixa</span>
+                <span className="text-xs font-black text-amber-300 uppercase block mt-0.5">
+                  {lastClosingDate ? `Último Fechamento: ${new Date(lastClosingDate).toLocaleDateString('pt-BR')}` : 'Ciclo Inicial Aberto'}
+                </span>
+              </div>
             </div>
-            <div className="flex gap-3 shrink-0 items-center">
-              <input 
-                type="text"
-                placeholder="Ex: Maio de 2026"
-                id="closingPeriodInput"
-                className="h-11 px-4 bg-black/80 border border-zinc-700 rounded-xl outline-none text-xs font-bold text-white focus:border-gold min-w-[170px]"
-              />
+
+            {/* Painel com Métricas do Ciclo Atual */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 border-t border-amber-500/20">
+              <div className="p-3.5 rounded-xl bg-black/50 border border-white/5 flex flex-col justify-between">
+                <span className="text-[9px] uppercase font-bold text-zinc-400 tracking-wider">Faturamento do Ciclo Aberto</span>
+                <strong className="text-xl sm:text-2xl font-black text-gold mt-1 block">
+                  {money(cycleRealizedFaturamento)}
+                </strong>
+                <span className="text-[9px] text-zinc-400 mt-1 block">
+                  Entradas: {money(cycleDownPayments)} | Parcelas: {money(cyclePaidInstallments)}
+                </span>
+                <span className="text-[8px] font-black text-amber-400 uppercase tracking-widest mt-1">
+                  ↓ Será zerado no Dashboard ao fechar
+                </span>
+              </div>
+
+              <div className="p-3.5 rounded-xl bg-black/50 border border-white/5 flex flex-col justify-between">
+                <span className="text-[9px] uppercase font-bold text-zinc-400 tracking-wider">Novos Contratos no Ciclo</span>
+                <strong className="text-xl sm:text-2xl font-black text-white mt-1 block">
+                  {cycleSalesCount} {cycleSalesCount === 1 ? 'venda' : 'vendas'}
+                </strong>
+                <span className="text-[9px] text-zinc-400 mt-1 block">
+                  Capital Movimentado: {money(cycleSalesVolume)}
+                </span>
+                <span className="text-[8px] font-black text-blue-400 uppercase tracking-widest mt-1">
+                  Ativas aguardando consolidação
+                </span>
+              </div>
+
+              <div className="p-3.5 rounded-xl bg-black/50 border border-white/5 flex flex-col justify-between">
+                <span className="text-[9px] uppercase font-bold text-zinc-400 tracking-wider">Carteira Ativa Geral</span>
+                <strong className="text-xl sm:text-2xl font-black text-zinc-200 mt-1 block">
+                  {money(portfolioMonthlyEstimate.monthlySum)} <span className="text-xs text-zinc-500 font-normal">/mês</span>
+                </strong>
+                <span className="text-[9px] text-zinc-400 mt-1 block">
+                  {portfolioMonthlyEstimate.activeContractsCount} contratos ativos no sistema
+                </span>
+                <span className="text-[8px] font-black text-green-neon uppercase tracking-widest mt-1">
+                  Base recorrente contínua
+                </span>
+              </div>
+            </div>
+
+            {/* Ação de Fechamento */}
+            <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between pt-2 border-t border-amber-500/20">
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] uppercase font-bold text-zinc-400 tracking-wider shrink-0">Etiqueta do Ciclo:</span>
+                <input 
+                  type="text"
+                  placeholder="Ex: Maio de 2026"
+                  defaultValue={`${MONTH_NAMES[selectedMonthIndex]} de ${selectedYear}`}
+                  id="closingPeriodInput"
+                  className="h-11 px-4 bg-black/80 border border-zinc-700 rounded-xl outline-none text-xs font-bold text-white focus:border-gold min-w-[200px]"
+                />
+              </div>
+
               <button
                 onClick={() => {
                   const inputEl = document.getElementById('closingPeriodInput') as HTMLInputElement;
                   const periodVal = inputEl?.value?.trim() || `${MONTH_NAMES[selectedMonthIndex]} de ${selectedYear}`;
-                  const currentActiveProfit = activeSales.reduce((acc, s) => acc + (Number(s.installmentValue) || 0), 0);
-                  const currentActiveRevenue = activeSales.reduce((acc, s) => acc + (Number(s.total) || 0), 0);
-                  const currentActiveCount = activeSales.length;
 
-                  if (currentActiveCount === 0) {
-                    showToast('Nenhuma operação ativa para ser fechada neste ciclo!', 'error');
-                    return;
-                  }
-                  if (confirm(`Confirmar encerramento de período para "${periodVal}"?`)) {
-                    onCloseRegister(periodVal, currentActiveProfit, currentActiveRevenue, currentActiveCount);
+                  const confirmMsg = `Confirma o Fechamento de Caixa para "${periodVal}"?\n\n` +
+                    `• Faturamento a Consolidar: ${money(cycleRealizedFaturamento)}\n` +
+                    `• Novos Contratos: ${cycleSalesCount} (${money(cycleSalesVolume)})\n\n` +
+                    `Configuração Nexus Private: O faturamento do mês no Dashboard será ZERADO imediatamente para o início do novo ciclo contábil.`;
+
+                  if (confirm(confirmMsg)) {
+                    onCloseRegister(periodVal, cycleRealizedFaturamento, cycleSalesVolume, cycleSalesCount);
                     if (inputEl) inputEl.value = '';
-                    showToast('Fechamento de caixa arquivado com sucesso!');
+                    showToast('Fechamento de caixa concluído com sucesso! O faturamento do mês no Dashboard foi zerado.', 'success');
                   }
                 }}
-                className="h-11 px-6 bg-amber-500 hover:bg-amber-600 text-black font-black uppercase text-xs tracking-wider rounded-xl transition-all shadow-lg active:scale-95 cursor-pointer"
+                className="h-11 px-6 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-black uppercase text-xs tracking-wider rounded-xl transition-all shadow-lg shadow-amber-500/20 active:scale-95 cursor-pointer flex items-center justify-center gap-2"
               >
-                Fechar Caixa
+                <Layers size={16} />
+                <span>Fechar Caixa e Zerar Dashboard</span>
               </button>
             </div>
           </div>
@@ -1092,14 +1209,17 @@ export function MonthlyInstallmentsReport({
               </div>
             ) : (
               <div className="overflow-x-auto custom-scrollbar">
-                <table className="w-full text-left min-w-[650px]">
+                <table className="w-full text-left min-w-[700px]">
                   <thead>
                     <tr className="border-b border-line text-[10px] uppercase text-zinc-400 font-black bg-white/[0.02]">
                       <th className="p-4 pl-6">Período Consolidado</th>
                       <th className="p-4 text-center">Data do Fechamento</th>
-                      <th className="p-4 text-center">Qtd. Vendas</th>
+                      <th className="p-4 text-center">Novos Contratos</th>
                       <th className="p-4 text-center">Capital Movimentado</th>
-                      <th className="p-4 text-right pr-6 text-green-neon">Lucro Consolidado</th>
+                      <th className="p-4 text-right pr-6 text-green-neon">Faturamento Consolidado</th>
+                      {onDeleteClosing && (
+                        <th className="p-4 text-center w-24">Ações</th>
+                      )}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-zinc-900">
@@ -1122,6 +1242,23 @@ export function MonthlyInstallmentsReport({
                           <td className="p-4 text-sm font-black text-green-neon text-right pr-6">
                             {money(c.profit || 0)}
                           </td>
+                          {onDeleteClosing && (
+                            <td className="p-4 text-center">
+                              <button
+                                onClick={() => {
+                                  if (confirm(`Deseja reabrir o caixa de "${c.periodName}"? O faturamento deste período será restabelecido no Dashboard.`)) {
+                                    onDeleteClosing(c.id);
+                                    showToast('Fechamento cancelado! Caixa reaberto.', 'success');
+                                  }
+                                }}
+                                className="px-2.5 py-1 rounded-lg bg-zinc-850 hover:bg-red-500/20 text-zinc-400 hover:text-red-400 border border-zinc-750 hover:border-red-500/40 text-[10px] font-black uppercase tracking-wider transition-all inline-flex items-center gap-1.5 cursor-pointer active:scale-95"
+                                title="Reabrir este caixa e restaurar movimentação no Dashboard"
+                              >
+                                <RotateCcw size={12} />
+                                <span>Reabrir</span>
+                              </button>
+                            </td>
+                          )}
                         </tr>
                       ))}
                   </tbody>
