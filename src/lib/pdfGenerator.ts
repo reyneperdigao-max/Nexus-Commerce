@@ -190,7 +190,7 @@ export function createContractPDFDoc(
   const clauses = [
     {
       title: 'CLÁUSULA 1ª – DAS PARTES CONTRATANTES',
-      body: `Pelo presente instrumento, de um lado denominada(o) VENDEDOR(A): ${companyName} (atendido por ${sellerName}); e de outro lado denominada(o) COMPRADOR(A): ${sale.client.toUpperCase()}, portador(a) do CPF/Doc nº ${sale.clientCpf || 'N/A'}, telefone ${sale.clientPhone || 'N/A'}${sale.clientAddress ? `, domiciliado(a) em ${sale.clientAddress}` : ''}, firmam o presente compromisso de compra e venda mercantil.`
+      body: `Pelo presente instrumento, de um lado denominada(o) VENDEDOR(A): ${sellerName}; e de outro lado denominada(o) COMPRADOR(A): ${sale.client.toUpperCase()}, portador(a) do CPF/Doc nº ${sale.clientCpf || 'N/A'}, telefone ${sale.clientPhone || 'N/A'}${sale.clientAddress ? `, domiciliado(a) em ${sale.clientAddress}` : ''}, firmam o presente compromisso de compra e venda mercantil.`
     },
     {
       title: 'CLÁUSULA 2ª – DO OBJETO DA NEGOCIAÇÃO',
@@ -684,7 +684,7 @@ export function buildContractHTML(sale: Sale, settings: Settings, installments?:
               Cláusula 1ª – Das Partes Contratantes
             </strong>
             <p style="margin: 2px 0 0 0; text-align: justify;">
-              Pelo presente instrumento, de um lado denominada(o) <strong>VENDEDOR(A)</strong>: <strong>${companyName}</strong> (atendido por <strong>${sellerName}</strong>); e de outro lado denominada(o) <strong>COMPRADOR(A)</strong>: <strong>${sale.client.toUpperCase()}</strong>, CPF/Doc nº <strong>${sale.clientCpf || 'N/A'}</strong>, tel <strong>${sale.clientPhone || 'N/A'}</strong>${sale.clientAddress ? `, residente em ${sale.clientAddress}` : ''}, firmam o presente compromisso de compra e venda mercantil.
+              Pelo presente instrumento, de um lado denominada(o) <strong>VENDEDOR(A)</strong>: <strong>${sellerName}</strong>; e de outro lado denominada(o) <strong>COMPRADOR(A)</strong>: <strong>${sale.client.toUpperCase()}</strong>, CPF/Doc nº <strong>${sale.clientCpf || 'N/A'}</strong>, tel <strong>${sale.clientPhone || 'N/A'}</strong>${sale.clientAddress ? `, residente em ${sale.clientAddress}` : ''}, firmam o presente compromisso de compra e venda mercantil.
             </p>
           </div>
 

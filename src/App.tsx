@@ -3671,7 +3671,7 @@ Autenticação: ${targetSale.id.toUpperCase()}`;
                           <div>
                             <strong className="text-slate-900 uppercase block mb-0.5 text-[9.5px]">Cláusula 1ª – Das Partes Contratantes</strong>
                             <p className="text-justify">
-                              Pelo presente instrumento, de um lado denominada(o) <strong>VENDEDOR(A)</strong>: <strong>{company}</strong>; e de outro lado denominada(o) <strong>COMPRADOR(A)</strong>: <strong>{selectedSaleForContract.client.toUpperCase()}</strong>, CPF nº <strong>{selectedSaleForContract.clientCpf || 'N/A'}</strong>, telefone <strong>{selectedSaleForContract.clientPhone || 'N/A'}</strong>{selectedSaleForContract.clientAddress ? `, residente em ${selectedSaleForContract.clientAddress}` : ''}, firmam o presente compromisso de compra e venda mercantil.
+                              Pelo presente instrumento, de um lado denominada(o) <strong>VENDEDOR(A)</strong>: <strong>{sellerName}</strong>; e de outro lado denominada(o) <strong>COMPRADOR(A)</strong>: <strong>{selectedSaleForContract.client.toUpperCase()}</strong>, CPF nº <strong>{selectedSaleForContract.clientCpf || 'N/A'}</strong>, telefone <strong>{selectedSaleForContract.clientPhone || 'N/A'}</strong>{selectedSaleForContract.clientAddress ? `, residente em ${selectedSaleForContract.clientAddress}` : ''}, firmam o presente compromisso de compra e venda mercantil.
                             </p>
                           </div>
 
