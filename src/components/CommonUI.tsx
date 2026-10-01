@@ -1,5 +1,6 @@
-import { Settings as SettingsIcon, Menu, Wallet, ShoppingBag, Boxes, User, Activity, AlertCircle, Calendar, TrendingUp, DollarSign, ShieldCheck } from 'lucide-react';
+import { Settings as SettingsIcon, Menu, Wallet, ShoppingBag, Boxes, User, Activity, AlertCircle, Calendar, TrendingUp, DollarSign, ShieldCheck, Eye, EyeOff } from 'lucide-react';
 import { Product, Sale, Installment } from '../types';
+import { isSameMonthAndYear, parseDateToMidnight } from '../lib/dateUtils';
 
 export function Logo({ className = "", showText = true }: { className?: string, showText?: boolean }) {
   return (
@@ -24,12 +25,22 @@ export function Logo({ className = "", showText = true }: { className?: string, 
   );
 }
 
-export function Topbar({ onOpenSettings, onOpenMobileMenu, onToggleDesktopSidebar, desktopSidebarOpen, viewTitle }: { 
+export function Topbar({ 
+  onOpenSettings, 
+  onOpenMobileMenu, 
+  onToggleDesktopSidebar, 
+  desktopSidebarOpen, 
+  viewTitle,
+  hideDashboardValues = false,
+  onToggleHideDashboardValues
+}: { 
   onOpenSettings: () => void; 
   onOpenMobileMenu: () => void;
   onToggleDesktopSidebar: () => void;
   desktopSidebarOpen: boolean;
   viewTitle: string;
+  hideDashboardValues?: boolean;
+  onToggleHideDashboardValues?: () => void;
 }) {
   return (
     <header className="h-16 sm:h-20 bg-black/85 backdrop-blur-2xl border-b border-white/[0.08] px-4 sm:px-8 flex items-center justify-between sticky top-0 z-40">
@@ -59,7 +70,28 @@ export function Topbar({ onOpenSettings, onOpenMobileMenu, onToggleDesktopSideba
         </div>
       </div>
 
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2 sm:gap-3">
+        {/* Olho para ocultar / exibir números do Dashboard (ao lado da engrenagem) */}
+        {onToggleHideDashboardValues && (
+          <button 
+            type="button"
+            onClick={onToggleHideDashboardValues}
+            className={`w-10 h-10 border rounded-xl flex items-center justify-center transition-all group active:scale-90 cursor-pointer ${
+              hideDashboardValues 
+                ? 'bg-gold/15 border-gold/40 text-gold shadow-[0_0_15px_rgba(255,215,0,0.2)]' 
+                : 'bg-white/[0.03] border-white/[0.08] hover:border-gold/30 hover:bg-white/[0.06] text-gray-300 hover:text-gold'
+            }`}
+            title={hideDashboardValues ? "Exibir números do Dashboard" : "Ocultar números do Dashboard"}
+            aria-label={hideDashboardValues ? "Exibir números do Dashboard" : "Ocultar números do Dashboard"}
+          >
+            {hideDashboardValues ? (
+              <EyeOff size={18} className="transition-transform group-hover:scale-110" />
+            ) : (
+              <Eye size={18} className="transition-transform group-hover:scale-110" />
+            )}
+          </button>
+        )}
+
         <button 
           onClick={onOpenSettings}
           className="w-10 h-10 bg-white/[0.03] border border-white/[0.08] hover:border-gold/30 hover:bg-white/[0.06] rounded-xl flex items-center justify-center text-gray-300 hover:text-gold transition-all group active:scale-90 cursor-pointer"
@@ -72,8 +104,24 @@ export function Topbar({ onOpenSettings, onOpenMobileMenu, onToggleDesktopSideba
   );
 }
 
-export function DashboardStats({ products, sales, installments, closings = [], onNavigate }: { products: any[], sales: any[], installments: any[], closings?: any[], onNavigate: (view: string, filter?: string) => void }) {
-  const money = (val: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
+export function DashboardStats({ 
+  products, 
+  sales, 
+  installments, 
+  closings = [], 
+  onNavigate,
+  hideValues = false
+}: { 
+  products: any[], 
+  sales: any[], 
+  installments: any[], 
+  closings?: any[], 
+  onNavigate: (view: string, filter?: string) => void,
+  hideValues?: boolean
+}) {
+  const money = (val: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val || 0);
+  const displayMoney = (val: number) => hideValues ? 'R$ ••••••' : money(val);
+  const displayCount = (count: number, singular: string, plural: string) => hideValues ? `•• ${plural}` : `${count} ${count === 1 ? singular : plural}`;
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -82,50 +130,45 @@ export function DashboardStats({ products, sales, installments, closings = [], o
     ? closings.reduce((latest, c) => c.closedAt > latest ? c.closedAt : latest, '')
     : '';
 
-  const isCurrentMonth = (dateStr?: string) => {
-    if (!dateStr) return false;
-    const date = new Date(dateStr);
-    const now = new Date();
-    return date.getFullYear() === now.getFullYear() && date.getMonth() === now.getMonth();
-  };
-
   const isAfterLastClosing = (dateStr?: string) => {
     if (!lastClosingDate) return true;
     if (!dateStr) return false;
-    const itemTime = new Date(dateStr).getTime();
+    const itemTime = parseDateToMidnight(dateStr).getTime();
     const closingTime = new Date(lastClosingDate).getTime();
     if (isNaN(itemTime) || isNaN(closingTime)) return false;
     return itemTime > closingTime;
   };
 
+  // Filtra apenas parcelas vinculadas a contratos/vendas válidas que não foram excluídas
+  const validSaleIds = new Set(sales.map(s => s.id));
+  const validInstallments = installments.filter(i => validSaleIds.has(i.saleId));
+
   const monthlyDownPayments = sales
-    .filter(s => isCurrentMonth(s.createdAt || s.date) && isAfterLastClosing(s.createdAt || s.date))
-    .reduce((acc, s) => acc + (s.downPayment || 0), 0);
+    .filter(s => isSameMonthAndYear(s.createdAt || s.date) && isAfterLastClosing(s.createdAt || s.date))
+    .reduce((acc, s) => acc + (Number(s.downPayment) || 0), 0);
 
-  const monthlyPaidInstallments = installments
-    .filter(i => i.status === 'Pago' && isCurrentMonth(i.paidAt || i.dueDate) && isAfterLastClosing(i.paidAt || i.dueDate))
-    .reduce((acc, i) => acc + (i.value || 0), 0);
+  const monthlyPaidInstallments = validInstallments
+    .filter(i => i.status === 'Pago' && isSameMonthAndYear(i.paidAt || i.dueDate) && isAfterLastClosing(i.paidAt || i.dueDate))
+    .reduce((acc, i) => acc + (Number(i.value) || 0), 0);
 
-  const currentProfit = monthlyDownPayments + monthlyPaidInstallments;
-  const receivablesValue = installments.filter(i => i.status === 'Pendente').reduce((acc, i) => acc + i.value, 0);
+  const currentProfit = Number((monthlyDownPayments + monthlyPaidInstallments).toFixed(2));
+  const receivablesValue = Number(validInstallments.filter(i => i.status === 'Pendente').reduce((acc, i) => acc + (Number(i.value) || 0), 0).toFixed(2));
 
   // Health Rate (Credit / Adimplência Index)
-  const paidCount = installments.filter(i => i.status === 'Pago').length;
-  const overdueCount = installments.filter(i => {
+  const paidCount = validInstallments.filter(i => i.status === 'Pago').length;
+  const overdueCount = validInstallments.filter(i => {
     if (i.status !== 'Pendente') return false;
-    const dueDate = new Date(i.dueDate);
-    dueDate.setHours(0, 0, 0, 0);
-    return dueDate < today;
+    const dueDate = parseDateToMidnight(i.dueDate);
+    return dueDate.getTime() < today.getTime();
   }).length;
 
   const totalRelevantPoints = paidCount + overdueCount;
-  const healthRate = totalRelevantPoints > 0 ? (paidCount / totalRelevantPoints) * 100 : 100;
+  const healthRate = totalRelevantPoints > 0 ? Number(((paidCount / totalRelevantPoints) * 100).toFixed(1)) : 100;
 
   // Due today count
-  const dueTodayCount = installments.filter(i => {
+  const dueTodayCount = validInstallments.filter(i => {
     if (i.status !== 'Pendente') return false;
-    const dueDate = new Date(i.dueDate);
-    dueDate.setHours(0, 0, 0, 0);
+    const dueDate = parseDateToMidnight(i.dueDate);
     return dueDate.getTime() === today.getTime();
   }).length;
 
@@ -140,11 +183,29 @@ export function DashboardStats({ products, sales, installments, closings = [], o
     if (sorted.length < 3) {
       return [currentProfit * 0.3, currentProfit * 0.6, currentProfit * 0.8, currentProfit];
     }
+    return sorted.slice(-10).map(s => Number(s.total) || 0);
+  };
+
+  const getReceivablesTrendPoints = (): number[] => {
+    const sortedPending = [...validInstallments]
+      .filter(i => i.status === 'Pendente')
+      .sort((a, b) => parseDateToMidnight(a.dueDate).getTime() - parseDateToMidnight(b.dueDate).getTime());
+    if (sortedPending.length < 3) {
+      return [150, 240, 180, 310, 260, 420, 380, 510]; // Fluid modern progression mock-wave
+    }
+    return sortedPending.slice(0, 10).map(i => Number(i.value) || 0);
+  };
+    const cycleSales = sales.filter(s => isAfterLastClosing(s.createdAt || s.date));
+    const sorted = [...cycleSales]
+      .sort((a, b) => new Date(a.createdAt || a.date).getTime() - new Date(b.createdAt || b.date).getTime());
+    if (sorted.length < 3) {
+      return [currentProfit * 0.3, currentProfit * 0.6, currentProfit * 0.8, currentProfit];
+    }
     return sorted.slice(-10).map(s => s.total);
   };
 
   const getReceivablesTrendPoints = (): number[] => {
-    const sortedPending = [...installments]
+    const sortedPending = [...validInstallments]
       .filter(i => i.status === 'Pendente')
       .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
     if (sortedPending.length < 3) {

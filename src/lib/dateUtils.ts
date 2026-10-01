@@ -132,3 +132,14 @@ export function extractDueDay(dateInput?: string | null): string {
   }
   return '—';
 }
+
+/**
+ * Checks if a given date string or Date belongs to the same year and month
+ * in local calendar time, preventing UTC 1-day/1-month behind calculation bugs.
+ */
+export function isSameMonthAndYear(dateInput?: string | Date | null, baseDate: Date = new Date()): boolean {
+  if (!dateInput) return false;
+  const parsed = parseDateSafe(dateInput);
+  if (!parsed) return false;
+  return parsed.year === baseDate.getFullYear() && parsed.month === (baseDate.getMonth() + 1);
+}

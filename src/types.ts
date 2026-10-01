@@ -52,6 +52,7 @@ export interface Sale {
   interestRate?: number;
   clientAddress?: string;
   costPrice?: number;
+  sellerName?: string;
 }
 
 export interface Settings {

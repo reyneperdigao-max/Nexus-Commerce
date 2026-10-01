@@ -6,6 +6,30 @@ const money = (val: number) =>
   new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val || 0);
 
 /**
+ * Returns the human seller's name (system user / operator) for contracts,
+ * avoiding accidental fallback to the company name (Nexus Commerce).
+ */
+export function getSystemSellerName(settings?: Settings, sale?: Sale): string {
+  const saleSeller = sale?.sellerName?.trim();
+  if (saleSeller && saleSeller.toLowerCase() !== 'nexus commerce') {
+    return saleSeller.toUpperCase();
+  }
+
+  const rawUser = settings?.userName?.trim();
+  if (rawUser && rawUser.toLowerCase() !== 'nexus commerce' && rawUser.toLowerCase() !== 'gestão comercial' && rawUser.toLowerCase() !== 'empresa' && rawUser.toLowerCase() !== 'gestão de vendas') {
+    return rawUser.toUpperCase();
+  }
+
+  const opName = (settings?.currentOperator === 'operator2' ? settings?.op2Name : settings?.op1Name)?.trim();
+  if (opName && opName.toLowerCase() !== 'nexus commerce') {
+    return opName.toUpperCase();
+  }
+
+  if (rawUser) return rawUser.toUpperCase();
+  return 'EDIEIK BRENO';
+}
+
+/**
  * Builds a vector-sharp 1-page A4 Contract PDF using jsPDF (fast, non-freezing, 0ms lag, utilizes 100% of single A4 page)
  */
 export function createContractPDFDoc(
@@ -14,8 +38,8 @@ export function createContractPDFDoc(
   installments?: Installment[]
 ): jsPDF {
   const doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
-  const companyName = (settings.companyName || settings.userName || 'GESTÃO DE VENDAS').toUpperCase();
-  const sellerName = (settings.userName || (settings.currentOperator === 'operator2' ? settings.op2Name : settings.op1Name) || settings.companyName || 'VENDEDOR RESPONSÁVEL').toUpperCase();
+  const companyName = (settings.companyName || 'NEXUS COMMERCE').toUpperCase();
+  const sellerName = getSystemSellerName(settings, sale);
   const dateFormatted = formatLocalDateBR(sale.date || sale.createdAt || new Date());
   const cleanId = (sale.id || '').substring(0, 8).toUpperCase();
   
@@ -586,8 +610,8 @@ export function fallbackPrintContract(sale: Sale, settings: Settings, installmen
  * Compact HTML for preview and print that fits and utilizes 1 single A4 page
  */
 export function buildContractHTML(sale: Sale, settings: Settings, installments?: Installment[]): string {
-  const companyName = (settings.companyName || settings.userName || 'GESTÃO DE VENDAS').toUpperCase();
-  const sellerName = (settings.userName || (settings.currentOperator === 'operator2' ? settings.op2Name : settings.op1Name) || settings.companyName || 'VENDEDOR RESPONSÁVEL').toUpperCase();
+  const companyName = (settings.companyName || 'NEXUS COMMERCE').toUpperCase();
+  const sellerName = getSystemSellerName(settings, sale);
   const dateFormatted = formatLocalDateBR(sale.date || sale.createdAt || new Date());
   const cleanId = (sale.id || '').substring(0, 8).toUpperCase();
   

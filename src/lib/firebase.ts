@@ -61,9 +61,12 @@ export function cleanData<T extends object>(data: T): T {
   const clean: any = {};
   Object.keys(data).forEach((key) => {
     const value = (data as any)[key];
-    if (value !== undefined) {
-      clean[key] = value;
+    if (value === undefined) return;
+    if (typeof value === 'number' && isNaN(value)) {
+      clean[key] = 0;
+      return;
     }
+    clean[key] = value;
   });
   return clean as T;
 }

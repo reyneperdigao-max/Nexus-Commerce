@@ -8,7 +8,7 @@ import { LoginScreen } from './components/LoginScreen';
 import { AnimatePresence, motion } from 'motion/react';
 import { Boxes, Plus, X, Search, ImagePlus, User, Wallet, ShoppingBag, ArrowLeft, ArrowRight, BadgeDollarSign, Activity, Zap, History, ChevronDown, Pencil, FileText, Download, DollarSign, Share2, Calculator, Package, MessageCircle, ShieldCheck, Lock, Mail, Image as ImageIcon, AlertCircle, Calendar, Camera, Trash2, Minus, TrendingUp, Percent, Printer, Copy, Check, CheckCircle2, ExternalLink, SlidersHorizontal, Layers } from 'lucide-react';
 import html2pdf from 'html2pdf.js';
-import { downloadContractAsPDF, fallbackPrintContract, shareContractFile, downloadReceiptAsPDF } from './lib/pdfGenerator';
+import { downloadContractAsPDF, fallbackPrintContract, shareContractFile, downloadReceiptAsPDF, getSystemSellerName } from './lib/pdfGenerator';
 import { formatLocalDateBR, getLocalDateString, getFutureLocalDateString, extractDueDay, parseDateToMidnight } from './lib/dateUtils';
 import { auth } from './lib/firebase';
 import { signInAnonymously, onAuthStateChanged } from 'firebase/auth';
@@ -213,6 +213,12 @@ export default function App() {
   const [previewPhoto, setPreviewPhoto] = useState<string | null>(null);
   const [selectedSaleForContract, setSelectedSaleForContract] = useState<any>(null);
   const [selectedClient, setSelectedClient] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (selectedClient && !sales.some(s => s.client === selectedClient)) {
+      setSelectedClient(null);
+    }
+  }, [sales, selectedClient]);
   const [selectedInstallmentForPayment, setSelectedInstallmentForPayment] = useState<any>(null);
   const [paymentType, setPaymentType] = useState<'interest' | 'amortization'>('interest');
   const [paymentMethod, setPaymentMethod] = useState<'Pix' | 'Cartão de Crédito' | 'Cartão de Débito' | 'Dinheiro' | 'Transferência'>('Pix');
@@ -280,10 +286,10 @@ export default function App() {
     let totalFinal = 0;
 
     selectedInsts.forEach(inst => {
-      const orig = inst.value || 0;
-      const pct = advanceCustomDiscounts[inst.id] ?? advanceGlobalDiscount ?? 0;
-      const disc = (orig * pct) / 100;
-      const finalVal = Math.round(Math.max(0, orig - disc));
+      const orig = Number(inst.value) || 0;
+      const pct = Number(advanceCustomDiscounts[inst.id] ?? advanceGlobalDiscount ?? 0);
+      const disc = Number(((orig * pct) / 100).toFixed(2));
+      const finalVal = Number(Math.max(0, orig - disc).toFixed(2));
 
       totalOriginal += orig;
       totalDiscount += disc;
@@ -292,9 +298,9 @@ export default function App() {
 
     return {
       selectedCount: selectedInsts.length,
-      totalOriginal,
-      totalDiscount: Math.round(totalDiscount),
-      totalFinal: Math.round(totalFinal),
+      totalOriginal: Number(totalOriginal.toFixed(2)),
+      totalDiscount: Number(totalDiscount.toFixed(2)),
+      totalFinal: Number(totalFinal.toFixed(2)),
       effectiveDiscountPct: totalOriginal > 0 ? ((totalDiscount / totalOriginal) * 100).toFixed(1) : '0'
     };
   }, [advancePendingInsts, advanceSelectedInstIds, advanceCustomDiscounts, advanceGlobalDiscount]);
@@ -693,8 +699,8 @@ export default function App() {
   const handleCopyContractText = (saleToCopy?: any) => {
     const targetSale = saleToCopy || selectedSaleForContract;
     if (!targetSale) return;
-    const company = (settings.companyName || settings.userName || 'GESTÃO DE VENDAS').toUpperCase();
-    const sellerName = (settings.userName || (settings.currentOperator === 'operator2' ? settings.op2Name : settings.op1Name) || settings.companyName || 'VENDEDOR RESPONSÁVEL').toUpperCase();
+    const company = (settings.companyName || 'NEXUS COMMERCE').toUpperCase();
+    const sellerName = getSystemSellerName(settings, targetSale);
     const cleanId = (targetSale.id || '').substring(0, 8).toUpperCase();
     const dateFormatted = formatLocalDateBR(targetSale.date || targetSale.createdAt || new Date());
     
@@ -720,7 +726,7 @@ Emissão: ${dateFormatted} • ${company}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 📌 QUADRO-RESUMO DA TRANSAÇÃO
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-• Vendedor(a): ${company} (Operador: ${sellerName})
+• Vendedor(a): ${sellerName} (${company})
 • Comprador(a): ${targetSale.client.toUpperCase()}
 • CPF/Doc: ${targetSale.clientCpf || 'Registrado em Sistema'}
 • Telefone: ${targetSale.clientPhone || 'N/A'}${targetSale.clientAddress ? `\n• Endereço: ${targetSale.clientAddress}` : ''}
@@ -943,7 +949,7 @@ Autenticação: ${targetSale.id.toUpperCase()}`;
     const day = extractDueDay(i.dueDate);
     return matchesSearch && (!filterDay || day === filterDay);
   });
-  const clientsList = Array.from(new Set(sales.map(s => s.client))) as string[];
+  const clientsList = Array.from(new Set(sales.map(s => s.client).filter(Boolean))) as string[];
   const filteredClients = clientsList.filter(c => !searchTerm || c.toLowerCase().includes(searchTerm.toLowerCase()));
 
   if (!authReady) return null;
@@ -1020,27 +1026,85 @@ Autenticação: ${targetSale.id.toUpperCase()}`;
                          <button onClick={() => setActiveView('sales')} className="text-[9px] sm:text-[10px] font-black uppercase text-gold hover:underline">Ver Todos</button>
                       </div>
                       <div className="flex flex-col gap-3">
-                        {sales.slice(-5).reverse().map(sale => (
-                          <div 
-                            key={sale.id} 
-                            onClick={() => { setActiveView('sales'); setSearchTerm(sale.client); }}
-                            className="p-4 sm:p-5 bg-[rgba(255,255,255,0.02)] border border-line rounded-2xl flex items-center justify-between group hover:bg-[rgba(255,215,0,0.05)] transition-all cursor-pointer active:scale-95"
-                          >
-                            <div className="flex items-center gap-3 sm:gap-4">
-                              <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-[rgba(255,215,0,0.1)] text-gold flex items-center justify-center border border-[rgba(255,215,0,0.1)] shrink-0">
-                                <ShoppingBag size={16} />
-                              </div>
-                              <div className="flex flex-col min-w-0">
-                                <span className="font-black text-white italic text-xs sm:text-sm truncate max-w-[100px] sm:max-w-[160px] uppercase tracking-tighter">{sale.productName}</span>
-                                <span className="text-[8px] sm:text-[9px] text-gray-600 font-bold uppercase truncate">{sale.client}</span>
-                              </div>
-                            </div>
-                            <div className="text-right shrink-0">
-                              <p className="font-black text-white italic text-xs sm:text-base">{money(sale.total)}</p>
-                              <span className="text-[8px] sm:text-[9px] text-green-neon font-black uppercase">KPI OK</span>
-                            </div>
+                        {sales.length === 0 ? (
+                          <div className="p-6 bg-[rgba(255,255,255,0.02)] border border-line rounded-2xl text-center">
+                            <span className="text-[10px] text-gray-500 font-bold uppercase tracking-widest">Nenhum contrato ativo</span>
                           </div>
-                        ))}
+                        ) : (
+                          sales.slice(-5).reverse().map(sale => (
+                            <div 
+                              key={sale.id} 
+                              className="p-3 sm:p-4 bg-[rgba(255,255,255,0.02)] border border-line rounded-2xl flex flex-wrap sm:flex-nowrap items-center justify-between gap-3 group hover:bg-[rgba(255,215,0,0.05)] transition-all"
+                            >
+                              <div 
+                                onClick={() => setSelectedSaleForContract(sale)}
+                                className="flex items-center gap-3 sm:gap-4 min-w-0 cursor-pointer flex-1"
+                                title="Clique para visualizar o contrato completo"
+                              >
+                                <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-[rgba(255,215,0,0.1)] text-gold flex items-center justify-center border border-[rgba(255,215,0,0.1)] shrink-0 group-hover:scale-105 transition-transform">
+                                  <ShoppingBag size={16} />
+                                </div>
+                                <div className="flex flex-col min-w-0">
+                                  <span className="font-black text-white italic text-xs sm:text-sm truncate max-w-[120px] sm:max-w-[160px] uppercase tracking-tighter group-hover:text-gold transition-colors">{sale.productName}</span>
+                                  <span className="text-[8px] sm:text-[9px] text-gray-400 font-bold uppercase truncate">{sale.client}</span>
+                                </div>
+                              </div>
+                              
+                              <div className="flex items-center gap-3 self-end sm:self-auto shrink-0">
+                                <div className="text-right">
+                                  <p className="font-black text-white italic text-xs sm:text-sm">{money(sale.total)}</p>
+                                  <span className="text-[8px] text-green-neon font-black uppercase">KPI OK</span>
+                                </div>
+
+                                <div className="flex items-center gap-1 pl-2 border-l border-line/60">
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setSelectedSaleForContract(sale);
+                                    }}
+                                    className="h-8 w-8 rounded-lg border border-line bg-white/5 text-gray-400 hover:text-gold hover:border-gold transition-all grid place-items-center active:scale-95 cursor-pointer"
+                                    title="Visualizar Contrato"
+                                  >
+                                    <FileText size={13} />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setSaleToEdit(sale);
+                                      setShowSaleForm(true);
+                                      setActiveView('sales');
+                                      window.scrollTo({ top: 0, behavior: 'smooth' });
+                                    }}
+                                    className="h-8 w-8 rounded-lg border border-line bg-white/5 text-gray-400 hover:text-gold hover:border-gold transition-all grid place-items-center active:scale-95 cursor-pointer"
+                                    title="Editar Contrato"
+                                  >
+                                    <Pencil size={13} />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      openConfirm(
+                                        'Excluir Contrato Permanentemente',
+                                        `Deseja realmente excluir o contrato de ${sale.client} (${money(sale.total)}) e todas as suas parcelas? Esta ação é irreversível.`,
+                                        async () => {
+                                          const ok = await deleteSale(sale.id);
+                                          if (ok) showToast('Contrato excluído com sucesso!');
+                                        }
+                                      );
+                                    }}
+                                    className="h-8 w-8 rounded-lg border border-line bg-white/5 text-gray-400 hover:text-red-500 hover:border-red-500 transition-all grid place-items-center active:scale-95 cursor-pointer"
+                                    title="Excluir Contrato"
+                                  >
+                                    <Trash2 size={13} />
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          ))
+                        )}
                       </div>
                     </div>
 
@@ -1357,19 +1421,29 @@ Autenticação: ${targetSale.id.toUpperCase()}`;
                                                    onClick={() => {
                                                       setSaleToEdit(sale);
                                                       setShowSaleForm(true);
+                                                      setActiveView('sales');
+                                                      window.scrollTo({ top: 0, behavior: 'smooth' });
                                                    }}
-                                                   className="h-10 px-4 rounded-xl border border-line bg-white/5 text-gray-400 hover:text-gold hover:border-[rgba(255,215,0,0.3)] hover:bg-[rgba(255,215,0,0.05)] transition-all flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest"
-                                                   title="Editar Venda"
+                                                   className="h-10 px-4 rounded-xl border border-line bg-white/5 text-gray-400 hover:text-gold hover:border-[rgba(255,215,0,0.3)] hover:bg-[rgba(255,215,0,0.05)] transition-all flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest cursor-pointer active:scale-95"
+                                                   title="Editar Contrato"
                                                 >
                                                    <Pencil size={14} />
                                                    Editar
                                                 </button>
                                                 <button 
-                                                   onClick={() => openConfirm('Estornar Operação', 'Deseja anular este registro comercial?', () => deleteSale(sale.id))} 
-                                                   className="h-10 px-4 rounded-xl border border-line bg-white/5 text-gray-400 hover:text-red-500 hover:border-[rgba(239,68,68,0.3)] hover:bg-red-500/5 transition-all flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest"
+                                                   onClick={() => openConfirm(
+                                                      'Excluir Contrato Permanentemente', 
+                                                      `Deseja realmente excluir o contrato de ${sale.client} (${money(sale.total)}) e todas as suas parcelas? Esta ação é irreversível.`, 
+                                                      async () => {
+                                                         const ok = await deleteSale(sale.id);
+                                                         if (ok) showToast('Contrato excluído com sucesso!');
+                                                      }
+                                                   )} 
+                                                   className="h-10 px-4 rounded-xl border border-line bg-white/5 text-gray-400 hover:text-red-500 hover:border-red-500/30 hover:bg-red-500/10 transition-all flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest cursor-pointer active:scale-95"
+                                                   title="Excluir Contrato"
                                                 >
-                                                   <X size={14} />
-                                                   Estornar
+                                                   <Trash2 size={14} />
+                                                   Excluir
                                                 </button>
                                              </div>
                                           </div>
@@ -1915,54 +1989,96 @@ Autenticação: ${targetSale.id.toUpperCase()}`;
 
               {activeView === 'sales' && (
                 <div className="flex flex-col gap-8 animate-view-enter">
-                  {showSaleForm ? (
+                  {showSaleForm ? (() => {
+                    const existingFirstInst = saleToEdit ? installments.find(i => i.saleId === saleToEdit.id && i.number === 1) : null;
+                    const defaultFirstDue = existingFirstInst?.dueDate 
+                      ? getLocalDateString(existingFirstInst.dueDate) 
+                      : (saleToEdit?.date ? getLocalDateString(saleToEdit.date) : getFutureLocalDateString(30));
+                    const currentSeller = saleToEdit?.sellerName || getSystemSellerName(settings, saleToEdit);
+
+                    return (
                     <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="p-6 sm:p-10 glass-card max-w-3xl mx-auto w-full border border-[rgba(255,215,0,0.2)] shadow-[0_20px_50px_rgba(0,0,0,0.5)]">
                       <div className="text-center mb-8 sm:mb-10">
-                         <h2 className="text-xl sm:text-3xl font-black italic uppercase text-white tracking-tighter">{saleToEdit ? 'Editar Operação' : 'Nova Venda'}</h2>
+                         <h2 className="text-xl sm:text-3xl font-black italic uppercase text-white tracking-tighter">{saleToEdit ? 'Editar Contrato / Venda' : 'Nova Venda & Contrato'}</h2>
+                         <p className="text-[10px] text-gray-500 font-bold uppercase mt-1">Preencha os dados da operação comercial</p>
                       </div>
-                      <form className="flex flex-col gap-4 sm:gap-6" onSubmit={(e) => { 
+                      <form key={saleToEdit ? `edit-${saleToEdit.id}` : 'new-sale'} className="flex flex-col gap-4 sm:gap-6" onSubmit={async (e) => { 
                         e.preventDefault(); 
                         const f = e.target as any; 
+
+                        const resolvedProductId = saleToEdit ? (saleToEdit.productId || f.productId?.value || '') : (f.productId?.value || '');
+                        const parsedCost = f.costPrice?.value !== '' && !isNaN(Number(f.costPrice?.value)) 
+                          ? Number(f.costPrice.value) 
+                          : (saleToEdit?.costPrice !== undefined ? saleToEdit.costPrice : 0);
+                        const parsedTotal = f.manualSalePrice?.value !== '' && !isNaN(Number(f.manualSalePrice?.value))
+                          ? Number(f.manualSalePrice.value)
+                          : (saleToEdit?.total || 0);
+                        const parsedDown = f.downPayment?.value !== '' && !isNaN(Number(f.downPayment?.value))
+                          ? Number(f.downPayment.value)
+                          : (saleToEdit?.downPayment || 0);
+                        const parsedInst = f.installments?.value !== '' && !isNaN(Number(f.installments?.value))
+                          ? Math.max(1, Number(f.installments.value))
+                          : (saleToEdit?.installmentsCount || 12);
+                        const parsedInterestRate = isInterestOnlyForm && f.interestRate?.value !== '' && !isNaN(Number(f.interestRate?.value))
+                          ? Number(f.interestRate.value)
+                          : (isInterestOnlyForm ? (Number(interestRateForm) || 0) : 0);
+
                         const saleData = { 
-                          productId: f.productId.value, 
-                          client: f.client.value, 
-                          clientPhone: f.clientPhone.value, 
-                          clientCpf: f.clientCpf.value, 
-                          clientAddress: f.clientAddress?.value || "",
-                          installments: Number(f.installments.value), 
-                          saleDate: f.saleDate?.value || getLocalDateString(),
-                          firstDueDate: f.firstDueDate?.value || f.date?.value || getFutureLocalDateString(30), 
+                          productId: resolvedProductId, 
+                          sellerName: f.sellerName?.value ? f.sellerName.value.trim() : currentSeller,
+                          client: (f.client?.value || saleToEdit?.client || '').trim(), 
+                          clientPhone: (f.clientPhone?.value || saleToEdit?.clientPhone || '').trim(), 
+                          clientCpf: (f.clientCpf?.value || saleToEdit?.clientCpf || '').trim(), 
+                          clientAddress: (f.clientAddress?.value || saleToEdit?.clientAddress || '').trim(),
+                          installments: parsedInst, 
+                          saleDate: f.saleDate?.value || (saleToEdit?.date ? getLocalDateString(saleToEdit.date) : getLocalDateString()),
+                          firstDueDate: f.firstDueDate?.value || defaultFirstDue, 
                           percentageAdjustment: 0, 
-                          manualSalePrice: Number(f.manualSalePrice.value), 
-                          downPayment: Number(f.downPayment.value),
+                          manualSalePrice: parsedTotal, 
+                          downPayment: parsedDown,
                           isInterestOnly: isInterestOnlyForm,
-                          interestRate: isInterestOnlyForm ? Number(f.interestRate?.value || 0) : 0,
-                          costPrice: Number(f.costPrice.value)
+                          interestRate: parsedInterestRate,
+                          costPrice: parsedCost
                         };
 
                         if (saleToEdit) {
-                          updateSaleFull(saleToEdit.id, saleData);
-                          showToast('Venda atualizada com sucesso!');
+                          const ok = await updateSaleFull(saleToEdit.id, saleData);
+                          if (ok) showToast('Contrato e venda atualizados com sucesso!');
+                          else showToast('Erro ao atualizar contrato.', 'error');
                         } else {
-                          registerSale(saleData);
-                          showToast('Venda comercializada com sucesso!');
+                          const ok = await registerSale(saleData);
+                          if (ok) showToast('Venda e contrato cadastrados com sucesso!');
+                          else showToast('Erro ao cadastrar venda.', 'error');
                         }
                         setShowSaleForm(false); 
                         setSaleToEdit(null);
                       }}>
-                        <div className="flex flex-col gap-2">
-                           <label className="text-[9px] sm:text-[10px] font-black text-gray-500 uppercase ml-3">Escolha o Ativo</label>
-                           <select 
-                             name="productId" 
-                             required 
-                             disabled={!!saleToEdit}
-                             defaultValue={saleToEdit?.productId || ""}
-                             className="h-12 sm:h-14 bg-[rgba(0,0,0,0.4)] border border-line-strong rounded-xl sm:rounded-2xl px-5 sm:px-6 font-bold outline-none focus:border-gold transition-all text-xs sm:text-sm disabled:opacity-50"
-                           >
-                             <option value="">Selecione...</option>
-                             {saleToEdit && <option value={saleToEdit.productId}>{saleToEdit.productName}</option>}
-                             {products.filter(p => p.status === 'Disponivel').map(p => <option key={p.id} value={p.id} className="bg-black">{p.name} ({money(p.sale)})</option>)}
-                           </select>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
+                          <div className="flex flex-col gap-2">
+                             <label className="text-[9px] sm:text-[10px] font-black text-gray-500 uppercase ml-3">Escolha o Ativo</label>
+                             <select 
+                               name="productId" 
+                               required={!saleToEdit}
+                               disabled={!!saleToEdit}
+                               defaultValue={saleToEdit?.productId || ""}
+                               className="h-12 sm:h-14 bg-[rgba(0,0,0,0.4)] border border-line-strong rounded-xl sm:rounded-2xl px-5 sm:px-6 font-bold outline-none focus:border-gold transition-all text-xs sm:text-sm disabled:opacity-50"
+                             >
+                               <option value="">Selecione...</option>
+                               {saleToEdit && <option value={saleToEdit.productId}>{saleToEdit.productName}</option>}
+                               {products.filter(p => p.status === 'Disponivel').map(p => <option key={p.id} value={p.id} className="bg-black">{p.name} ({money(p.sale)})</option>)}
+                             </select>
+                          </div>
+
+                          <div className="flex flex-col gap-2">
+                             <label className="text-[9px] sm:text-[10px] font-black text-gold uppercase ml-3">Vendedor no Contrato (Usuário do Sistema)</label>
+                             <input 
+                               name="sellerName" 
+                               required 
+                               defaultValue={currentSeller} 
+                               placeholder="Nome do operador / vendedor" 
+                               className="h-12 sm:h-14 bg-[rgba(0,0,0,0.4)] border border-line-strong rounded-xl sm:rounded-2xl px-5 sm:px-6 outline-none focus:border-gold transition-all font-bold text-xs sm:text-sm text-gold" 
+                             />
+                          </div>
                         </div>
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
@@ -1991,7 +2107,7 @@ Autenticação: ${targetSale.id.toUpperCase()}`;
                            <div className="flex flex-col gap-2">
                               <label className="text-[9px] sm:text-[10px] font-black text-gray-500 uppercase ml-3">Preço de Custo</label>
                               <div className="relative">
-                                 <input name="costPrice" type="number" step="0.01" required defaultValue={saleToEdit?.costPrice || ''} placeholder="0,00" className="w-full h-12 sm:h-14 bg-[rgba(0,0,0,0.4)] border border-line-strong rounded-xl sm:rounded-2xl px-5 sm:px-6 pl-10 sm:pl-12 outline-none focus:border-gold transition-all font-black text-zinc-300 italic text-xs sm:text-sm" />
+                                 <input name="costPrice" type="number" step="0.01" defaultValue={saleToEdit?.costPrice !== undefined ? saleToEdit.costPrice : ''} placeholder="0,00" className="w-full h-12 sm:h-14 bg-[rgba(0,0,0,0.4)] border border-line-strong rounded-xl sm:rounded-2xl px-5 sm:px-6 pl-10 sm:pl-12 outline-none focus:border-gold transition-all font-black text-zinc-300 italic text-xs sm:text-sm" />
                                  <span className="absolute left-5 sm:left-6 top-1/2 -translate-y-1/2 text-zinc-500 font-bold">$</span>
                               </div>
                            </div>
@@ -2019,7 +2135,7 @@ Autenticação: ${targetSale.id.toUpperCase()}`;
                            </div>
                            <div className="flex flex-col gap-2">
                               <label className="text-[9px] sm:text-[10px] font-black text-gray-500 uppercase ml-3">1º Vencimento</label>
-                              <input name="firstDueDate" type="date" required defaultValue={getFutureLocalDateString(30)} className="h-12 sm:h-14 bg-[rgba(0,0,0,0.4)] border border-line-strong rounded-xl sm:rounded-2xl px-4 sm:px-5 outline-none focus:border-gold transition-all font-bold text-xs sm:text-sm" />
+                              <input name="firstDueDate" type="date" required defaultValue={defaultFirstDue} className="h-12 sm:h-14 bg-[rgba(0,0,0,0.4)] border border-line-strong rounded-xl sm:rounded-2xl px-4 sm:px-5 outline-none focus:border-gold transition-all font-bold text-xs sm:text-sm" />
                            </div>
                         </div>
 
@@ -2068,7 +2184,8 @@ Autenticação: ${targetSale.id.toUpperCase()}`;
                         </div>
                       </form>
                     </motion.div>
-                  ) : (
+                    );
+                  })() : (
                     <div className="flex flex-col gap-4 sm:gap-8 animate-view-enter">
                       <div className="flex flex-col lg:flex-row items-center justify-between gap-4 px-1">
                         <div className="w-full lg:w-auto">
@@ -2344,18 +2461,27 @@ Autenticação: ${targetSale.id.toUpperCase()}`;
                                                          onClick={() => {
                                                             setSaleToEdit(sale);
                                                             setShowSaleForm(true);
+                                                            setActiveView('sales');
+                                                            window.scrollTo({ top: 0, behavior: 'smooth' });
                                                          }}
                                                          className="h-8 w-8 rounded-lg border border-line bg-white/5 text-gray-400 hover:text-gold hover:border-gold transition-all grid place-items-center active:scale-95 cursor-pointer"
-                                                         title="Editar"
+                                                         title="Editar Contrato"
                                                       >
                                                          <Pencil size={13} />
                                                       </button>
                                                       <button 
-                                                         onClick={() => openConfirm('Estornar Operação', 'Deseja anular este registro comercial?', () => deleteSale(sale.id))} 
+                                                         onClick={() => openConfirm(
+                                                            'Excluir Contrato Permanentemente', 
+                                                            `Deseja realmente excluir o contrato de ${sale.client} (${money(sale.total)}) e todas as suas parcelas? Esta ação é irreversível.`, 
+                                                            async () => {
+                                                               const ok = await deleteSale(sale.id);
+                                                               if (ok) showToast('Contrato excluído com sucesso!');
+                                                            }
+                                                         )} 
                                                          className="h-8 w-8 rounded-lg border border-line bg-white/5 text-gray-400 hover:text-red-500 hover:border-red-500 transition-all grid place-items-center active:scale-95 cursor-pointer"
-                                                         title="Estornar"
+                                                         title="Excluir Contrato"
                                                       >
-                                                         <X size={13} />
+                                                         <Trash2 size={13} />
                                                       </button>
                                                    </div>
                                                 </td>
@@ -3559,6 +3685,43 @@ Autenticação: ${targetSale.id.toUpperCase()}`;
                     </button>
 
                     <button 
+                      onClick={() => {
+                        const sale = selectedSaleForContract;
+                        setSelectedSaleForContract(null);
+                        setSaleToEdit(sale);
+                        setShowSaleForm(true);
+                        setActiveView('sales');
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                      }}
+                      className="h-9 px-3 rounded-xl bg-amber-500/10 border border-amber-500/40 text-amber-800 hover:bg-amber-500 hover:text-black transition-all flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider shadow-sm active:scale-95 cursor-pointer"
+                      title="Editar este contrato"
+                    >
+                      <Pencil size={14} />
+                      <span className="hidden sm:inline">Editar</span>
+                    </button>
+
+                    <button 
+                      onClick={() => {
+                        const targetSale = selectedSaleForContract;
+                        if (!targetSale) return;
+                        openConfirm(
+                          'Excluir Contrato Permanentemente',
+                          `Deseja realmente excluir o contrato de ${targetSale.client} (${money(targetSale.total)}) e todas as suas parcelas? Esta ação é irreversível.`,
+                          async () => {
+                            setSelectedSaleForContract(null);
+                            const ok = await deleteSale(targetSale.id);
+                            if (ok) showToast('Contrato e parcelas excluídos com sucesso!');
+                          }
+                        );
+                      }}
+                      className="h-9 px-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-600 hover:bg-red-600 hover:text-white transition-all flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider shadow-sm active:scale-95 cursor-pointer"
+                      title="Excluir este contrato permanentemente"
+                    >
+                      <Trash2 size={14} />
+                      <span className="hidden sm:inline">Excluir</span>
+                    </button>
+
+                    <button 
                       onClick={() => setSelectedSaleForContract(null)} 
                       className="h-9 w-9 rounded-xl bg-gray-100 border border-gray-300 flex items-center justify-center text-gray-600 hover:bg-red-600 hover:text-white hover:border-red-600 transition-all shadow-sm active:scale-95 cursor-pointer"
                       title="Fechar"
@@ -3570,8 +3733,8 @@ Autenticação: ${targetSale.id.toUpperCase()}`;
 
                 <div id="contract-content" className="bg-white p-2 sm:p-4 font-sans text-slate-800 print:p-2 text-xs">
                   {(() => {
-                    const company = (settings.companyName || settings.userName || 'GESTÃO DE VENDAS').toUpperCase();
-                    const sellerName = (settings.userName || (settings.currentOperator === 'operator2' ? settings.op2Name : settings.op1Name) || settings.companyName || 'VENDEDOR RESPONSÁVEL').toUpperCase();
+                    const company = (settings.companyName || 'NEXUS COMMERCE').toUpperCase();
+                    const sellerName = getSystemSellerName(settings, selectedSaleForContract);
                     const cleanId = selectedSaleForContract.id.substring(0, 8).toUpperCase();
                     const dateFormatted = formatLocalDateBR(selectedSaleForContract.date || selectedSaleForContract.createdAt || new Date());
                     
