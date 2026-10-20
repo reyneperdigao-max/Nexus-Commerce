@@ -195,24 +195,6 @@ export function DashboardStats({
     }
     return sortedPending.slice(0, 10).map(i => Number(i.value) || 0);
   };
-    const cycleSales = sales.filter(s => isAfterLastClosing(s.createdAt || s.date));
-    const sorted = [...cycleSales]
-      .sort((a, b) => new Date(a.createdAt || a.date).getTime() - new Date(b.createdAt || b.date).getTime());
-    if (sorted.length < 3) {
-      return [currentProfit * 0.3, currentProfit * 0.6, currentProfit * 0.8, currentProfit];
-    }
-    return sorted.slice(-10).map(s => s.total);
-  };
-
-  const getReceivablesTrendPoints = (): number[] => {
-    const sortedPending = [...validInstallments]
-      .filter(i => i.status === 'Pendente')
-      .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
-    if (sortedPending.length < 3) {
-      return [150, 240, 180, 310, 260, 420, 380, 510]; // Fluid modern progression mock-wave
-    }
-    return sortedPending.slice(0, 10).map(i => i.value);
-  };
 
   const drawSparkline = (points: number[], width = 140, height = 36) => {
     if (points.length < 2) return "";
@@ -279,7 +261,7 @@ export function DashboardStats({
         <div className="relative z-10 mt-2">
           <span className="text-[10px] font-bold uppercase tracking-[0.2em] mb-1 block text-white/40">Valores a Receber</span>
           <strong className="text-2xl sm:text-3xl font-black block text-blue-400 group-hover:text-blue-300 transition-colors duration-500">
-            {money(receivablesValue)}
+            {displayMoney(receivablesValue)}
           </strong>
           <div className="flex items-center gap-2 mt-2">
             <div className="w-1.5 h-1.5 rounded-full bg-blue-400 shadow-[0_0_8px_#3b82f6]" />
@@ -302,7 +284,7 @@ export function DashboardStats({
           </div>
           
           {/* Glowing mini path */}
-          <div className="opacity-60 group-hover:opacity-100 transition-opacity duration-500">
+          <div className={`opacity-60 group-hover:opacity-100 transition-opacity duration-500 ${hideValues ? 'filter blur-sm opacity-20 pointer-events-none' : ''}`}>
             <svg width="100" height="28" viewBox="0 0 100 28" className="overflow-visible">
               <defs>
                 <linearGradient id="gold-grad" x1="0" y1="0" x2="0" y2="1">
@@ -336,7 +318,7 @@ export function DashboardStats({
             )}
           </div>
           <strong className="text-2xl sm:text-3xl font-black block text-gold group-hover:text-amber-300 transition-colors duration-500">
-            {money(currentProfit)}
+            {displayMoney(currentProfit)}
           </strong>
           <div className="flex items-center gap-2 mt-2">
             <div className={`w-1.5 h-1.5 rounded-full ${currentProfit > 0 ? 'bg-gold shadow-[0_0_8px_#ffd700]' : 'bg-zinc-600'}`} />
@@ -360,7 +342,7 @@ export function DashboardStats({
           </div>
           
           {/* Gauge Widget */}
-          <div className="relative flex items-center justify-center w-10 h-10 shrink-0">
+          <div className={`relative flex items-center justify-center w-10 h-10 shrink-0 ${hideValues ? 'filter blur-sm opacity-20' : ''}`}>
             <svg className="w-12 h-12" viewBox="0 0 36 36">
               <circle cx="18" cy="18" r={gaugeRadius} className="stroke-zinc-900 fill-none" strokeWidth="3" />
               <circle 
@@ -382,7 +364,7 @@ export function DashboardStats({
         <div className="relative z-10 mt-2">
           <span className="text-[10px] font-bold uppercase tracking-[0.2em] mb-1 block text-white/40">Índice de Adimplência</span>
           <strong className="text-2xl sm:text-3xl font-black block text-green-neon">
-            {healthRate.toFixed(1)}%
+            {hideValues ? '•••%' : `${healthRate.toFixed(1)}%`}
           </strong>
           <div className="flex items-center gap-2 mt-2">
             <div className="w-1.5 h-1.5 rounded-full bg-green-neon shadow-[0_0_8px_#39FF14]" />
@@ -427,7 +409,7 @@ export function DashboardStats({
           <div className="relative z-10 mt-2">
             <span className="text-[9px] font-black uppercase tracking-[0.15em] mb-0.5 block text-white/40">Vencem hoje</span>
             <strong className="text-base sm:text-lg font-black block text-zinc-100 group-hover:text-white transition-colors duration-500 leading-tight">
-              {dueTodayCount} {dueTodayCount === 1 ? 'parcela' : 'parcelas'}
+              {displayCount(dueTodayCount, 'parcela', 'parcelas')}
             </strong>
             <p className="text-[8px] font-bold uppercase tracking-wider text-white/20 mt-1 truncate">
               {dueTodayCount > 0 ? "Receber hoje" : "Sem vencimentos"}
@@ -471,7 +453,7 @@ export function DashboardStats({
           <div className="relative z-10 mt-2">
             <span className="text-[9px] font-black uppercase tracking-[0.15em] mb-0.5 block text-white/40">Atrasados</span>
             <strong className="text-base sm:text-lg font-black block text-zinc-100 group-hover:text-white transition-colors duration-500 leading-tight">
-              {overdueCount} {overdueCount === 1 ? 'pendente' : 'pendentes'}
+              {displayCount(overdueCount, 'pendente', 'pendentes')}
             </strong>
             <p className="text-[8px] font-bold uppercase tracking-wider text-white/20 mt-1 truncate">
               {overdueCount > 0 ? "Requer atenção" : "Nenhum atraso"}

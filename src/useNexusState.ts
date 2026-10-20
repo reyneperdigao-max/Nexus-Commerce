@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Product, Sale, Installment, Settings, Closing } from './types';
 import { db, handleFirestoreError, OperationType, cleanData } from './lib/firebase';
-import { getLocalDateString } from './lib/dateUtils';
+import { getLocalDateString, parseDateSafe } from './lib/dateUtils';
 import { 
   collection, 
   onSnapshot, 
@@ -31,6 +31,11 @@ const saveCached = (key: string, data: any) => {
 };
 
 export function useNexusState() {
+  const hasLocalCache = Boolean(
+    typeof window !== 'undefined' && 
+    (localStorage.getItem('nexus_cache_sales') || localStorage.getItem('nexus_cache_products'))
+  );
+  const [isInitialLoading, setIsInitialLoading] = useState<boolean>(!hasLocalCache);
   const [products, setProducts] = useState<Product[]>(() => loadCached<Product[]>('products', []));
   const [sales, setSales] = useState<Sale[]>(() => loadCached<Sale[]>('sales', []));
   const [installments, setInstallments] = useState<Installment[]>(() => loadCached<Installment[]>('installments', []));
@@ -70,20 +75,42 @@ export function useNexusState() {
 
   // Real-time synchronization
   useEffect(() => {
+    let loadedProducts = false;
+    let loadedSales = false;
+
+    const checkFinished = () => {
+      if (loadedProducts && loadedSales) {
+        setIsInitialLoading(false);
+      }
+    };
+
+    // Safety fallback so loading never hangs
+    const safetyTimer = setTimeout(() => {
+      setIsInitialLoading(false);
+    }, 1500);
+
     const unsubProducts = onSnapshot(collection(db, 'products'), (snapshot) => {
       const data = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Product));
       setProducts(data);
       saveCached('products', data);
+      loadedProducts = true;
+      checkFinished();
     }, (err) => {
       if (err.code !== 'permission-denied') handleFirestoreError(err, OperationType.LIST, 'products');
+      loadedProducts = true;
+      checkFinished();
     });
 
     const unsubSales = onSnapshot(collection(db, 'sales'), (snapshot) => {
       const data = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Sale));
       setSales(data);
       saveCached('sales', data);
+      loadedSales = true;
+      checkFinished();
     }, (err) => {
       if (err.code !== 'permission-denied') handleFirestoreError(err, OperationType.LIST, 'sales');
+      loadedSales = true;
+      checkFinished();
     });
 
     const unsubInstallments = onSnapshot(collection(db, 'installments'), (snapshot) => {
@@ -160,6 +187,7 @@ export function useNexusState() {
     });
 
     return () => {
+      clearTimeout(safetyTimer);
       unsubProducts();
       unsubSales();
       unsubInstallments();
@@ -659,14 +687,39 @@ export function useNexusState() {
 
     let newInstallmentsList: Installment[] = [];
 
-    if (needsRegen && data.firstDueDate) {
-      // Exclui parcelas antigas no Firestore
-      installments.filter(i => i.saleId === cleanId || i.saleId === id).forEach(i => {
+    if (needsRegen && (data.firstDueDate || existingDue)) {
+      const targetDueDateStr = data.firstDueDate || existingDue;
+      const parsedDate = parseDateSafe(targetDueDateStr) || { 
+        year: new Date().getFullYear(), 
+        month: new Date().getMonth() + 1, 
+        day: new Date().getDate() 
+      };
+      const y = parsedDate.year;
+      const m = parsedDate.month;
+      const d = parsedDate.day;
+
+      const existingPaid = installments.filter(i => (i.saleId === cleanId || i.saleId === id) && i.status === 'Pago');
+      const paidNumbers = new Set(existingPaid.map(i => i.number));
+
+      // Exclui apenas parcelas pendentes antigas no Firestore
+      installments.filter(i => (i.saleId === cleanId || i.saleId === id) && i.status !== 'Pago').forEach(i => {
         batch.delete(doc(db, 'installments', i.id));
       });
 
-      const [y, m, d] = data.firstDueDate.split('-').map(Number);
+      // Atualiza dados cadastrais (cliente, produto) das parcelas já pagas sem apagar o pagamento
+      existingPaid.forEach(paidInst => {
+        batch.set(doc(db, 'installments', paidInst.id), cleanData({
+          client: (data.client || '').trim(),
+          productName: productName,
+          total: installmentsCount
+        }), { merge: true });
+      });
+
       for (let i = 1; i <= installmentsCount; i++) {
+        if (paidNumbers.has(i)) {
+          continue;
+        }
+
         const dueDate = new Date(y, m - 1 + (i - 1), d, 12, 0, 0);
         if (dueDate.getDate() !== d) dueDate.setDate(0);
         
@@ -686,8 +739,16 @@ export function useNexusState() {
         batch.set(doc(db, 'installments', instId), cleanData(newInst));
       }
 
+      const updatedPaidList = existingPaid.map(p => ({
+        ...p,
+        client: (data.client || '').trim(),
+        productName: productName,
+        total: installmentsCount
+      }));
+
       setInstallments(prev => [
         ...prev.filter(i => i.saleId !== cleanId && i.saleId !== id),
+        ...updatedPaidList,
         ...newInstallmentsList
       ]);
     } else {
@@ -829,6 +890,7 @@ export function useNexusState() {
     deleteSale,
     deleteClient,
     closeMonthlyRegister,
-    deleteClosing
+    deleteClosing,
+    isInitialLoading
   };
 }

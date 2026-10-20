@@ -14,10 +14,49 @@ import { auth } from './lib/firebase';
 import { signInAnonymously, onAuthStateChanged } from 'firebase/auth';
 
 export default function App() {
-  const { products, sales, installments, closings, settings, setSettings, addProduct, deleteProduct, registerSale, deleteSale, deleteClient, updateProduct, updateSaleFull, payInstallment, amortizeSale, advanceInstallments, closeMonthlyRegister, deleteClosing } = useNexusState();
+  const { 
+    products, 
+    sales, 
+    installments, 
+    closings, 
+    settings, 
+    setSettings, 
+    addProduct, 
+    deleteProduct, 
+    registerSale, 
+    deleteSale, 
+    deleteClient, 
+    updateProduct, 
+    updateSaleFull, 
+    payInstallment, 
+    amortizeSale, 
+    advanceInstallments, 
+    closeMonthlyRegister, 
+    deleteClosing,
+    isInitialLoading
+  } = useNexusState();
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [authReady, setAuthReady] = useState(false);
   const [reportsTab, setReportsTab] = useState<'installments' | 'closings'>('installments');
+
+  // Estado para ocultar/exibir números exclusivamente no Dashboard (com persistência local)
+  const [hideDashboardValues, setHideDashboardValues] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('nexus_hide_dashboard_values') === 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  const toggleHideDashboardValues = () => {
+    setHideDashboardValues(prev => {
+      const next = !prev;
+      try {
+        localStorage.setItem('nexus_hide_dashboard_values', String(next));
+      } catch {}
+      return next;
+    });
+  };
 
   useEffect(() => {
     // We set authReady to true immediately since anonymous sign-in is restricted
@@ -194,12 +233,13 @@ export default function App() {
 
   const filteredTransactions = useMemo(() => {
     return transactions.filter(tx => {
-      const matchesSearch = 
-        tx.client.toLowerCase().includes(txSearch.toLowerCase()) ||
-        tx.productName.toLowerCase().includes(txSearch.toLowerCase()) ||
-        tx.id.toLowerCase().includes(txSearch.toLowerCase()) ||
-        tx.paymentMethod.toLowerCase().includes(txSearch.toLowerCase()) ||
-        tx.label.toLowerCase().includes(txSearch.toLowerCase());
+      const searchLower = (txSearch || '').toLowerCase();
+      const matchesSearch = !txSearch ||
+        (tx.client || '').toLowerCase().includes(searchLower) ||
+        (tx.productName || '').toLowerCase().includes(searchLower) ||
+        (tx.id || '').toLowerCase().includes(searchLower) ||
+        (tx.paymentMethod || '').toLowerCase().includes(searchLower) ||
+        (tx.label || '').toLowerCase().includes(searchLower);
       
       const matchesType = txTypeFilter === 'all' || tx.type === txTypeFilter;
       const matchesMethod = txMethodFilter === 'all' || tx.paymentMethod === txMethodFilter;
@@ -470,11 +510,13 @@ export default function App() {
 
   const handleLaunchSaleFromSim = () => {
     const i = simRate / 100;
-    const n = simInstallments || 1;
-    const pv = simValue || 0;
-    const rawPmt = i === 0 ? pv / n : pv * (i * Math.pow(1 + i, n)) / (Math.pow(1 + i, n) - 1);
-    const pmt = Math.round(rawPmt);
-    const totalPrazo = (pmt * n) + (simDownPayment || 0);
+    const n = simInstallments > 0 ? simInstallments : 1;
+    const pv = simValue > 0 ? simValue : 0;
+    const denominator = Math.pow(1 + i, n) - 1;
+    const rawPmt = i === 0 || denominator <= 0 ? (n > 0 ? pv / n : 0) : pv * (i * Math.pow(1 + i, n)) / denominator;
+    const safeRawPmt = isFinite(rawPmt) && !isNaN(rawPmt) ? rawPmt : 0;
+    const pmt = Math.round(safeRawPmt * 100) / 100;
+    const totalPrazo = Math.round(((pmt * n) + (simDownPayment || 0)) * 100) / 100;
 
     setSaleToEdit(null);
     setSaleFormSelectedProductId(simSelectedProductId);
@@ -914,7 +956,9 @@ Autenticação: ${targetSale.id.toUpperCase()}`;
   const todayTime = new Date();
   todayTime.setHours(0,0,0,0);
 
-  const filteredProducts = products.filter(p => !searchTerm || [p.name, p.category, p.status].some(v => v.toLowerCase().includes(searchTerm.toLowerCase())));
+  const searchLower = (searchTerm || '').toLowerCase();
+
+  const filteredProducts = products.filter(p => !searchTerm || [p.name, p.category, p.status].some(v => (v || '').toLowerCase().includes(searchLower)));
   
   const filteredSales = sales.filter(s => {
     // Excluir contratos que já estão totalmente pagos
@@ -922,7 +966,7 @@ Autenticação: ${targetSale.id.toUpperCase()}`;
     const isFullyPaid = sInsts.length > 0 && sInsts.every(i => i.status === 'Pago');
     if (isFullyPaid) return false;
 
-    const matchesSearch = !searchTerm || [s.client, s.productName, s.status].some(v => v.toLowerCase().includes(searchTerm.toLowerCase()));
+    const matchesSearch = !searchTerm || [s.client, s.productName, s.status].some(v => (v || '').toLowerCase().includes(searchLower));
     
     if (filterStatus === 'Atrasados') {
       const hasOverdue = sInsts.some(i => {
@@ -945,12 +989,12 @@ Autenticação: ${targetSale.id.toUpperCase()}`;
     return matchesSearch;
   });
   const filteredInstallments = installments.filter(i => {
-    const matchesSearch = !searchTerm || [i.client, i.productName, i.status].some(v => v.toLowerCase().includes(searchTerm.toLowerCase()));
+    const matchesSearch = !searchTerm || [i.client, i.productName, i.status].some(v => (v || '').toLowerCase().includes(searchLower));
     const day = extractDueDay(i.dueDate);
     return matchesSearch && (!filterDay || day === filterDay);
   });
   const clientsList = Array.from(new Set(sales.map(s => s.client).filter(Boolean))) as string[];
-  const filteredClients = clientsList.filter(c => !searchTerm || c.toLowerCase().includes(searchTerm.toLowerCase()));
+  const filteredClients = clientsList.filter(c => !searchTerm || (c || '').toLowerCase().includes(searchLower));
 
   if (!authReady) return null;
 
@@ -964,12 +1008,19 @@ Autenticação: ${targetSale.id.toUpperCase()}`;
       <Sidebar activeView={activeView} setActiveView={setActiveView} collapsed={collapsed} setCollapsed={setCollapsed} settings={settings} isMobileOpen={isMobileOpen} setIsMobileOpen={setIsMobileOpen} desktopSidebarOpen={desktopSidebarOpen} setDesktopSidebarOpen={setDesktopSidebarOpen} onLogout={() => setIsAuthenticated(false)} />
       <BottomNavigation activeView={activeView} setActiveView={setActiveView} isMobileOpen={isMobileOpen} setIsMobileOpen={setIsMobileOpen} />
       <main className="flex-1 flex flex-col min-w-0">
+        {isInitialLoading && (
+          <div className="fixed top-0 left-0 w-full h-[2px] bg-gold/20 z-50 overflow-hidden pointer-events-none">
+            <div className="h-full bg-gold w-1/3 animate-[pulse_1s_ease-in-out_infinite] shadow-[0_0_8px_#ffd700]" />
+          </div>
+        )}
         <Topbar 
           onOpenSettings={() => setActiveView('settings')} 
           onOpenMobileMenu={() => setIsMobileOpen(true)} 
           onToggleDesktopSidebar={() => setDesktopSidebarOpen(!desktopSidebarOpen)}
           desktopSidebarOpen={desktopSidebarOpen}
           viewTitle={activeView === 'reports' ? 'Relatório Mensal' : activeView === 'dashboard' ? 'Gestão de Vendas' : activeView === 'stock' ? 'Estoque de Produtos' : activeView === 'sales' ? 'Gestão de Recebíveis' : activeView === 'transactions' ? 'Histórico de Transações' : activeView === 'clients' ? 'Relacionamento' : activeView === 'settings' ? 'Configurações de Sistema' : 'Simulador de Preços'} 
+          hideDashboardValues={hideDashboardValues}
+          onToggleHideDashboardValues={toggleHideDashboardValues}
         />
         <div className="p-4 pb-24 sm:p-8 overflow-x-hidden custom-scrollbar">
           <AnimatePresence mode="wait">
@@ -1003,6 +1054,7 @@ Autenticação: ${targetSale.id.toUpperCase()}`;
                     sales={sales} 
                     installments={installments} 
                     closings={closings}
+                    hideValues={hideDashboardValues}
                     onNavigate={(view, filter) => {
                       setActiveView(view);
                       if (filter === 'closings' || filter === 'installments') {
@@ -1026,7 +1078,12 @@ Autenticação: ${targetSale.id.toUpperCase()}`;
                          <button onClick={() => setActiveView('sales')} className="text-[9px] sm:text-[10px] font-black uppercase text-gold hover:underline">Ver Todos</button>
                       </div>
                       <div className="flex flex-col gap-3">
-                        {sales.length === 0 ? (
+                        {isInitialLoading && sales.length === 0 ? (
+                          <div className="p-8 bg-[rgba(255,255,255,0.02)] border border-line rounded-2xl flex flex-col items-center justify-center gap-3 text-center">
+                            <div className="w-6 h-6 border-2 border-gold/30 border-t-gold rounded-full animate-spin" />
+                            <span className="text-[10px] text-gold font-black uppercase tracking-widest animate-pulse">Carregando dados com segurança...</span>
+                          </div>
+                        ) : sales.length === 0 ? (
                           <div className="p-6 bg-[rgba(255,255,255,0.02)] border border-line rounded-2xl text-center">
                             <span className="text-[10px] text-gray-500 font-bold uppercase tracking-widest">Nenhum contrato ativo</span>
                           </div>
@@ -1052,7 +1109,9 @@ Autenticação: ${targetSale.id.toUpperCase()}`;
                               
                               <div className="flex items-center gap-3 self-end sm:self-auto shrink-0">
                                 <div className="text-right">
-                                  <p className="font-black text-white italic text-xs sm:text-sm">{money(sale.total)}</p>
+                                  <p className="font-black text-white italic text-xs sm:text-sm">
+                                    {hideDashboardValues ? 'R$ ••••••' : money(sale.total)}
+                                  </p>
                                   <span className="text-[8px] text-green-neon font-black uppercase">KPI OK</span>
                                 </div>
 
@@ -1134,7 +1193,9 @@ Autenticação: ${targetSale.id.toUpperCase()}`;
                              </div>
                              <div>
                                 <h4 className="text-[10px] sm:text-xs font-black text-white truncate uppercase italic">{product.name}</h4>
-                                <p className="text-xs sm:text-sm font-black text-gold mt-1 italic">{money(product.sale)}</p>
+                                <p className="text-xs sm:text-sm font-black text-gold mt-1 italic">
+                                  {hideDashboardValues ? 'R$ ••••••' : money(product.sale)}
+                                </p>
                              </div>
                           </div>
                         ))}
@@ -1191,8 +1252,8 @@ Autenticação: ${targetSale.id.toUpperCase()}`;
                           <div className="w-full grid grid-cols-2 gap-3 mt-6 sm:mt-8">
                             {(() => {
                               const s = sales.filter(s => s.client === selectedClient);
-                              const pend = installments.filter(i => i.client === selectedClient && i.status === 'Pendente').reduce((acc, i) => acc + i.value, 0);
-                              const paid = installments.filter(i => i.client === selectedClient && i.status === 'Pago').reduce((acc, i) => acc + i.value, 0);
+                              const pend = installments.filter(i => i.client === selectedClient && i.status === 'Pendente').reduce((acc, i) => acc + (Number(i.value) || 0), 0);
+                              const paid = installments.filter(i => i.client === selectedClient && i.status === 'Pago').reduce((acc, i) => acc + (Number(i.value) || 0), 0);
                               return (
                                 <>
                                   <div className="p-3 sm:p-4 bg-[rgba(0,0,0,0.4)] border border-line shadow-sm rounded-[20px] sm:rounded-[24px]">
@@ -2043,29 +2104,41 @@ Autenticação: ${targetSale.id.toUpperCase()}`;
 
                         if (saleToEdit) {
                           const ok = await updateSaleFull(saleToEdit.id, saleData);
-                          if (ok) showToast('Contrato e venda atualizados com sucesso!');
-                          else showToast('Erro ao atualizar contrato.', 'error');
+                          if (ok) {
+                            showToast('Contrato e venda atualizados com sucesso!');
+                            setShowSaleForm(false); 
+                            setSaleToEdit(null);
+                          } else {
+                            showToast('Erro ao atualizar contrato.', 'error');
+                          }
                         } else {
                           const ok = await registerSale(saleData);
-                          if (ok) showToast('Venda e contrato cadastrados com sucesso!');
-                          else showToast('Erro ao cadastrar venda.', 'error');
+                          if (ok) {
+                            showToast('Venda e contrato cadastrados com sucesso!');
+                            setShowSaleForm(false); 
+                            setSaleToEdit(null);
+                          } else {
+                            showToast('Erro ao cadastrar venda.', 'error');
+                          }
                         }
-                        setShowSaleForm(false); 
-                        setSaleToEdit(null);
                       }}>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
                           <div className="flex flex-col gap-2">
                              <label className="text-[9px] sm:text-[10px] font-black text-gray-500 uppercase ml-3">Escolha o Ativo</label>
                              <select 
                                name="productId" 
-                               required={!saleToEdit}
-                               disabled={!!saleToEdit}
                                defaultValue={saleToEdit?.productId || ""}
-                               className="h-12 sm:h-14 bg-[rgba(0,0,0,0.4)] border border-line-strong rounded-xl sm:rounded-2xl px-5 sm:px-6 font-bold outline-none focus:border-gold transition-all text-xs sm:text-sm disabled:opacity-50"
+                               className="h-12 sm:h-14 bg-[rgba(0,0,0,0.4)] border border-line-strong rounded-xl sm:rounded-2xl px-5 sm:px-6 font-bold outline-none focus:border-gold transition-all text-xs sm:text-sm cursor-pointer"
                              >
-                               <option value="">Selecione...</option>
-                               {saleToEdit && <option value={saleToEdit.productId}>{saleToEdit.productName}</option>}
-                               {products.filter(p => p.status === 'Disponivel').map(p => <option key={p.id} value={p.id} className="bg-black">{p.name} ({money(p.sale)})</option>)}
+                               <option value="">{saleToEdit ? `${saleToEdit.productName || 'Ativo Atual'} (Manter)` : 'Selecione um ativo...'}</option>
+                               {saleToEdit && saleToEdit.productId && !products.some(p => p.id === saleToEdit.productId) && (
+                                 <option value={saleToEdit.productId}>{saleToEdit.productName}</option>
+                               )}
+                               {products.map(p => (
+                                 <option key={p.id} value={p.id} className="bg-black">
+                                   {p.name} ({money(p.sale)}) {p.status !== 'Disponivel' && p.id !== saleToEdit?.productId ? `— [${p.status}]` : ''}
+                                 </option>
+                               ))}
                              </select>
                           </div>
 
@@ -2089,11 +2162,11 @@ Autenticação: ${targetSale.id.toUpperCase()}`;
                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                               <div className="flex flex-col gap-2">
                                  <label className="text-[9px] sm:text-[10px] font-black text-gray-500 uppercase ml-3">CPF</label>
-                                 <input name="clientCpf" required defaultValue={saleToEdit?.clientCpf || ''} placeholder="000.000.000-00" className="h-12 sm:h-14 bg-[rgba(0,0,0,0.4)] border border-line-strong rounded-xl sm:rounded-2xl px-5 sm:px-6 outline-none focus:border-gold transition-all font-bold text-xs sm:text-sm" />
+                                 <input name="clientCpf" defaultValue={saleToEdit?.clientCpf || ''} placeholder="000.000.000-00" className="h-12 sm:h-14 bg-[rgba(0,0,0,0.4)] border border-line-strong rounded-xl sm:rounded-2xl px-5 sm:px-6 outline-none focus:border-gold transition-all font-bold text-xs sm:text-sm" />
                               </div>
                               <div className="flex flex-col gap-2">
                                  <label className="text-[9px] sm:text-[10px] font-black text-gray-500 uppercase ml-3">Contato</label>
-                                 <input name="clientPhone" required defaultValue={saleToEdit?.clientPhone || ''} placeholder="(00) 00000-0000" className="h-12 sm:h-14 bg-[rgba(0,0,0,0.4)] border border-line-strong rounded-xl sm:rounded-2xl px-5 sm:px-6 outline-none focus:border-gold transition-all font-bold text-xs sm:text-sm" />
+                                 <input name="clientPhone" defaultValue={saleToEdit?.clientPhone || ''} placeholder="(00) 00000-0000" className="h-12 sm:h-14 bg-[rgba(0,0,0,0.4)] border border-line-strong rounded-xl sm:rounded-2xl px-5 sm:px-6 outline-none focus:border-gold transition-all font-bold text-xs sm:text-sm" />
                               </div>
                            </div>
                         </div>
@@ -2641,7 +2714,7 @@ Autenticação: ${targetSale.id.toUpperCase()}`;
                       </div>
                       <div>
                         <strong className="text-2xl sm:text-3xl font-bold text-white tracking-tight block font-sans">
-                          {money(transactions.filter(t => t.type === 'entrada').reduce((acc, t) => acc + t.value, 0))}
+                          {money(transactions.filter(t => t.type === 'entrada').reduce((acc, t) => acc + (Number(t.value) || 0), 0))}
                         </strong>
                         <span className="text-[10px] text-gray-500 font-medium block mt-1">Somas de valores de entrada em caixa</span>
                       </div>
@@ -2656,7 +2729,7 @@ Autenticação: ${targetSale.id.toUpperCase()}`;
                       </div>
                       <div>
                         <strong className="text-2xl sm:text-3xl font-bold text-white tracking-tight block font-sans">
-                          {money(transactions.filter(t => t.type === 'parcela').reduce((acc, t) => acc + t.value, 0))}
+                          {money(transactions.filter(t => t.type === 'parcela').reduce((acc, t) => acc + (Number(t.value) || 0), 0))}
                         </strong>
                         <span className="text-[10px] text-gray-500 font-medium block mt-1">Somas de parcelas recebidas liquidadas</span>
                       </div>
@@ -2671,7 +2744,7 @@ Autenticação: ${targetSale.id.toUpperCase()}`;
                       </div>
                       <div>
                         <strong className="text-2xl sm:text-3xl font-bold text-gold tracking-tight block font-sans">
-                          {money(transactions.reduce((acc, t) => acc + t.value, 0))}
+                          {money(transactions.reduce((acc, t) => acc + (Number(t.value) || 0), 0))}
                         </strong>
                         <span className="text-[10px] text-gold/60 font-medium block mt-1">Fluxo total conciliado no sistema</span>
                       </div>
@@ -3067,12 +3140,14 @@ Autenticação: ${targetSale.id.toUpperCase()}`;
 
                       {(() => {
                         const i = simRate / 100;
-                        const n = simInstallments || 1;
-                        const pv = simValue || 0;
-                        const rawPmt = i === 0 ? pv / n : pv * (i * Math.pow(1 + i, n)) / (Math.pow(1 + i, n) - 1);
-                        const pmt = Math.round(rawPmt);
-                        const totalInstallments = pmt * n;
-                        const totalPrazo = totalInstallments + (simDownPayment || 0);
+                        const n = simInstallments > 0 ? simInstallments : 1;
+                        const pv = simValue > 0 ? simValue : 0;
+                        const denominator = Math.pow(1 + i, n) - 1;
+                        const rawPmt = i === 0 || denominator <= 0 ? (n > 0 ? pv / n : 0) : pv * (i * Math.pow(1 + i, n)) / denominator;
+                        const safeRawPmt = isFinite(rawPmt) && !isNaN(rawPmt) ? rawPmt : 0;
+                        const pmt = Math.round(safeRawPmt * 100) / 100;
+                        const totalInstallments = Math.round(pmt * n * 100) / 100;
+                        const totalPrazo = Math.round((totalInstallments + (simDownPayment || 0)) * 100) / 100;
                         const effectiveCash = simCashPrice > 0 ? simCashPrice : (pv + (simDownPayment || 0));
                         const diffVal = totalPrazo - effectiveCash;
                         const diffPct = effectiveCash > 0 ? ((diffVal / effectiveCash) * 100).toFixed(1) : '0';

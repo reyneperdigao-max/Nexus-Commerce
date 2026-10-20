@@ -5,11 +5,34 @@
 /**
  * Returns today's date formatted as YYYY-MM-DD in the user's LOCAL browser timezone
  */
-export function getLocalDateString(d: Date = new Date()): string {
-  const year = d.getFullYear();
-  const month = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
+export function getLocalDateString(dateInput?: Date | string | null): string {
+  if (!dateInput) {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  }
+  if (typeof dateInput === 'string') {
+    const trimmed = dateInput.trim();
+    if (!trimmed) {
+      const now = new Date();
+      return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    }
+    const parsed = parseDateSafe(trimmed);
+    if (parsed) {
+      return `${parsed.year}-${String(parsed.month).padStart(2, '0')}-${String(parsed.day).padStart(2, '0')}`;
+    }
+    const d = new Date(trimmed);
+    if (!isNaN(d.getTime())) {
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    }
+  }
+  if (dateInput instanceof Date && !isNaN(dateInput.getTime())) {
+    const year = dateInput.getFullYear();
+    const month = String(dateInput.getMonth() + 1).padStart(2, '0');
+    const day = String(dateInput.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 }
 
 /**
@@ -24,9 +47,15 @@ export function getFutureLocalDateString(daysAhead: number = 30, baseDate: Date 
  * Parses any date string (ISO timestamp, YYYY-MM-DD, DD/MM/YYYY) into numerical { year, month, day }
  * safely without timezone conversion bugs.
  */
-export function parseDateSafe(dateStr?: string | null): { year: number; month: number; day: number } | null {
-  if (!dateStr) return null;
-  const str = String(dateStr).trim();
+export function parseDateSafe(dateInput?: string | Date | null): { year: number; month: number; day: number } | null {
+  if (!dateInput) return null;
+  if (dateInput instanceof Date) {
+    if (!isNaN(dateInput.getTime())) {
+      return { year: dateInput.getFullYear(), month: dateInput.getMonth() + 1, day: dateInput.getDate() };
+    }
+    return null;
+  }
+  const str = String(dateInput).trim();
   if (str.includes('-')) {
     const parts = str.split('T')[0].split('-');
     if (parts.length >= 3) {
@@ -49,7 +78,7 @@ export function parseDateSafe(dateStr?: string | null): { year: number; month: n
     }
   }
   try {
-    const d = new Date(dateStr);
+    const d = new Date(str);
     if (!isNaN(d.getTime())) {
       return { year: d.getFullYear(), month: d.getMonth() + 1, day: d.getDate() };
     }
