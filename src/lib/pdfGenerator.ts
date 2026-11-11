@@ -225,8 +225,8 @@ export function createContractPDFDoc(
       body: `O valor total estipulado é de ${money(sale.total)}, a ser liquidado conforme discriminado no Quadro-Resumo, com vencimento estipulado para todo dia ${dueDay} de cada mês subsequente. Fica assegurado ao Comprador o direito de realizar quitações antecipadas ou amortizações extraordinárias com abatimento proporcional da dívida.`
     },
     {
-      title: 'CLÁUSULA 4ª – DA TOLERÂNCIA E ENCARGOS POR ATRASO',
-      body: 'Eventual atraso na quitação de parcelas acarretará em multa moratória de 2% (dois por cento) sobre a parcela vencida, acrescida de juros de 1% (um por cento) ao mês calculados pro rata die até a efetiva quitação.'
+      title: 'CLÁUSULA 4ª – DA TOLERÂNCIA, ENCARGOS E BLOQUEIO POR ATRASO',
+      body: 'Eventual atraso na quitação de parcelas acarretará multa moratória de 2% (dois por cento) sobre o valor vencido, acrescida de juros de mora de 1% (um por cento) ao mês, calculados proporcionalmente aos dias de atraso (pro rata die) até a efetiva quitação. O atraso superior a 5 (cinco) dias corridos da data de vencimento autoriza o VENDEDOR a realizar o bloqueio do funcionamento do aparelho de forma remota, sendo o desbloqueio efetuado em até 24 horas após a confirmação do pagamento integral do débito e encargos. Fica expressamente proibida qualquer tentativa de remoção, formatação clandestina ou burla do sistema de segurança do dispositivo pelo comprador, sob pena de vencimento antecipado de todo o saldo devedor.'
     },
     {
       title: 'CLÁUSULA 5ª – DA EFICÁCIA E CONFISSÃO DE DÍVIDA',
@@ -732,10 +732,10 @@ export function buildContractHTML(sale: Sale, settings: Settings, installments?:
 
           <div style="margin-bottom: 7px;">
             <strong style="color: #0f172a; text-transform: uppercase; display: block; font-size: 10px;">
-              Cláusula 4ª – Da Tolerância e Encargos por Atraso
+              Cláusula 4ª – Da Tolerância, Encargos e Bloqueio por Atraso
             </strong>
             <p style="margin: 2px 0 0 0; text-align: justify;">
-              Eventual atraso na quitação de qualquer parcela sujeitará o COMPRADOR ao acréscimo de multa moratória de 2% (dois por cento) sobre o valor vencido, acrescida de juros de 1% (um por cento) ao mês calculados <em>pro rata die</em> até a efetiva regularização.
+              Eventual atraso na quitação de parcelas acarretará multa moratória de 2% (dois por cento) sobre o valor vencido, acrescida de juros de mora de 1% (um por cento) ao mês, calculados proporcionalmente aos dias de atraso (<em>pro rata die</em>) até a efetiva quitação. O atraso superior a 5 (cinco) dias corridos da data de vencimento autoriza o VENDEDOR a realizar o bloqueio do funcionamento do aparelho de forma remota, sendo o desbloqueio efetuado em até 24 horas após a confirmação do pagamento integral do débito e encargos. Fica expressamente proibida qualquer tentativa de remoção, formatação clandestina ou burla do sistema de segurança do dispositivo pelo comprador, sob pena de vencimento antecipado de todo o saldo devedor.
             </p>
           </div>
 

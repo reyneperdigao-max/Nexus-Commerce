@@ -159,7 +159,7 @@ export default function App() {
       setSaleFormSelectedProductId(saleToEdit.productId || '');
       setSaleFormCostPrice(saleToEdit.costPrice !== undefined ? saleToEdit.costPrice : '');
       setSaleFormSalePrice(saleToEdit.total !== undefined ? saleToEdit.total : '');
-    } else {
+    } else if (!showSaleForm) {
       setIsInterestOnlyForm(false);
       setInterestRateForm(5);
       setSaleFormSelectedProductId('');
@@ -783,7 +783,7 @@ Emissão: ${dateFormatted} • ${company}
 1. OBJETO: Venda do bem/serviço discriminado acima em perfeitas condições de uso.
 2. PAGAMENTO: O Comprador se compromete a efetuar os pagamentos nas datas estipuladas.
 3. ANTECIPAÇÃO: É facultado ao Comprador amortizar ou quitar parcelas a qualquer momento com abatimento proporcional.
-4. ATRASO: Atrasos implicarão em multa de 2% e juros moratórios de 1% ao mês pro rata die.
+4. ATRASO E BLOQUEIO REMOTO: Eventual atraso acarretará multa de 2% sobre o valor vencido e juros de mora de 1% ao mês pro rata die. O atraso superior a 5 dias corridos autoriza o VENDEDOR a realizar o bloqueio do aparelho de forma remota, com desbloqueio em até 24h após quitação integral. Proibida tentativa de remoção ou burla da segurança sob pena de vencimento antecipado de todo o saldo devedor.
 5. EFICÁCIA: Documento reconhecido como título de crédito e confissão de dívida líquida e certa (Art. 784, CPC).
 
 Assinado Eletronicamente:
@@ -1997,9 +1997,12 @@ Autenticação: ${targetSale.id.toUpperCase()}`;
                                     <div className="flex items-center justify-end gap-2">
                                       <button 
                                         onClick={() => {
-                                          setActiveView('sales');
-                                          setShowSaleForm(true);
                                           setSaleToEdit(null);
+                                          setSaleFormSelectedProductId(p.id);
+                                          setSaleFormSalePrice(p.sale);
+                                          setSaleFormCostPrice(p.cost !== undefined ? p.cost : '');
+                                          setShowSaleForm(true);
+                                          setActiveView('sales');
                                         }}
                                         className="h-8 px-2.5 rounded-lg border border-gold/30 bg-gold/10 hover:bg-gold hover:text-black text-gold flex items-center gap-1.5 transition-all cursor-pointer active:scale-90 text-[9px] font-black uppercase tracking-wider"
                                         title="Registrar Venda Deste Produto"
@@ -2051,7 +2054,9 @@ Autenticação: ${targetSale.id.toUpperCase()}`;
               {activeView === 'sales' && (
                 <div className="flex flex-col gap-8 animate-view-enter">
                   {showSaleForm ? (() => {
-                    const existingFirstInst = saleToEdit ? installments.find(i => i.saleId === saleToEdit.id && i.number === 1) : null;
+                    const existingFirstInst = saleToEdit 
+                      ? installments.find(i => (i.saleId === saleToEdit.id || String(i.saleId).trim() === String(saleToEdit.id).trim()) && i.number === 1) 
+                      : null;
                     const defaultFirstDue = existingFirstInst?.dueDate 
                       ? getLocalDateString(existingFirstInst.dueDate) 
                       : (saleToEdit?.date ? getLocalDateString(saleToEdit.date) : getFutureLocalDateString(30));
@@ -2067,13 +2072,26 @@ Autenticação: ${targetSale.id.toUpperCase()}`;
                         e.preventDefault(); 
                         const f = e.target as any; 
 
-                        const resolvedProductId = saleToEdit ? (saleToEdit.productId || f.productId?.value || '') : (f.productId?.value || '');
+                        const resolvedProductId = (f.productId?.value || saleFormSelectedProductId || (saleToEdit ? saleToEdit.productId : '') || '').trim();
+                        if (!saleToEdit && !resolvedProductId) {
+                          showToast('Por favor, selecione um ativo para cadastrar a venda.', 'error');
+                          return;
+                        }
+
+                        const selectedProd = products.find(p => p.id === resolvedProductId || String(p.id).trim() === resolvedProductId);
+
                         const parsedCost = f.costPrice?.value !== '' && !isNaN(Number(f.costPrice?.value)) 
                           ? Number(f.costPrice.value) 
-                          : (saleToEdit?.costPrice !== undefined ? saleToEdit.costPrice : 0);
+                          : (saleToEdit?.costPrice !== undefined ? saleToEdit.costPrice : (selectedProd?.cost || 0));
                         const parsedTotal = f.manualSalePrice?.value !== '' && !isNaN(Number(f.manualSalePrice?.value))
                           ? Number(f.manualSalePrice.value)
-                          : (saleToEdit?.total || 0);
+                          : (saleToEdit?.total || (selectedProd?.sale || 0));
+
+                        if (parsedTotal <= 0) {
+                          showToast('Por favor, informe um Preço Final válido para a venda.', 'error');
+                          return;
+                        }
+
                         const parsedDown = f.downPayment?.value !== '' && !isNaN(Number(f.downPayment?.value))
                           ? Number(f.downPayment.value)
                           : (saleToEdit?.downPayment || 0);
@@ -2103,22 +2121,32 @@ Autenticação: ${targetSale.id.toUpperCase()}`;
                         };
 
                         if (saleToEdit) {
-                          const ok = await updateSaleFull(saleToEdit.id, saleData);
-                          if (ok) {
-                            showToast('Contrato e venda atualizados com sucesso!');
-                            setShowSaleForm(false); 
-                            setSaleToEdit(null);
-                          } else {
-                            showToast('Erro ao atualizar contrato.', 'error');
+                          try {
+                            const ok = await updateSaleFull(saleToEdit.id, saleData, saleToEdit);
+                            if (ok) {
+                              showToast('Contrato e venda atualizados com sucesso!');
+                              setShowSaleForm(false); 
+                              setSaleToEdit(null);
+                            } else {
+                              showToast('Erro ao atualizar contrato.', 'error');
+                            }
+                          } catch (err: any) {
+                            console.error('Erro ao atualizar contrato:', err);
+                            showToast('Erro ao atualizar contrato: ' + (err?.message || 'Tente novamente'), 'error');
                           }
                         } else {
-                          const ok = await registerSale(saleData);
-                          if (ok) {
-                            showToast('Venda e contrato cadastrados com sucesso!');
-                            setShowSaleForm(false); 
-                            setSaleToEdit(null);
-                          } else {
-                            showToast('Erro ao cadastrar venda.', 'error');
+                          try {
+                            const ok = await registerSale(saleData);
+                            if (ok) {
+                              showToast('Venda e contrato cadastrados com sucesso!');
+                              setShowSaleForm(false); 
+                              setSaleToEdit(null);
+                            } else {
+                              showToast('Erro ao cadastrar venda. Verifique se o ativo está disponível.', 'error');
+                            }
+                          } catch (err: any) {
+                            console.error('Erro ao cadastrar venda:', err);
+                            showToast('Erro ao cadastrar venda: ' + (err?.message || 'Tente novamente'), 'error');
                           }
                         }
                       }}>
@@ -2127,7 +2155,17 @@ Autenticação: ${targetSale.id.toUpperCase()}`;
                              <label className="text-[9px] sm:text-[10px] font-black text-gray-500 uppercase ml-3">Escolha o Ativo</label>
                              <select 
                                name="productId" 
-                               defaultValue={saleToEdit?.productId || ""}
+                               required={!saleToEdit}
+                               value={saleFormSelectedProductId || saleToEdit?.productId || ""}
+                               onChange={(e) => {
+                                 const val = e.target.value;
+                                 setSaleFormSelectedProductId(val);
+                                 const prod = products.find(p => p.id === val || String(p.id).trim() === val);
+                                 if (prod) {
+                                   setSaleFormSalePrice(prod.sale);
+                                   if (prod.cost !== undefined) setSaleFormCostPrice(prod.cost);
+                                 }
+                               }}
                                className="h-12 sm:h-14 bg-[rgba(0,0,0,0.4)] border border-line-strong rounded-xl sm:rounded-2xl px-5 sm:px-6 font-bold outline-none focus:border-gold transition-all text-xs sm:text-sm cursor-pointer"
                              >
                                <option value="">{saleToEdit ? `${saleToEdit.productName || 'Ativo Atual'} (Manter)` : 'Selecione um ativo...'}</option>
@@ -2180,14 +2218,31 @@ Autenticação: ${targetSale.id.toUpperCase()}`;
                            <div className="flex flex-col gap-2">
                               <label className="text-[9px] sm:text-[10px] font-black text-gray-500 uppercase ml-3">Preço de Custo</label>
                               <div className="relative">
-                                 <input name="costPrice" type="number" step="0.01" defaultValue={saleToEdit?.costPrice !== undefined ? saleToEdit.costPrice : ''} placeholder="0,00" className="w-full h-12 sm:h-14 bg-[rgba(0,0,0,0.4)] border border-line-strong rounded-xl sm:rounded-2xl px-5 sm:px-6 pl-10 sm:pl-12 outline-none focus:border-gold transition-all font-black text-zinc-300 italic text-xs sm:text-sm" />
+                                 <input 
+                                   name="costPrice" 
+                                   type="number" 
+                                   step="0.01" 
+                                   value={saleFormCostPrice}
+                                   onChange={(e) => setSaleFormCostPrice(e.target.value)}
+                                   placeholder="0,00" 
+                                   className="w-full h-12 sm:h-14 bg-[rgba(0,0,0,0.4)] border border-line-strong rounded-xl sm:rounded-2xl px-5 sm:px-6 pl-10 sm:pl-12 outline-none focus:border-gold transition-all font-black text-zinc-300 italic text-xs sm:text-sm" 
+                                 />
                                  <span className="absolute left-5 sm:left-6 top-1/2 -translate-y-1/2 text-zinc-500 font-bold">$</span>
                               </div>
                            </div>
                            <div className="flex flex-col gap-2">
                               <label className="text-[9px] sm:text-[10px] font-black text-gray-500 uppercase ml-3">Preço Final</label>
                               <div className="relative">
-                                 <input name="manualSalePrice" type="number" step="0.01" required defaultValue={saleToEdit ? (saleToEdit.total) : ''} placeholder="0,00" className="w-full h-12 sm:h-14 bg-[rgba(0,0,0,0.4)] border border-line-strong rounded-xl sm:rounded-2xl px-5 sm:px-6 pl-10 sm:pl-12 outline-none focus:border-gold transition-all font-black text-gold italic text-xs sm:text-sm" />
+                                 <input 
+                                   name="manualSalePrice" 
+                                   type="number" 
+                                   step="0.01" 
+                                   required 
+                                   value={saleFormSalePrice}
+                                   onChange={(e) => setSaleFormSalePrice(e.target.value)}
+                                   placeholder="0,00" 
+                                   className="w-full h-12 sm:h-14 bg-[rgba(0,0,0,0.4)] border border-line-strong rounded-xl sm:rounded-2xl px-5 sm:px-6 pl-10 sm:pl-12 outline-none focus:border-gold transition-all font-black text-gold italic text-xs sm:text-sm" 
+                                 />
                                  <span className="absolute left-5 sm:left-6 top-1/2 -translate-y-1/2 text-gold opacity-50 font-black italic">$</span>
                               </div>
                            </div>
@@ -3928,9 +3983,9 @@ Autenticação: ${targetSale.id.toUpperCase()}`;
                           </div>
 
                           <div>
-                            <strong className="text-slate-900 uppercase block mb-0.5 text-[9.5px]">Cláusula 4ª – Da Tolerância e Encargos por Atraso</strong>
+                            <strong className="text-slate-900 uppercase block mb-0.5 text-[9.5px]">Cláusula 4ª – Da Tolerância, Encargos e Bloqueio por Atraso</strong>
                             <p className="text-justify">
-                              Eventual atraso na quitação de parcelas acarretará em multa moratória de 2% (dois por cento) sobre a parcela vencida, acrescida de juros de 1% (um por cento) ao mês <em>pro rata die</em> até a efetiva quitação.
+                              Eventual atraso na quitação de parcelas acarretará multa moratória de 2% (dois por cento) sobre o valor vencido, acrescida de juros de mora de 1% (um por cento) ao mês, calculados proporcionalmente aos dias de atraso (<em>pro rata die</em>) até a efetiva quitação. O atraso superior a 5 (cinco) dias corridos da data de vencimento autoriza o VENDEDOR a realizar o bloqueio do funcionamento do aparelho de forma remota, sendo o desbloqueio efetuado em até 24 horas após a confirmação do pagamento integral do débito e encargos. Fica expressamente proibida qualquer tentativa de remoção, formatação clandestina ou burla do sistema de segurança do dispositivo pelo comprador, sob pena de vencimento antecipado de todo o saldo devedor.
                             </p>
                           </div>
 

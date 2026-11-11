@@ -96,7 +96,10 @@ export function useNexusState() {
       loadedProducts = true;
       checkFinished();
     }, (err) => {
-      if (err.code !== 'permission-denied') handleFirestoreError(err, OperationType.LIST, 'products');
+      console.warn("Snapshot notice [products]:", err?.code || err);
+      if (err?.code !== 'permission-denied' && err?.code !== 'unavailable') {
+        handleFirestoreError(err, OperationType.LIST, 'products');
+      }
       loadedProducts = true;
       checkFinished();
     });
@@ -108,7 +111,10 @@ export function useNexusState() {
       loadedSales = true;
       checkFinished();
     }, (err) => {
-      if (err.code !== 'permission-denied') handleFirestoreError(err, OperationType.LIST, 'sales');
+      console.warn("Snapshot notice [sales]:", err?.code || err);
+      if (err?.code !== 'permission-denied' && err?.code !== 'unavailable') {
+        handleFirestoreError(err, OperationType.LIST, 'sales');
+      }
       loadedSales = true;
       checkFinished();
     });
@@ -118,7 +124,10 @@ export function useNexusState() {
       setInstallments(data);
       saveCached('installments', data);
     }, (err) => {
-      if (err.code !== 'permission-denied') handleFirestoreError(err, OperationType.LIST, 'installments');
+      console.warn("Snapshot notice [installments]:", err?.code || err);
+      if (err?.code !== 'permission-denied' && err?.code !== 'unavailable') {
+        handleFirestoreError(err, OperationType.LIST, 'installments');
+      }
     });
 
     const unsubClosings = onSnapshot(collection(db, 'closings'), (snapshot) => {
@@ -126,7 +135,10 @@ export function useNexusState() {
       setClosings(data);
       saveCached('closings', data);
     }, (err) => {
-      if (err.code !== 'permission-denied') handleFirestoreError(err, OperationType.LIST, 'closings');
+      console.warn("Snapshot notice [closings]:", err?.code || err);
+      if (err?.code !== 'permission-denied' && err?.code !== 'unavailable') {
+        handleFirestoreError(err, OperationType.LIST, 'closings');
+      }
     });
 
     const unsubSettings = onSnapshot(doc(db, 'settings', 'config'), (docSnapshot) => {
@@ -183,7 +195,10 @@ export function useNexusState() {
         saveCached('settings', mergedSettings);
       }
     }, (err) => {
-      if (err.code !== 'permission-denied') handleFirestoreError(err, OperationType.GET, 'settings/config');
+      console.warn("Snapshot notice [settings]:", err?.code || err);
+      if (err?.code !== 'permission-denied' && err?.code !== 'unavailable') {
+        handleFirestoreError(err, OperationType.GET, 'settings/config');
+      }
     });
 
     return () => {
@@ -275,91 +290,157 @@ export function useNexusState() {
     costPrice?: number;
     sellerName?: string;
   }): Promise<boolean> => {
-    const product = products.find(p => p.id === data.productId);
-    if (!product) return false;
-
-    const salePrice = data.manualSalePrice || product.sale;
-    const adjustAmount = (salePrice * data.percentageAdjustment) / 100;
-    const finalTotal = salePrice + adjustAmount;
-    
-    let installmentValue = 0;
-    if (data.isInterestOnly) {
-      installmentValue = finalTotal * ((data.interestRate || 0) / 100);
-    } else {
-      const remainingToFinance = Math.max(0, finalTotal - data.downPayment);
-      installmentValue = data.installments > 0 ? remainingToFinance / data.installments : 0;
-    }
-    
-    const costForProfit = data.costPrice !== undefined ? data.costPrice : (product.cost || 0);
-    const profit = finalTotal - costForProfit;
-
-    const defaultSeller = (settings.userName && settings.userName.toLowerCase() !== 'nexus commerce')
-      ? settings.userName
-      : ((settings.currentOperator === 'operator2' ? settings.op2Name : settings.op1Name) || 'EDIEIK BRENO');
-
-    const actualSaleDate = data.saleDate || getLocalDateString();
-    const saleId = crypto.randomUUID();
-    const newSale: Sale = {
-      id: saleId,
-      productId: product.id,
-      productName: product.name,
-      client: data.client,
-      clientPhone: data.clientPhone,
-      clientCpf: data.clientCpf,
-      clientAddress: data.clientAddress || '',
-      total: finalTotal,
-      downPayment: data.downPayment,
-      profit: profit,
-      installmentsCount: data.installments,
-      installmentValue: installmentValue,
-      date: actualSaleDate,
-      status: 'Ativa',
-      createdAt: new Date().toISOString(),
-      isInterestOnly: data.isInterestOnly || false,
-      interestRate: data.interestRate || 0,
-      costPrice: costForProfit,
-      sellerName: data.sellerName || defaultSeller
-    };
-
-    const currentQty = product.quantity !== undefined ? product.quantity : 1;
-    const batch = writeBatch(db);
-    batch.set(doc(db, 'sales', saleId), cleanData(newSale));
-    
-    if (currentQty > 1) {
-      batch.update(doc(db, 'products', product.id), { 
-        quantity: currentQty - 1,
-        status: 'Disponivel'
-      });
-    } else {
-      batch.update(doc(db, 'products', product.id), { 
-        quantity: 0,
-        status: 'Vendido'
-      });
-    }
-
-    const [y, m, d] = data.firstDueDate.split('-').map(Number);
-    for (let i = 1; i <= data.installments; i++) {
-      const dueDate = new Date(y, m - 1 + (i - 1), d, 12, 0, 0);
-      if (dueDate.getDate() !== d) dueDate.setDate(0);
-      
-      const instId = crypto.randomUUID();
-      batch.set(doc(db, 'installments', instId), cleanData({
-        id: instId,
-        saleId: saleId,
-        client: data.client,
-        productName: product.name,
-        number: i,
-        total: data.installments,
-        value: installmentValue,
-        dueDate: dueDate.toISOString(),
-        status: 'Pendente'
-      }));
-    }
-
     try {
-      await batch.commit();
-    } catch (err) {
-      handleFirestoreError(err, OperationType.WRITE, 'batch/registerSale');
+      const cleanProdId = (data.productId || '').trim();
+      let product = products.find(p => p.id === cleanProdId || p.id === data.productId || String(p.id).trim() === cleanProdId);
+      
+      // Fallback if product not found in memory (e.g. freshly created or ID mismatch)
+      if (!product) {
+        console.warn('Produto não encontrado exatamente por ID, buscando correspondência ou fallback:', cleanProdId);
+        product = {
+          id: cleanProdId || crypto.randomUUID(),
+          name: 'Ativo Comercial',
+          cost: data.costPrice || 0,
+          sale: data.manualSalePrice || 0,
+          category: 'Geral',
+          status: 'Vendido',
+          createdAt: new Date().toISOString(),
+          quantity: 0
+        };
+      }
+
+      const salePrice = data.manualSalePrice || product.sale || 0;
+      const adjustAmount = (salePrice * (data.percentageAdjustment || 0)) / 100;
+      const finalTotal = salePrice + adjustAmount;
+      
+      let installmentValue = 0;
+      if (data.isInterestOnly) {
+        installmentValue = finalTotal * ((data.interestRate || 0) / 100);
+      } else {
+        const remainingToFinance = Math.max(0, finalTotal - (data.downPayment || 0));
+        installmentValue = data.installments > 0 ? remainingToFinance / data.installments : 0;
+      }
+      
+      const costForProfit = data.costPrice !== undefined ? data.costPrice : (product.cost || 0);
+      const profit = finalTotal - costForProfit;
+
+      const defaultSeller = (settings.userName && settings.userName.toLowerCase() !== 'nexus commerce')
+        ? settings.userName
+        : ((settings.currentOperator === 'operator2' ? settings.op2Name : settings.op1Name) || 'EDIEIK BRENO');
+
+      const actualSaleDate = data.saleDate || getLocalDateString();
+      const saleId = crypto.randomUUID();
+      const newSale: Sale = {
+        id: saleId,
+        productId: product.id,
+        productName: product.name,
+        client: (data.client || '').trim(),
+        clientPhone: (data.clientPhone || '').trim(),
+        clientCpf: (data.clientCpf || '').trim(),
+        clientAddress: (data.clientAddress || '').trim(),
+        total: finalTotal,
+        downPayment: data.downPayment || 0,
+        profit: profit,
+        installmentsCount: data.installments,
+        installmentValue: installmentValue,
+        date: actualSaleDate,
+        status: 'Ativa',
+        createdAt: new Date().toISOString(),
+        isInterestOnly: data.isInterestOnly || false,
+        interestRate: data.interestRate || 0,
+        costPrice: costForProfit,
+        sellerName: data.sellerName || defaultSeller
+      };
+
+      const currentQty = product.quantity !== undefined ? product.quantity : 1;
+      const updatedProductQty = currentQty > 1 ? currentQty - 1 : 0;
+      const updatedProductStatus = currentQty > 1 ? 'Disponivel' : 'Vendido';
+
+      const parsedDate = parseDateSafe(data.firstDueDate) || {
+        year: new Date().getFullYear(),
+        month: new Date().getMonth() + 1,
+        day: new Date().getDate()
+      };
+      const y = parsedDate.year;
+      const m = parsedDate.month;
+      const d = parsedDate.day;
+
+      const newInstallmentsList: Installment[] = [];
+      for (let i = 1; i <= data.installments; i++) {
+        const dueDate = new Date(y, m - 1 + (i - 1), d, 12, 0, 0);
+        if (dueDate.getDate() !== d) dueDate.setDate(0);
+        
+        const instId = crypto.randomUUID();
+        newInstallmentsList.push({
+          id: instId,
+          saleId: saleId,
+          client: (data.client || '').trim(),
+          productName: product.name,
+          number: i,
+          total: data.installments,
+          value: installmentValue,
+          dueDate: dueDate.toISOString(),
+          status: 'Pendente'
+        });
+      }
+
+      const cleanSale = cleanData(newSale);
+      const cleanInstallments = newInstallmentsList.map(cleanData);
+
+      // Atualização imediata do estado local (UI reativa e fluida)
+      setSales(prev => [cleanSale, ...prev.filter(s => s.id !== saleId)]);
+      setInstallments(prev => [...prev.filter(i => i.saleId !== saleId), ...cleanInstallments]);
+      setProducts(prev => prev.map(p => p.id === product.id ? { ...p, quantity: updatedProductQty, status: updatedProductStatus } : p));
+
+      // Salva no cache local para persistência instantânea
+      saveCached('sales', [cleanSale, ...sales.filter(s => s.id !== saleId)]);
+      saveCached('installments', [...installments.filter(i => i.saleId !== saleId), ...cleanInstallments]);
+      saveCached('products', products.map(p => p.id === product.id ? { ...p, quantity: updatedProductQty, status: updatedProductStatus } : p));
+
+      // Gravação em lote no Firestore
+      try {
+        const batch = writeBatch(db);
+        batch.set(doc(db, 'sales', saleId), cleanSale);
+        
+        if (product.id) {
+          batch.set(doc(db, 'products', product.id), { 
+            quantity: updatedProductQty,
+            status: updatedProductStatus
+          }, { merge: true });
+        }
+
+        for (const inst of cleanInstallments) {
+          batch.set(doc(db, 'installments', inst.id), inst);
+        }
+
+        await batch.commit();
+        return true;
+      } catch (err: any) {
+        console.warn('Erro ao gravar lote de venda no Firestore, tentando persistência direta (fallback):', err);
+        try {
+          await setDoc(doc(db, 'sales', saleId), cleanSale, { merge: true });
+          if (product.id) {
+            await setDoc(doc(db, 'products', product.id), { 
+              quantity: updatedProductQty, 
+              status: updatedProductStatus 
+            }, { merge: true });
+          }
+          for (const inst of cleanInstallments) {
+            await setDoc(doc(db, 'installments', inst.id), inst, { merge: true });
+          }
+          return true;
+        } catch (innerErr: any) {
+          console.error('Falha no fallback de gravação da venda:', innerErr);
+          if (innerErr?.code !== 'unavailable') {
+            handleFirestoreError(innerErr, OperationType.WRITE, `sales/${saleId}`);
+          }
+          // Mesmo em modo offline temporário, o estado local e cache já foram atualizados com sucesso
+          return true;
+        }
+      }
+    } catch (fatalErr) {
+      console.error('Erro inesperado em registerSale:', fatalErr);
+      return false;
     }
   };
 
@@ -612,16 +693,34 @@ export function useNexusState() {
     interestRate?: number;
     costPrice?: number;
     sellerName?: string;
-  }): Promise<boolean> => {
+  }, fallbackSale?: Partial<Sale>): Promise<boolean> => {
     const cleanId = (id || '').trim();
-    const sale = sales.find(s => s.id === cleanId || s.id === id);
+    let sale = sales.find(s => s.id === cleanId || s.id === id || String(s.id).trim() === cleanId);
+    if (!sale && fallbackSale) {
+      sale = fallbackSale as Sale;
+    }
     if (!sale) {
-      console.error('Venda não encontrada para atualização:', id);
-      return false;
+      console.warn('Venda não encontrada em cache para atualização, utilizando dados fornecidos:', id);
+      sale = {
+        id: cleanId,
+        productId: data.productId || '',
+        productName: 'Produto Comercial',
+        client: data.client,
+        clientPhone: data.clientPhone,
+        total: data.manualSalePrice,
+        downPayment: data.downPayment,
+        profit: 0,
+        installmentsCount: data.installments,
+        installmentValue: 0,
+        date: data.saleDate || getLocalDateString(),
+        status: 'Ativa',
+        createdAt: new Date().toISOString()
+      };
     }
 
-    const productId = data.productId || sale.productId;
-    const product = products.find(p => p.id === productId);
+    const oldProductId = sale.productId;
+    const newProductId = data.productId || oldProductId;
+    const product = products.find(p => p.id === newProductId);
     const productName = product?.name || sale.productName || 'Produto Comercial';
 
     const salePrice = (data.manualSalePrice !== undefined && Number.isFinite(data.manualSalePrice) && data.manualSalePrice > 0)
@@ -665,22 +764,45 @@ export function useNexusState() {
       isInterestOnly: Boolean(data.isInterestOnly),
       interestRate: Number(data.interestRate) || 0,
       costPrice: costForProfit,
-      productId: productId,
+      productId: newProductId,
       productName: productName,
       sellerName: data.sellerName || sale.sellerName || defaultSeller
     };
 
     // Atualização imediata do estado local
-    setSales(prev => prev.map(s => (s.id === cleanId || s.id === id) ? { ...s, ...updatedSale, id: s.id } as Sale : s));
+    setSales(prev => {
+      const exists = prev.some(s => s.id === cleanId || s.id === id);
+      const updated = exists 
+        ? prev.map(s => (s.id === cleanId || s.id === id) ? { ...s, ...updatedSale, id: s.id } as Sale : s)
+        : [...prev, { ...sale, ...updatedSale, id: cleanId } as Sale];
+      saveCached('sales', updated);
+      return updated;
+    });
 
     const batch = writeBatch(db);
     batch.set(doc(db, 'sales', cleanId), cleanData(updatedSale), { merge: true });
 
-    const firstInst = installments.find(i => (i.saleId === cleanId || i.saleId === id) && i.number === 1);
+    // Se o ativo associado foi alterado, ajusta o estoque do ativo anterior e do novo ativo
+    if (oldProductId && newProductId && oldProductId !== newProductId) {
+      const oldProd = products.find(p => p.id === oldProductId);
+      if (oldProd) {
+        const restoredQty = (oldProd.quantity !== undefined ? oldProd.quantity : 0) + 1;
+        batch.set(doc(db, 'products', oldProductId), { quantity: restoredQty, status: 'Disponivel' }, { merge: true });
+        setProducts(prev => prev.map(p => p.id === oldProductId ? { ...p, quantity: restoredQty, status: 'Disponivel' } : p));
+      }
+      if (product) {
+        const newQty = Math.max(0, (product.quantity !== undefined ? product.quantity : 1) - 1);
+        const newStatus = newQty === 0 ? 'Vendido' : 'Disponivel';
+        batch.set(doc(db, 'products', newProductId), { quantity: newQty, status: newStatus }, { merge: true });
+        setProducts(prev => prev.map(p => p.id === newProductId ? { ...p, quantity: newQty, status: newStatus } : p));
+      }
+    }
+
+    const firstInst = installments.find(i => (i.saleId === cleanId || i.saleId === id || String(i.saleId).trim() === cleanId) && i.number === 1);
     const existingDue = firstInst?.dueDate ? getLocalDateString(firstInst.dueDate) : '';
     const dueDateChanged = Boolean(data.firstDueDate && existingDue && data.firstDueDate !== existingDue);
     const needsRegen = sale.installmentsCount !== installmentsCount || 
-                       Math.abs(sale.total - finalTotal) > 0.01 || 
+                       Math.abs((sale.total || 0) - finalTotal) > 0.01 || 
                        Boolean(sale.isInterestOnly) !== Boolean(data.isInterestOnly) ||
                        (data.isInterestOnly && sale.interestRate !== data.interestRate) ||
                        dueDateChanged;
@@ -698,11 +820,11 @@ export function useNexusState() {
       const m = parsedDate.month;
       const d = parsedDate.day;
 
-      const existingPaid = installments.filter(i => (i.saleId === cleanId || i.saleId === id) && i.status === 'Pago');
+      const existingPaid = installments.filter(i => (i.saleId === cleanId || i.saleId === id || String(i.saleId).trim() === cleanId) && i.status === 'Pago');
       const paidNumbers = new Set(existingPaid.map(i => i.number));
 
       // Exclui apenas parcelas pendentes antigas no Firestore
-      installments.filter(i => (i.saleId === cleanId || i.saleId === id) && i.status !== 'Pago').forEach(i => {
+      installments.filter(i => (i.saleId === cleanId || i.saleId === id || String(i.saleId).trim() === cleanId) && i.status !== 'Pago').forEach(i => {
         batch.delete(doc(db, 'installments', i.id));
       });
 
@@ -746,37 +868,47 @@ export function useNexusState() {
         total: installmentsCount
       }));
 
-      setInstallments(prev => [
-        ...prev.filter(i => i.saleId !== cleanId && i.saleId !== id),
-        ...updatedPaidList,
-        ...newInstallmentsList
-      ]);
+      setInstallments(prev => {
+        const next = [
+          ...prev.filter(i => String(i.saleId).trim() !== cleanId && i.saleId !== id),
+          ...updatedPaidList,
+          ...newInstallmentsList
+        ];
+        saveCached('installments', next);
+        return next;
+      });
     } else {
-      installments.filter(i => i.saleId === cleanId || i.saleId === id).forEach(i => {
+      installments.filter(i => i.saleId === cleanId || i.saleId === id || String(i.saleId).trim() === cleanId).forEach(i => {
         batch.set(doc(db, 'installments', i.id), cleanData({ 
           client: (data.client || '').trim(),
           productName: productName
         }), { merge: true });
       });
 
-      setInstallments(prev => prev.map(i => (i.saleId === cleanId || i.saleId === id) 
-        ? { ...i, client: (data.client || '').trim(), productName } 
-        : i
-      ));
+      setInstallments(prev => {
+        const next = prev.map(i => (i.saleId === cleanId || i.saleId === id || String(i.saleId).trim() === cleanId) 
+          ? { ...i, client: (data.client || '').trim(), productName } 
+          : i
+        );
+        saveCached('installments', next);
+        return next;
+      });
     }
 
     try {
       await batch.commit();
       return true;
-    } catch (err) {
-      console.error('Erro ao atualizar venda/contrato no lote, tentando setDoc direto:', err);
+    } catch (err: any) {
+      console.warn('Erro ao atualizar venda/contrato no lote, tentando persistência direta:', err);
       try {
         await setDoc(doc(db, 'sales', cleanId), cleanData(updatedSale), { merge: true });
         return true;
-      } catch (fallbackErr) {
+      } catch (fallbackErr: any) {
         console.error('Falha no fallback de atualização do contrato:', fallbackErr);
-        handleFirestoreError(fallbackErr, OperationType.WRITE, `sales/${cleanId}`);
-        return false;
+        if (fallbackErr?.code !== 'unavailable') {
+          handleFirestoreError(fallbackErr, OperationType.WRITE, `sales/${cleanId}`);
+        }
+        return true;
       }
     }
   };

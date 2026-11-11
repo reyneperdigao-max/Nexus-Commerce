@@ -1,19 +1,31 @@
-import { initializeApp } from 'firebase/app';
+import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
-import { getFirestore, doc, getDocFromServer, collection, enableIndexedDbPersistence } from 'firebase/firestore';
+import { 
+  initializeFirestore, 
+  getFirestore, 
+  persistentLocalCache, 
+  persistentMultipleTabManager,
+  doc, 
+  getDocFromServer 
+} from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
 
-const app = initializeApp(firebaseConfig);
-export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
+
+let firestoreInstance;
+try {
+  firestoreInstance = initializeFirestore(app, {
+    localCache: persistentLocalCache({
+      tabManager: persistentMultipleTabManager()
+    })
+  }, firebaseConfig.firestoreDatabaseId);
+} catch (e) {
+  firestoreInstance = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+}
+
+export const db = firestoreInstance;
 export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
-
-// Enable offline persistence to prevent data loss or blank screens during connection lags
-if (typeof window !== 'undefined') {
-  enableIndexedDbPersistence(db).catch((err) => {
-    console.warn("Firestore offline persistence configuration status:", err.code);
-  });
-}
 
 export const signIn = () => signInWithPopup(auth, googleProvider);
 export const signOut = () => auth.signOut();
@@ -21,14 +33,13 @@ export const signOut = () => auth.signOut();
 // Connection Test
 export async function testConnection() {
   try {
-    // Attempting to read a non-existent doc just to check connectivity
     await getDocFromServer(doc(db, 'system', 'connection_test'));
     console.log("Firebase connected successfully.");
-  } catch (error) {
-    if (error instanceof Error && error.message.includes('the client is offline')) {
-      console.error("Firebase connection failed: Client is offline.");
+  } catch (error: any) {
+    if (error?.code === 'unavailable' || (error instanceof Error && error.message.includes('offline'))) {
+      console.warn("Firebase client is operating in offline/cached mode.");
     } else {
-      console.error("Firebase connection status check error:", error);
+      console.warn("Firebase connection check status:", error?.message || error);
     }
   }
 }
@@ -43,8 +54,11 @@ export enum OperationType {
 }
 
 export function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
+  const errMsg = error instanceof Error ? error.message : String(error);
+  const errCode = (error as any)?.code || '';
   const errInfo = {
-    error: error instanceof Error ? error.message : String(error),
+    error: errMsg,
+    code: errCode,
     authInfo: {
       userId: auth.currentUser?.uid,
       email: auth.currentUser?.email,
@@ -53,7 +67,17 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
     operationType,
     path
   };
+
+  // Gracefully handle offline or transient network disconnection
+  if (errCode === 'unavailable' || errCode === 'failed-precondition' || errMsg.toLowerCase().includes('offline')) {
+    console.warn(`[Firestore Offline/Unavailable] Operation: ${operationType} on ${path}:`, errMsg);
+    return;
+  }
+
   console.error('Firestore Error: ', JSON.stringify(errInfo));
+  if (operationType === OperationType.LIST || operationType === OperationType.GET) {
+    return;
+  }
   throw new Error(JSON.stringify(errInfo));
 }
 
