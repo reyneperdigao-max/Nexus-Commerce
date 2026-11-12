@@ -33,6 +33,20 @@ export interface Installment {
   isAdvanced?: boolean;
 }
 
+export interface SignatureAudit {
+  signed: boolean;
+  signatureImage?: string; // Imagem em Base64 PNG do traço desenhado
+  signedAt?: string; // Timestamp ISO exato
+  signedAtFormatted?: string; // Data e hora formatada (DD/MM/AAAA às HH:mm:ss)
+  signerName?: string;
+  signerCpf?: string;
+  signerIp?: string; // Endereço IP público do cliente
+  signerUserAgent?: string; // Informações do navegador / dispositivo
+  signatureHash?: string; // Hash criptográfico de validação e integridade
+  acceptedTerms?: boolean; // Confirmação do checkbox de aceite
+  authMethod?: string; // Método de autenticação jurídica
+}
+
 export interface Sale {
   id: string;
   productId: string;
@@ -53,6 +67,13 @@ export interface Sale {
   clientAddress?: string;
   costPrice?: number;
   sellerName?: string;
+  signature?: SignatureAudit;
+  isSigned?: boolean;
+  signatureImage?: string;
+  signedAt?: string;
+  signerIp?: string;
+  signerUserAgent?: string;
+  signatureHash?: string;
 }
 
 export interface Settings {

@@ -269,10 +269,23 @@ export function createContractPDFDoc(
   // Espaço proporcional e confortável para assinatura
   y += 18;
 
+  const sigImg = sale.signatureImage || sale.signature?.signatureImage;
+  const audit = sale.signature;
+  const isSigned = !!(sigImg || sale.isSigned || audit?.signed);
+
   // Linha Vendedor (Lado Inferior Esquerdo - com nome do vendedor ativo)
   doc.setDrawColor(51, 65, 85);
   doc.setLineWidth(0.6);
   doc.line(left + 6, y, left + 82, y);
+
+  // Inserção da imagem da assinatura desenhada pelo comprador
+  if (sigImg) {
+    try {
+      doc.addImage(sigImg, 'PNG', left + 115, y - 14, 46, 13);
+    } catch (e) {
+      console.warn('Erro ao inserir imagem da assinatura no PDF:', e);
+    }
+  }
 
   // Linha Comprador (Lado Inferior Direito)
   doc.line(left + 100, y, left + 176, y);
@@ -291,16 +304,39 @@ export function createContractPDFDoc(
   doc.text('VENDEDOR(A)', left + 44, y, { align: 'center' });
   doc.text('COMPRADOR(A)', left + 138, y, { align: 'center' });
 
-  // 5. Rodapé na base exata da folha A4
+  if (isSigned) {
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(6.8);
+    doc.setTextColor(21, 128, 61); // green 700
+    doc.text('[ ASSINADO DIGITALMENTE ]', left + 138, y + 3.2, { align: 'center' });
+  }
+
+  // 5. Rodapé na base exata da folha A4 com Rastro de Auditoria
   doc.setDrawColor(203, 213, 225);
   doc.setLineWidth(0.35);
-  doc.line(left, footerY, right, footerY);
+  doc.line(left, footerY - 2, right, footerY - 2);
 
-  doc.setFont('courier', 'normal');
-  doc.setFontSize(7.2);
-  doc.setTextColor(148, 163, 184);
-  doc.text(`AUTENTICAÇÃO: ${sale.id.toUpperCase()} • DOCUMENTO DIGITAL`, left, footerY + 4.5);
-  doc.text(`VIA ORIGINAL • EMISSÃO: ${dateFormatted}`, right, footerY + 4.5, { align: 'right' });
+  if (isSigned && (audit?.signatureHash || sale.signatureHash)) {
+    const hash = audit?.signatureHash || sale.signatureHash || '';
+    const ip = audit?.signerIp || sale.signerIp || 'IP Registrado';
+    const signedAt = audit?.signedAtFormatted || (sale.signedAt ? new Date(sale.signedAt).toLocaleString('pt-BR') : dateFormatted);
+
+    doc.setFont('courier', 'bold');
+    doc.setFontSize(6.2);
+    doc.setTextColor(51, 65, 85);
+    doc.text(`AUTENTICAÇÃO DIGITAL: HASH ${hash.substring(0, 36)}... • IP: ${ip} • DATA/HORA: ${signedAt}`, left, footerY + 1.8);
+
+    doc.setFont('courier', 'normal');
+    doc.setFontSize(5.8);
+    doc.setTextColor(100, 116, 139);
+    doc.text(`ACEITE VINCULADO VIA WEB • MP Nº 2.200-2/2001 E ART. 784, III CPC • INTEGRIDADE E AUTENTICIDADE GARANTIDAS`, left, footerY + 5.2);
+  } else {
+    doc.setFont('courier', 'normal');
+    doc.setFontSize(7.2);
+    doc.setTextColor(148, 163, 184);
+    doc.text(`AUTENTICAÇÃO: ${sale.id.toUpperCase()} • DOCUMENTO DIGITAL`, left, footerY + 4.5);
+    doc.text(`VIA ORIGINAL • EMISSÃO: ${dateFormatted}`, right, footerY + 4.5, { align: 'right' });
+  }
 
   return doc;
 }
@@ -768,22 +804,43 @@ export function buildContractHTML(sale: Sale, settings: Settings, installments?:
 
           <div style="display: flex; justify-content: space-between; gap: 36px; padding: 0 16px;">
             <div style="flex: 1; text-align: center;">
+              <div style="height: 38px;"></div>
               <div style="border-top: 1.2px solid #334155; margin-bottom: 4px;"></div>
               <strong style="font-size: 10px; text-transform: uppercase; color: #0f172a; display: block;">${sellerName}</strong>
               <span style="font-size: 8px; color: #64748b; font-weight: 700; text-transform: uppercase;">Vendedor(a)</span>
             </div>
             <div style="flex: 1; text-align: center;">
+              <div style="height: 38px; display: flex; align-items: flex-end; justify-content: center;">
+                ${sale.signatureImage || sale.signature?.signatureImage 
+                  ? `<img src="${sale.signatureImage || sale.signature?.signatureImage}" style="max-height: 36px; max-width: 170px; object-fit: contain; margin-bottom: 2px;" alt="Assinatura" />` 
+                  : ''}
+              </div>
               <div style="border-top: 1.2px solid #334155; margin-bottom: 4px;"></div>
               <strong style="font-size: 10px; text-transform: uppercase; color: #0f172a; display: block;">${sale.client.toUpperCase()}</strong>
               <span style="font-size: 8px; color: #64748b; font-weight: 700; text-transform: uppercase;">Comprador(a)</span>
+              ${(sale.isSigned || sale.signature?.signed) 
+                ? `<div style="font-size: 7.5px; font-weight: 800; color: #15803d; margin-top: 2px;">[ ASSINADO DIGITALMENTE ]</div>` 
+                : ''}
             </div>
           </div>
         </div>
 
-        <!-- Rodapé de Autenticação -->
-        <div style="margin-top: 12px; padding-top: 6px; border-top: 1px dashed #e2e8f0; display: flex; justify-content: space-between; font-size: 8px; color: #94a3b8; text-transform: uppercase; font-family: monospace;">
-          <span>Autenticação: ${sale.id.toUpperCase()}</span>
-          <span>Via Original Digital • Emissão: ${dateFormatted}</span>
+        <!-- Rodapé de Autenticação com Rastro Jurídico -->
+        <div style="margin-top: 12px; padding-top: 6px; border-top: 1px dashed #e2e8f0; font-size: 7.5px; color: #64748b; font-family: monospace;">
+          ${(sale.isSigned || sale.signature?.signed) && (sale.signatureHash || sale.signature?.signatureHash) ? `
+            <div style="display: flex; justify-content: space-between; margin-bottom: 2px;">
+              <span>HASH: ${(sale.signature?.signatureHash || sale.signatureHash || '').substring(0, 36)}...</span>
+              <span>IP: ${sale.signature?.signerIp || sale.signerIp || 'Registrado'} • ${sale.signature?.signedAtFormatted || dateFormatted}</span>
+            </div>
+            <div style="color: #94a3b8; font-size: 7px;">
+              ACEITE DIGITAL VINCULADO VIA WEB • MP 2.200-2/2001 E ART. 784, III CPC • INTEGRIDADE GARANTIDA
+            </div>
+          ` : `
+            <div style="display: flex; justify-content: space-between;">
+              <span>Autenticação: ${sale.id.toUpperCase()}</span>
+              <span>Via Original Digital • Emissão: ${dateFormatted}</span>
+            </div>
+          `}
         </div>
       </div>
 

@@ -5,8 +5,11 @@ import { BottomNavigation } from './components/BottomNavigation';
 import { Logo, Topbar, DashboardStats } from './components/CommonUI';
 import { MonthlyInstallmentsReport } from './components/MonthlyInstallmentsReport';
 import { LoginScreen } from './components/LoginScreen';
+import { ClientSigningPortal } from './components/ClientSigningPortal';
+import { SignatureAuditModal } from './components/SignatureAuditModal';
+import { ShareSigningLinkModal } from './components/ShareSigningLinkModal';
 import { AnimatePresence, motion } from 'motion/react';
-import { Boxes, Plus, X, Search, ImagePlus, User, Wallet, ShoppingBag, ArrowLeft, ArrowRight, BadgeDollarSign, Activity, Zap, History, ChevronDown, Pencil, FileText, Download, DollarSign, Share2, Calculator, Package, MessageCircle, ShieldCheck, Lock, Mail, Image as ImageIcon, AlertCircle, Calendar, Camera, Trash2, Minus, TrendingUp, Percent, Printer, Copy, Check, CheckCircle2, ExternalLink, SlidersHorizontal, Layers } from 'lucide-react';
+import { Boxes, Plus, X, Search, ImagePlus, User, Wallet, ShoppingBag, ArrowLeft, ArrowRight, BadgeDollarSign, Activity, Zap, History, ChevronDown, Pencil, FileText, Download, DollarSign, Share2, Calculator, Package, MessageCircle, ShieldCheck, Lock, Mail, Image as ImageIcon, AlertCircle, Calendar, Camera, Trash2, Minus, TrendingUp, Percent, Printer, Copy, Check, CheckCircle2, ExternalLink, SlidersHorizontal, Layers, PenTool, Link2 } from 'lucide-react';
 import html2pdf from 'html2pdf.js';
 import { downloadContractAsPDF, fallbackPrintContract, shareContractFile, downloadReceiptAsPDF, getSystemSellerName } from './lib/pdfGenerator';
 import { formatLocalDateBR, getLocalDateString, getFutureLocalDateString, extractDueDay, parseDateToMidnight } from './lib/dateUtils';
@@ -33,11 +36,29 @@ export default function App() {
     advanceInstallments, 
     closeMonthlyRegister, 
     deleteClosing,
+    saveDigitalSignature,
     isInitialLoading
   } = useNexusState();
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [authReady, setAuthReady] = useState(false);
   const [reportsTab, setReportsTab] = useState<'installments' | 'closings'>('installments');
+
+  // Estado de Assinatura Eletrônica e Acesso Público de Clientes
+  const [clientSigningSaleId, setClientSigningSaleId] = useState<string | null>(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const sign = params.get('sign') || params.get('contrato') || params.get('assinar');
+      if (sign) return sign;
+      const hash = window.location.hash;
+      if (hash && hash.includes('sign=')) {
+        return hash.split('sign=')[1].split('&')[0];
+      }
+    } catch {}
+    return null;
+  });
+
+  const [auditModalSale, setAuditModalSale] = useState<any>(null);
+  const [shareSignModalSale, setShareSignModalSale] = useState<any>(null);
 
   // Estado para ocultar/exibir números exclusivamente no Dashboard (com persistência local)
   const [hideDashboardValues, setHideDashboardValues] = useState<boolean>(() => {
@@ -996,6 +1017,28 @@ Autenticação: ${targetSale.id.toUpperCase()}`;
   const clientsList = Array.from(new Set(sales.map(s => s.client).filter(Boolean))) as string[];
   const filteredClients = clientsList.filter(c => !searchTerm || (c || '').toLowerCase().includes(searchLower));
 
+  if (clientSigningSaleId) {
+    return (
+      <ClientSigningPortal
+        saleId={clientSigningSaleId}
+        sales={sales}
+        settings={settings}
+        installments={installments}
+        onSaveSignature={saveDigitalSignature}
+        onExitPortal={() => {
+          setClientSigningSaleId(null);
+          try {
+            const url = new URL(window.location.href);
+            url.searchParams.delete('sign');
+            url.searchParams.delete('contrato');
+            url.searchParams.delete('assinar');
+            window.history.replaceState({}, '', url.pathname);
+          } catch {}
+        }}
+      />
+    );
+  }
+
   if (!authReady) return null;
 
   if (!isAuthenticated) {
@@ -1338,6 +1381,15 @@ Autenticação: ${targetSale.id.toUpperCase()}`;
                                                       {sale.status === 'Ativa' ? 'Operacional' : 'Liquidado'}
                                                    </span>
                                                 </div>
+                                                {sale.isSigned || sale.signature?.signed ? (
+                                                   <span className="hidden sm:inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[8.5px] font-black uppercase tracking-wider bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 shadow-xs">
+                                                      <ShieldCheck size={11} className="text-emerald-400" /> Assinado
+                                                   </span>
+                                                ) : (
+                                                   <span className="hidden sm:inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[8.5px] font-black uppercase tracking-wider bg-amber-500/10 text-amber-400 border border-amber-500/25">
+                                                      <PenTool size={10} /> Pendente
+                                                   </span>
+                                                )}
                                              </div>
                                           )}
                                           <ChevronDown 
@@ -1463,6 +1515,24 @@ Autenticação: ${targetSale.id.toUpperCase()}`;
                                                    </button>
                                                 )}
                                                 <button 
+                                                   onClick={() => setShareSignModalSale(sale)}
+                                                   className="h-10 px-4 rounded-xl border border-amber-500/30 bg-amber-500/10 text-amber-300 hover:bg-amber-500 hover:text-black transition-all flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest cursor-pointer active:scale-95"
+                                                   title="Link de Assinatura Eletrônica para o Cliente"
+                                                >
+                                                   <PenTool size={13} />
+                                                   Link de Assinatura
+                                                </button>
+                                                {(sale.isSigned || sale.signature?.signed) && (
+                                                   <button 
+                                                      onClick={() => setAuditModalSale(sale)}
+                                                      className="h-10 px-4 rounded-xl border border-emerald-500/40 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-600 hover:text-white transition-all flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest cursor-pointer active:scale-95 shadow-sm"
+                                                      title="Ver Certificado de Autenticidade e Rastro de Auditoria Jurídica"
+                                                   >
+                                                      <ShieldCheck size={14} />
+                                                      Auditoria Digital
+                                                   </button>
+                                                )}
+                                                <button 
                                                    onClick={() => setSelectedSaleForContract(sale)} 
                                                    className="h-10 px-4 rounded-xl border border-line bg-white/5 text-gray-400 hover:text-gold hover:border-[rgba(255,215,0,0.3)] hover:bg-[rgba(255,215,0,0.05)] transition-all flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest"
                                                    title="Ver Contrato"
@@ -1480,16 +1550,24 @@ Autenticação: ${targetSale.id.toUpperCase()}`;
                                                 </button>
                                                 <button 
                                                    onClick={() => {
+                                                      if (sale.isSigned || sale.signature?.signed) {
+                                                         showToast('Este contrato já foi assinado e selado digitalmente. Edições bloqueadas por segurança jurídica.', 'error');
+                                                         return;
+                                                      }
                                                       setSaleToEdit(sale);
                                                       setShowSaleForm(true);
                                                       setActiveView('sales');
                                                       window.scrollTo({ top: 0, behavior: 'smooth' });
                                                    }}
-                                                   className="h-10 px-4 rounded-xl border border-line bg-white/5 text-gray-400 hover:text-gold hover:border-[rgba(255,215,0,0.3)] hover:bg-[rgba(255,215,0,0.05)] transition-all flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest cursor-pointer active:scale-95"
-                                                   title="Editar Contrato"
+                                                   className={`h-10 px-4 rounded-xl border transition-all flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest cursor-pointer active:scale-95 ${
+                                                      sale.isSigned || sale.signature?.signed 
+                                                         ? 'border-line text-gray-500 bg-black/40 opacity-60 cursor-not-allowed' 
+                                                         : 'border-line bg-white/5 text-gray-400 hover:text-gold hover:border-[rgba(255,215,0,0.3)] hover:bg-[rgba(255,215,0,0.05)]'
+                                                   }`}
+                                                   title={sale.isSigned || sale.signature?.signed ? "Contrato Selado Digitalmente (Edição Bloqueada)" : "Editar Contrato"}
                                                 >
                                                    <Pencil size={14} />
-                                                   Editar
+                                                   {sale.isSigned || sale.signature?.signed ? 'Selado (Bloqueado)' : 'Editar'}
                                                 </button>
                                                 <button 
                                                    onClick={() => openConfirm(
@@ -2468,7 +2546,18 @@ Autenticação: ${targetSale.id.toUpperCase()}`;
                                                          {sale.client.charAt(0).toUpperCase()}
                                                       </div>
                                                       <div className="flex flex-col">
-                                                         <strong className="text-white font-bold block text-sm uppercase truncate max-w-[200px]">{sale.client}</strong>
+                                                         <div className="flex items-center gap-1.5">
+                                                            <strong className="text-white font-bold block text-sm uppercase truncate max-w-[180px]">{sale.client}</strong>
+                                                            {sale.isSigned || sale.signature?.signed ? (
+                                                               <span className="inline-flex items-center gap-0.5 text-[8px] font-black text-emerald-400 bg-emerald-500/10 px-1.5 py-0.2 rounded-full border border-emerald-500/30" title="Contrato Assinado Digitalmente">
+                                                                  <ShieldCheck size={9} /> Assinado
+                                                               </span>
+                                                            ) : (
+                                                               <span className="inline-flex items-center gap-0.5 text-[8px] font-bold text-amber-400 bg-amber-500/10 px-1.5 py-0.2 rounded-full border border-amber-500/25" title="Aguardando Assinatura">
+                                                                  <PenTool size={8} /> Pendente
+                                                               </span>
+                                                            )}
+                                                         </div>
                                                          <span className="text-[9px] text-gray-500 font-bold uppercase tracking-widest mt-0.5">ID: {sale.id.substring(0, 8)}</span>
                                                       </div>
                                                    </div>
@@ -2572,6 +2661,22 @@ Autenticação: ${targetSale.id.toUpperCase()}`;
                                                          </button>
                                                       )}
                                                       <button 
+                                                         onClick={() => setShareSignModalSale(sale)} 
+                                                         className="h-8 w-8 rounded-lg border border-amber-500/30 bg-amber-500/10 text-amber-300 hover:bg-amber-500 hover:text-black transition-all grid place-items-center active:scale-95 cursor-pointer"
+                                                         title="Link de Assinatura Eletrônica para o Cliente"
+                                                      >
+                                                         <PenTool size={13} />
+                                                      </button>
+                                                      {(sale.isSigned || sale.signature?.signed) && (
+                                                         <button 
+                                                            onClick={() => setAuditModalSale(sale)} 
+                                                            className="h-8 w-8 rounded-lg border border-emerald-500/40 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-600 hover:text-white transition-all grid place-items-center active:scale-95 cursor-pointer"
+                                                            title="Ver Rastro de Auditoria e Certificado Digital"
+                                                         >
+                                                            <ShieldCheck size={13} />
+                                                         </button>
+                                                      )}
+                                                      <button 
                                                          onClick={() => setSelectedSaleForContract(sale)} 
                                                          className="h-8 w-8 rounded-lg border border-line bg-white/5 text-gray-400 hover:text-gold hover:border-gold transition-all grid place-items-center active:scale-95 cursor-pointer"
                                                          title="Ver Contrato"
@@ -2587,13 +2692,21 @@ Autenticação: ${targetSale.id.toUpperCase()}`;
                                                       </button>
                                                       <button 
                                                          onClick={() => {
+                                                            if (sale.isSigned || sale.signature?.signed) {
+                                                               showToast('Este contrato já possui assinatura digital vinculada e está bloqueado para edições.', 'error');
+                                                               return;
+                                                            }
                                                             setSaleToEdit(sale);
                                                             setShowSaleForm(true);
                                                             setActiveView('sales');
                                                             window.scrollTo({ top: 0, behavior: 'smooth' });
                                                          }}
-                                                         className="h-8 w-8 rounded-lg border border-line bg-white/5 text-gray-400 hover:text-gold hover:border-gold transition-all grid place-items-center active:scale-95 cursor-pointer"
-                                                         title="Editar Contrato"
+                                                         className={`h-8 w-8 rounded-lg border transition-all grid place-items-center active:scale-95 cursor-pointer ${
+                                                            sale.isSigned || sale.signature?.signed 
+                                                               ? 'border-line text-gray-500 bg-black/40 opacity-50 cursor-not-allowed' 
+                                                               : 'border-line bg-white/5 text-gray-400 hover:text-gold hover:border-gold'
+                                                         }`}
+                                                         title={sale.isSigned || sale.signature?.signed ? "Contrato Selado Digitalmente (Edição Bloqueada)" : "Editar Contrato"}
                                                       >
                                                          <Pencil size={13} />
                                                       </button>

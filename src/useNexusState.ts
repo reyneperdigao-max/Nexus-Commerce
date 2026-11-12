@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Product, Sale, Installment, Settings, Closing } from './types';
+import { Product, Sale, Installment, Settings, Closing, SignatureAudit } from './types';
 import { db, handleFirestoreError, OperationType, cleanData } from './lib/firebase';
 import { getLocalDateString, parseDateSafe } from './lib/dateUtils';
 import { 
@@ -1003,6 +1003,51 @@ export function useNexusState() {
     }
   };
 
+  const saveDigitalSignature = async (saleId: string, audit: SignatureAudit): Promise<boolean> => {
+    try {
+      const cleanId = (saleId || '').trim();
+      
+      const signatureUpdates = {
+        signature: audit,
+        isSigned: true,
+        signatureImage: audit.signatureImage,
+        signedAt: audit.signedAt,
+        signerIp: audit.signerIp,
+        signerUserAgent: audit.signerUserAgent,
+        signatureHash: audit.signatureHash
+      };
+
+      // Atualização imediata do estado em memória
+      setSales(prev => prev.map(s => (s.id === cleanId || s.id === saleId || String(s.id).trim() === cleanId) ? {
+        ...s,
+        ...signatureUpdates
+      } : s));
+
+      // Atualização imediata do cache local para persistência instantânea
+      const currentCached = loadCached<Sale[]>('sales', []);
+      const updatedCache = currentCached.map(s => (s.id === cleanId || s.id === saleId || String(s.id).trim() === cleanId) ? {
+        ...s,
+        ...signatureUpdates
+      } : s);
+      saveCached('sales', updatedCache);
+
+      // Persistência no Firestore com merge
+      const cleanedUpdates = cleanData(signatureUpdates);
+      await setDoc(doc(db, 'sales', cleanId), cleanedUpdates, { merge: true });
+      if (cleanId !== saleId) {
+        await setDoc(doc(db, 'sales', saleId), cleanedUpdates, { merge: true });
+      }
+
+      return true;
+    } catch (err: any) {
+      console.error('Erro ao salvar assinatura digital no Firestore:', err);
+      if (err?.code !== 'unavailable') {
+        handleFirestoreError(err, OperationType.UPDATE, `sales/${saleId}/signature`);
+      }
+      return true;
+    }
+  };
+
   return {
     products,
     sales,
@@ -1023,6 +1068,7 @@ export function useNexusState() {
     deleteClient,
     closeMonthlyRegister,
     deleteClosing,
+    saveDigitalSignature,
     isInitialLoading
   };
 }
