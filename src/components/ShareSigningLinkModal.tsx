@@ -1,7 +1,12 @@
 import React, { useState } from 'react';
 import { Sale, Settings } from '../types';
-import { X, Copy, Check, MessageCircle, PenTool, ShieldCheck, ExternalLink, Link2 } from 'lucide-react';
-import { getSigningLink, buildSigningWhatsAppText } from '../lib/signatureService';
+import { X, Copy, Check, MessageCircle, PenTool, ShieldCheck, Link2, ExternalLink } from 'lucide-react';
+import { 
+  getSigningLink, 
+  getDevPreviewSigningLink, 
+  isDevPreviewHost, 
+  buildSigningWhatsAppText 
+} from '../lib/signatureService';
 
 interface ShareSigningLinkModalProps {
   sale: Sale;
@@ -19,35 +24,52 @@ export const ShareSigningLinkModal: React.FC<ShareSigningLinkModalProps> = ({
   onViewAudit
 }) => {
   const [copied, setCopied] = useState(false);
-  const signingUrl = getSigningLink(sale.id);
+  const inDevPreview = isDevPreviewHost();
+  const [linkMode, setLinkMode] = useState<'public' | 'preview'>('public');
+
+  const publicUrl = getSigningLink(sale.id);
+  const previewUrl = getDevPreviewSigningLink(sale.id);
+  const signingUrl = inDevPreview && linkMode === 'preview' ? previewUrl : publicUrl;
+
   const isSigned = !!(sale.isSigned || sale.signature?.signed);
   const companyName = settings.companyName || 'NEXUS COMMERCE';
 
   const money = (val: number) =>
     new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val || 0);
 
-  const handleCopyLink = () => {
-    navigator.clipboard.writeText(signingUrl);
+  const rawPhone = (sale.clientPhone || '').replace(/\D/g, '');
+  const message = buildSigningWhatsAppText(sale.client, companyName, sale.id, signingUrl);
+  const encoded = encodeURIComponent(message);
+  const whatsappUrl = rawPhone
+    ? `https://wa.me/55${rawPhone}?text=${encoded}`
+    : `https://wa.me/?text=${encoded}`;
+
+  const handleCopyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(signingUrl);
+    } catch {
+      const textarea = document.createElement('textarea');
+      textarea.value = signingUrl;
+      textarea.style.position = 'fixed';
+      textarea.style.opacity = '0';
+      document.body.appendChild(textarea);
+      textarea.select();
+      try {
+        document.execCommand('copy');
+      } finally {
+        document.body.removeChild(textarea);
+      }
+    }
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const handleSendWhatsApp = () => {
-    const rawPhone = (sale.clientPhone || '').replace(/\D/g, '');
-    const message = buildSigningWhatsAppText(sale.client, companyName, sale.id, signingUrl);
-    const encoded = encodeURIComponent(message);
-    const whatsappUrl = rawPhone
-      ? `https://wa.me/55${rawPhone}?text=${encoded}`
-      : `https://wa.me/?text=${encoded}`;
-    window.open(whatsappUrl, '_blank');
-  };
-
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-md animate-fade-in">
-      <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-lg w-full shadow-2xl overflow-hidden flex flex-col text-slate-100">
+      <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-lg w-full shadow-2xl overflow-hidden flex flex-col text-slate-100 max-h-[92vh]">
         
         {/* Header */}
-        <div className="p-5 sm:p-6 bg-gradient-to-r from-amber-950/80 via-slate-900 to-slate-900 border-b border-slate-800 flex items-start justify-between">
+        <div className="p-5 sm:p-6 bg-gradient-to-r from-amber-950/80 via-slate-900 to-slate-900 border-b border-slate-800 flex items-start justify-between shrink-0">
           <div className="flex items-center gap-3">
             <div className="w-11 h-11 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-400 flex items-center justify-center shrink-0">
               <Link2 size={24} />
@@ -75,7 +97,7 @@ export const ShareSigningLinkModal: React.FC<ShareSigningLinkModalProps> = ({
         </div>
 
         {/* Informações da Operação */}
-        <div className="p-5 sm:p-6 space-y-5 text-xs">
+        <div className="p-5 sm:p-6 space-y-5 text-xs overflow-y-auto">
           <div className="p-4 rounded-2xl bg-slate-950/80 border border-slate-800/80 flex items-center justify-between">
             <div>
               <span className="text-[10px] text-slate-500 font-bold uppercase block">Comprador</span>
@@ -100,6 +122,41 @@ export const ShareSigningLinkModal: React.FC<ShareSigningLinkModalProps> = ({
               )}
             </div>
           </div>
+
+          {/* Seletor de Link quando rodando no domínio privado de desenvolvimento */}
+          {inDevPreview && (
+            <div className="p-3 rounded-2xl bg-amber-500/10 border border-amber-500/25 space-y-2">
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setLinkMode('public')}
+                  className={`flex-1 py-1.5 px-2.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
+                    linkMode === 'public'
+                      ? 'bg-amber-500 text-slate-950 shadow'
+                      : 'bg-slate-900/80 text-slate-300 hover:text-white'
+                  }`}
+                >
+                  Link Público (Cliente)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setLinkMode('preview')}
+                  className={`flex-1 py-1.5 px-2.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
+                    linkMode === 'preview'
+                      ? 'bg-amber-500 text-slate-950 shadow'
+                      : 'bg-slate-900/80 text-slate-300 hover:text-white'
+                  }`}
+                >
+                  Link de Teste (Seu Navegador)
+                </button>
+              </div>
+              <p className="text-[10px] text-amber-200/80 leading-relaxed">
+                {linkMode === 'public'
+                  ? 'Use o Link Público para enviar ao cliente no WhatsApp (lembre-se de compartilhar/publicar o app no AI Studio para manter a versão mais recente ativa no link público).'
+                  : 'Use o Link de Teste apenas neste mesmo navegador onde você está logado no AI Studio.'}
+              </p>
+            </div>
+          )}
 
           {/* Campo com o Link Exato */}
           <div className="space-y-1.5">
@@ -129,14 +186,15 @@ export const ShareSigningLinkModal: React.FC<ShareSigningLinkModalProps> = ({
 
           {/* Botões de Ação Rápida */}
           <div className="space-y-2 pt-2">
-            <button
-              type="button"
-              onClick={handleSendWhatsApp}
-              className="w-full py-3.5 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/20 active:scale-98 transition-all cursor-pointer"
+            <a
+              href={whatsappUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-full py-3.5 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/20 active:scale-[0.98] transition-all cursor-pointer"
             >
               <MessageCircle size={16} />
               <span>Enviar Link pelo WhatsApp</span>
-            </button>
+            </a>
 
             <button
               type="button"
@@ -144,11 +202,21 @@ export const ShareSigningLinkModal: React.FC<ShareSigningLinkModalProps> = ({
                 onClose();
                 onSignOnDevice(sale);
               }}
-              className="w-full py-3.5 rounded-2xl bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-300 font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 active:scale-98 transition-all cursor-pointer"
+              className="w-full py-3.5 rounded-2xl bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-300 font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 active:scale-[0.98] transition-all cursor-pointer"
             >
               <PenTool size={15} />
               <span>Assinar Agora no Aparelho (Presencial)</span>
             </button>
+
+            <a
+              href={previewUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-full py-3 rounded-2xl bg-slate-800/80 hover:bg-slate-700 text-slate-200 border border-slate-700 font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition-colors cursor-pointer"
+            >
+              <ExternalLink size={14} />
+              <span>Abrir Link em Nova Aba</span>
+            </a>
 
             {isSigned && onViewAudit && (
               <button
@@ -167,7 +235,7 @@ export const ShareSigningLinkModal: React.FC<ShareSigningLinkModalProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="p-4 bg-slate-950/60 border-t border-slate-800 flex justify-end">
+        <div className="p-4 bg-slate-950/60 border-t border-slate-800 flex justify-end shrink-0">
           <button
             type="button"
             onClick={onClose}

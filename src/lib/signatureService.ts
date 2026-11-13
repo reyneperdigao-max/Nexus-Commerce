@@ -22,32 +22,31 @@ export async function fetchClientPublicIp(): Promise<string> {
     { url: 'https://httpbin.org/ip', key: 'origin' }
   ];
 
-  for (const provider of providers) {
+  const queryProvider = async (provider: { url: string; key: string }): Promise<string> => {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 2200);
     try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 3500);
-
       const response = await fetch(provider.url, {
         signal: controller.signal,
         headers: { Accept: 'application/json' }
       });
-      clearTimeout(timeoutId);
-
-      if (response.ok) {
-        const data = await response.json();
-        const ip = data[provider.key];
-        if (ip && typeof ip === 'string') {
-          // If httpbin returns multiple IPs (e.g. proxy, client), take the first
-          return ip.split(',')[0].trim();
-        }
+      if (!response.ok) throw new Error('HTTP error');
+      const data = await response.json();
+      const ip = data[provider.key];
+      if (ip && typeof ip === 'string') {
+        return ip.split(',')[0].trim();
       }
-    } catch {
-      // Continue to next provider
+      throw new Error('Invalid IP payload');
+    } finally {
+      clearTimeout(timeoutId);
     }
-  }
+  };
 
-  // Fallback se todos os servidores externos estiverem bloqueados por firewall ou offline
-  return 'Conexão Autenticada (IP Direto Seguro)';
+  try {
+    return await Promise.any(providers.map(queryProvider));
+  } catch {
+    return 'Conexão Autenticada (IP Direto Seguro)';
+  }
 }
 
 /**
@@ -100,13 +99,31 @@ export function formatAuditTimestampBR(dateInput?: string | Date): string {
 }
 
 /**
+ * Verifica se o app está rodando no domínio privado de desenvolvimento do AI Studio (ais-dev-*)
+ */
+export function isDevPreviewHost(): boolean {
+  if (typeof window === 'undefined') return false;
+  return window.location.hostname.startsWith('ais-dev-');
+}
+
+/**
  * Constrói a URL pública e única para o cliente assinar o contrato pelo celular ou desktop
  */
 export function getSigningLink(saleId: string): string {
   const cleanId = (saleId || '').trim();
   const origin = window.location.origin;
-  const pathname = window.location.pathname;
-  return `${origin}${pathname}?sign=${encodeURIComponent(cleanId)}`;
+  const publicOrigin = window.location.hostname.startsWith('ais-dev-')
+    ? origin.replace('://ais-dev-', '://ais-pre-')
+    : origin;
+  return `${publicOrigin}/?sign=${encodeURIComponent(cleanId)}`;
+}
+
+/**
+ * Constrói a URL usando exatamente a origem atual (útil para testes no próprio navegador em desenvolvimento)
+ */
+export function getDevPreviewSigningLink(saleId: string): string {
+  const cleanId = (saleId || '').trim();
+  return `${window.location.origin}/?sign=${encodeURIComponent(cleanId)}`;
 }
 
 /**

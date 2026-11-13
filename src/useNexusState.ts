@@ -718,6 +718,11 @@ export function useNexusState() {
       };
     }
 
+    if (sale.isSigned || sale.signature?.signed) {
+      console.warn('Tentativa de editar contrato já assinado bloqueada:', cleanId);
+      return false;
+    }
+
     const oldProductId = sale.productId;
     const newProductId = data.productId || oldProductId;
     const product = products.find(p => p.id === newProductId);
@@ -1031,18 +1036,30 @@ export function useNexusState() {
       } : s);
       saveCached('sales', updatedCache);
 
-      // Persistência no Firestore com merge
+      // Persistência no Firestore com merge (com limite de espera para não travar em redes lentas/offline; persistentLocalCache garante fila local)
       const cleanedUpdates = cleanData(signatureUpdates);
-      await setDoc(doc(db, 'sales', cleanId), cleanedUpdates, { merge: true });
-      if (cleanId !== saleId) {
-        await setDoc(doc(db, 'sales', saleId), cleanedUpdates, { merge: true });
+      const writePromise = setDoc(doc(db, 'sales', cleanId), cleanedUpdates, { merge: true });
+
+      const result = await Promise.race([
+        writePromise.then(() => 'synced' as const),
+        new Promise<'queued'>((resolve) => setTimeout(() => resolve('queued'), 3000))
+      ]);
+
+      if (result === 'queued') {
+        writePromise.catch((err) => {
+          console.warn('Sincronização posterior da assinatura digital:', err?.code || err);
+        });
       }
 
       return true;
     } catch (err: any) {
       console.error('Erro ao salvar assinatura digital no Firestore:', err);
-      if (err?.code !== 'unavailable') {
+      if (err?.code === 'permission-denied') {
         handleFirestoreError(err, OperationType.UPDATE, `sales/${saleId}/signature`);
+        return false;
+      }
+      if (err?.code !== 'unavailable') {
+        console.warn('Assinatura mantida em cache local após erro de rede:', err?.message || err);
       }
       return true;
     }

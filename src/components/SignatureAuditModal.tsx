@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Sale, Settings, Installment } from '../types';
-import { ShieldCheck, X, Copy, Check, Download, ExternalLink, Calendar, Globe, Monitor, Lock, FileCheck } from 'lucide-react';
+import { ShieldCheck, X, Copy, Check, Download, Calendar, Globe, Monitor, Lock, FileCheck } from 'lucide-react';
 import { downloadContractAsPDF } from '../lib/pdfGenerator';
 import { formatAuditTimestampBR } from '../lib/signatureService';
 

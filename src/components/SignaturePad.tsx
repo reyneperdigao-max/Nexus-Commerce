@@ -9,121 +9,154 @@ interface SignaturePadProps {
 export const SignaturePad: React.FC<SignaturePadProps> = ({ onSignatureChange, disabled }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const [isDrawing, setIsDrawing] = useState(false);
+  const isDrawingRef = useRef(false);
+  const lastWidthRef = useRef(0);
+  const hasSignatureRef = useRef(false);
+
   const [hasSignature, setHasSignature] = useState(false);
   const [strokeCount, setStrokeCount] = useState(0);
 
-  // Redimensiona o canvas para máxima nitidez (DPI Scaling)
+  const configureContext = (ctx: CanvasRenderingContext2D, dpr: number) => {
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.scale(dpr, dpr);
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.lineWidth = 2.4;
+    ctx.strokeStyle = '#0f172a';
+    ctx.fillStyle = '#0f172a';
+  };
+
+  // Redimensiona o canvas apenas quando a largura muda de fato (evita apagar no scroll mobile)
   const resizeCanvas = useCallback(() => {
     const canvas = canvasRef.current;
     const container = containerRef.current;
     if (!canvas || !container) return;
 
     const rect = container.getBoundingClientRect();
+    const targetWidth = Math.floor(rect.width);
+    if (targetWidth <= 0) return;
+
+    if (lastWidthRef.current > 0 && Math.abs(targetWidth - lastWidthRef.current) <= 2) {
+      return;
+    }
+
     const dpr = window.devicePixelRatio || 1;
+    const targetHeight = 180;
 
-    // Guarda o desenho atual antes de redimensionar
-    let prevData: ImageData | null = null;
+    let snapshotUrl: string | null = null;
+    if (hasSignatureRef.current && canvas.width > 0 && canvas.height > 0) {
+      try {
+        snapshotUrl = canvas.toDataURL('image/png');
+      } catch {
+        snapshotUrl = null;
+      }
+    }
+
+    lastWidthRef.current = targetWidth;
+    canvas.width = Math.round(targetWidth * dpr);
+    canvas.height = Math.round(targetHeight * dpr);
+    canvas.style.width = `${targetWidth}px`;
+    canvas.style.height = `${targetHeight}px`;
+
     const ctx = canvas.getContext('2d');
-    if (ctx && canvas.width > 0 && canvas.height > 0) {
-      try {
-        prevData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-      } catch {
-        // Ignora
-      }
-    }
+    if (!ctx) return;
+    configureContext(ctx, dpr);
 
-    canvas.width = rect.width * dpr;
-    canvas.height = 180 * dpr;
-    canvas.style.width = `${rect.width}px`;
-    canvas.style.height = `180px`;
-
-    if (ctx) {
-      ctx.scale(dpr, dpr);
-      ctx.lineCap = 'round';
-      ctx.lineJoin = 'round';
-      ctx.lineWidth = 2.4;
-      ctx.strokeStyle = '#0f172a'; // Tinta escura elegante (slate-900)
-    }
-
-    if (ctx && prevData) {
-      try {
-        ctx.putImageData(prevData, 0, 0);
-      } catch {
-        // Ignora
-      }
+    if (snapshotUrl) {
+      const img = new Image();
+      img.onload = () => {
+        ctx.drawImage(img, 0, 0, targetWidth, targetHeight);
+      };
+      img.src = snapshotUrl;
     }
   }, []);
 
   useEffect(() => {
     resizeCanvas();
+    const container = containerRef.current;
+    let observer: ResizeObserver | null = null;
+    if (container && typeof ResizeObserver !== 'undefined') {
+      observer = new ResizeObserver(() => resizeCanvas());
+      observer.observe(container);
+    }
     window.addEventListener('resize', resizeCanvas);
-    return () => window.removeEventListener('resize', resizeCanvas);
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener('resize', resizeCanvas);
+    };
   }, [resizeCanvas]);
 
-  const getCoordinates = (e: React.MouseEvent | React.TouchEvent | MouseEvent | TouchEvent) => {
+  const getCoordinates = (e: React.PointerEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;
     if (!canvas) return { x: 0, y: 0 };
     const rect = canvas.getBoundingClientRect();
-
-    if ('touches' in e && e.touches.length > 0) {
-      return {
-        x: e.touches[0].clientX - rect.left,
-        y: e.touches[0].clientY - rect.top
-      };
-    }
-    const mouseEvent = e as MouseEvent | React.MouseEvent;
     return {
-      x: mouseEvent.clientX - rect.left,
-      y: mouseEvent.clientY - rect.top
+      x: e.clientX - rect.left,
+      y: e.clientY - rect.top
     };
   };
 
-  const startDrawing = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
+  const startDrawing = (e: React.PointerEvent<HTMLCanvasElement>) => {
     if (disabled) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    const { x, y } = getCoordinates(e);
-    ctx.beginPath();
-    ctx.moveTo(x, y);
-    setIsDrawing(true);
-  };
-
-  const draw = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
-    if (!isDrawing || disabled) return;
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    // Previne rolagem de página no celular durante a assinatura
-    if ('touches' in e) {
-      if (e.cancelable) e.preventDefault();
+    try {
+      canvas.setPointerCapture(e.pointerId);
+    } catch {
+      // Ignora caso não suportado
     }
 
     const { x, y } = getCoordinates(e);
-    ctx.lineTo(x, y);
-    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(x, y, 1.2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(x, y);
 
+    isDrawingRef.current = true;
+    hasSignatureRef.current = true;
     if (!hasSignature) {
       setHasSignature(true);
     }
   };
 
-  const stopDrawing = () => {
-    if (!isDrawing) return;
-    setIsDrawing(false);
+  const draw = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    if (!isDrawingRef.current || disabled) return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const { x, y } = getCoordinates(e);
+    ctx.lineTo(x, y);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+  };
+
+  const stopDrawing = (e?: React.PointerEvent<HTMLCanvasElement>) => {
+    if (!isDrawingRef.current) return;
+    isDrawingRef.current = false;
 
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    setStrokeCount(prev => prev + 1);
+    if (e) {
+      try {
+        if (canvas.hasPointerCapture(e.pointerId)) {
+          canvas.releasePointerCapture(e.pointerId);
+        }
+      } catch {
+        // Ignora
+      }
+    }
 
-    // Exporta imagem em PNG transparente de alta qualidade
+    setStrokeCount(prev => prev + 1);
     const dataUrl = canvas.toDataURL('image/png');
+    hasSignatureRef.current = true;
     setHasSignature(true);
     onSignatureChange(true, dataUrl);
   };
@@ -134,8 +167,12 @@ export const SignaturePad: React.FC<SignaturePadProps> = ({ onSignatureChange, d
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    const dpr = window.devicePixelRatio || 1;
-    ctx.clearRect(0, 0, canvas.width / dpr, canvas.height / dpr);
+    ctx.save();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.restore();
+
+    hasSignatureRef.current = false;
     setHasSignature(false);
     setStrokeCount(0);
     onSignatureChange(false, '');
@@ -144,8 +181,8 @@ export const SignaturePad: React.FC<SignaturePadProps> = ({ onSignatureChange, d
   return (
     <div className="flex flex-col gap-2 w-full" ref={containerRef}>
       <div className="flex items-center justify-between px-1">
-        <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700">
-          <PenTool size={13} className="text-amber-500" />
+        <div className="flex items-center gap-1.5 text-xs font-bold text-slate-200">
+          <PenTool size={13} className="text-amber-400" />
           <span>Desenhe sua assinatura no quadro abaixo:</span>
         </div>
         {hasSignature && (
@@ -153,7 +190,7 @@ export const SignaturePad: React.FC<SignaturePadProps> = ({ onSignatureChange, d
             type="button"
             onClick={clear}
             disabled={disabled}
-            className="flex items-center gap-1 px-2.5 py-1 text-[11px] font-bold text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+            className="flex items-center gap-1 px-2.5 py-1 text-[11px] font-bold text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-lg transition-colors cursor-pointer"
             title="Limpar e refazer assinatura"
           >
             <RotateCcw size={12} />
@@ -165,13 +202,10 @@ export const SignaturePad: React.FC<SignaturePadProps> = ({ onSignatureChange, d
       <div className="relative border-2 border-dashed border-slate-300 hover:border-amber-400 focus-within:border-amber-500 rounded-2xl bg-white shadow-inner overflow-hidden transition-all">
         <canvas
           ref={canvasRef}
-          onMouseDown={startDrawing}
-          onMouseMove={draw}
-          onMouseUp={stopDrawing}
-          onMouseLeave={stopDrawing}
-          onTouchStart={startDrawing}
-          onTouchMove={draw}
-          onTouchEnd={stopDrawing}
+          onPointerDown={startDrawing}
+          onPointerMove={draw}
+          onPointerUp={stopDrawing}
+          onPointerCancel={stopDrawing}
           style={{ touchAction: 'none' }}
           className="w-full h-[180px] block cursor-crosshair select-none"
         />
@@ -187,7 +221,7 @@ export const SignaturePad: React.FC<SignaturePadProps> = ({ onSignatureChange, d
         {!hasSignature && (
           <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
             <span className="text-xs font-semibold text-slate-400 bg-white/80 px-3 py-1 rounded-full shadow-sm">
-              ✍️ Toque com o dedo ou mouse aqui para assinar
+              Toque com o dedo ou mouse aqui para assinar
             </span>
           </div>
         )}

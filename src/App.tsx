@@ -44,18 +44,34 @@ export default function App() {
   const [reportsTab, setReportsTab] = useState<'installments' | 'closings'>('installments');
 
   // Estado de Assinatura Eletrônica e Acesso Público de Clientes
-  const [clientSigningSaleId, setClientSigningSaleId] = useState<string | null>(() => {
+  const parseSigningIdFromUrl = () => {
     try {
       const params = new URLSearchParams(window.location.search);
       const sign = params.get('sign') || params.get('contrato') || params.get('assinar');
-      if (sign) return sign;
+      if (sign && sign.trim()) return sign.trim();
       const hash = window.location.hash;
       if (hash && hash.includes('sign=')) {
-        return hash.split('sign=')[1].split('&')[0];
+        const raw = hash.split('sign=')[1].split('&')[0];
+        return raw ? decodeURIComponent(raw).trim() : null;
       }
     } catch {}
     return null;
-  });
+  };
+
+  const [clientSigningSaleId, setClientSigningSaleId] = useState<string | null>(parseSigningIdFromUrl);
+
+  useEffect(() => {
+    const syncFromUrl = () => {
+      const id = parseSigningIdFromUrl();
+      if (id) setClientSigningSaleId(id);
+    };
+    window.addEventListener('popstate', syncFromUrl);
+    window.addEventListener('hashchange', syncFromUrl);
+    return () => {
+      window.removeEventListener('popstate', syncFromUrl);
+      window.removeEventListener('hashchange', syncFromUrl);
+    };
+  }, []);
 
   const [auditModalSale, setAuditModalSale] = useState<any>(null);
   const [shareSignModalSale, setShareSignModalSale] = useState<any>(null);
@@ -1024,8 +1040,9 @@ Autenticação: ${targetSale.id.toUpperCase()}`;
         sales={sales}
         settings={settings}
         installments={installments}
+        isLoading={isInitialLoading}
         onSaveSignature={saveDigitalSignature}
-        onExitPortal={() => {
+        onExitPortal={isAuthenticated ? () => {
           setClientSigningSaleId(null);
           try {
             const url = new URL(window.location.href);
@@ -1034,7 +1051,7 @@ Autenticação: ${targetSale.id.toUpperCase()}`;
             url.searchParams.delete('assinar');
             window.history.replaceState({}, '', url.pathname);
           } catch {}
-        }}
+        } : undefined}
       />
     );
   }
@@ -3873,7 +3890,14 @@ Autenticação: ${targetSale.id.toUpperCase()}`;
             </div>
           )}
 
-          {selectedSaleForContract && (
+          {selectedSaleForContract && (() => {
+            const activeContractSale = sales.find(s => s.id === selectedSaleForContract.id) || selectedSaleForContract;
+            const isContractSigned = !!(activeContractSale.isSigned || activeContractSale.signature?.signed);
+            const contractSigImg = activeContractSale.signatureImage || activeContractSale.signature?.signatureImage;
+            const contractHash = activeContractSale.signature?.signatureHash || activeContractSale.signatureHash;
+            const contractIp = activeContractSale.signature?.signerIp || activeContractSale.signerIp;
+            const contractSignedAt = activeContractSale.signature?.signedAtFormatted || (activeContractSale.signedAt ? new Date(activeContractSale.signedAt).toLocaleString('pt-BR') : '');
+            return (
             <div key="modal-contract" className="fixed inset-0 z-[60] flex items-center justify-center p-2 sm:p-6 overflow-y-auto custom-scrollbar">
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setSelectedSaleForContract(null)} className="fixed inset-0 bg-[rgba(0,0,0,0.85)] backdrop-blur-sm" />
               <motion.div initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.98 }} className="relative bg-white w-full max-w-3xl p-4 sm:p-6 shadow-2xl overflow-y-auto max-h-[92vh] rounded-2xl text-black font-sans my-auto">
@@ -3884,14 +3908,21 @@ Autenticação: ${targetSale.id.toUpperCase()}`;
                       <FileText size={16} />
                     </div>
                     <div>
-                      <h3 className="text-xs font-black uppercase text-black tracking-wider">Contrato de Compra e Venda</h3>
-                      <p className="text-[10px] text-gray-500 font-bold uppercase">{selectedSaleForContract.client}</p>
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-xs font-black uppercase text-black tracking-wider">Contrato de Compra e Venda</h3>
+                        {isContractSigned && (
+                          <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300 text-[9px] font-black uppercase">
+                            Assinado
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-[10px] text-gray-500 font-bold uppercase">{activeContractSale.client}</p>
                     </div>
                   </div>
                   
                   <div className="flex flex-wrap items-center gap-2">
                     <button 
-                      onClick={() => handleDownloadContract(selectedSaleForContract)} 
+                      onClick={() => handleDownloadContract(activeContractSale)} 
                       disabled={isContractGenerating}
                       className="h-9 px-3.5 rounded-xl bg-black text-gold hover:bg-gold hover:text-black transition-all flex items-center gap-2 text-xs font-black uppercase tracking-wider shadow-md active:scale-95 cursor-pointer disabled:opacity-50" 
                       title="Baixar Arquivo PDF (1 Página A4)"
@@ -3899,9 +3930,29 @@ Autenticação: ${targetSale.id.toUpperCase()}`;
                       <Download size={14} />
                       <span>{isContractGenerating ? 'Gerando...' : 'Baixar PDF'}</span>
                     </button>
+
+                    <button
+                      onClick={() => setShareSignModalSale(activeContractSale)}
+                      className="h-9 px-3 rounded-xl bg-amber-500 text-black hover:bg-amber-400 transition-all flex items-center gap-1.5 text-xs font-black uppercase tracking-wider shadow-sm active:scale-95 cursor-pointer"
+                      title="Link de Assinatura Eletrônica"
+                    >
+                      <Link2 size={14} />
+                      <span className="hidden sm:inline">Assinatura</span>
+                    </button>
+
+                    {isContractSigned && (
+                      <button
+                        onClick={() => setAuditModalSale(activeContractSale)}
+                        className="h-9 px-3 rounded-xl bg-emerald-600 text-white hover:bg-emerald-700 transition-all flex items-center gap-1.5 text-xs font-black uppercase tracking-wider shadow-sm active:scale-95 cursor-pointer"
+                        title="Ver Certificado e Auditoria Digital"
+                      >
+                        <ShieldCheck size={14} />
+                        <span className="hidden sm:inline">Auditoria</span>
+                      </button>
+                    )}
                     
                     <button 
-                      onClick={() => handlePrintContract(selectedSaleForContract)} 
+                      onClick={() => handlePrintContract(activeContractSale)} 
                       className="h-9 px-3 rounded-xl bg-gray-100 border border-gray-300 text-gray-800 hover:bg-gray-200 transition-all flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider shadow-sm active:scale-95 cursor-pointer" 
                       title="Imprimir ou Salvar via Navegador"
                     >
@@ -3910,7 +3961,7 @@ Autenticação: ${targetSale.id.toUpperCase()}`;
                     </button>
 
                     <button 
-                      onClick={() => handleShareContract(selectedSaleForContract)} 
+                      onClick={() => handleShareContract(activeContractSale)} 
                       className="h-9 px-3 rounded-xl bg-gray-100 border border-gray-300 text-gray-800 hover:bg-gray-200 transition-all flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider shadow-sm active:scale-95 cursor-pointer" 
                       title="Compartilhar Arquivo PDF"
                     >
@@ -3919,7 +3970,7 @@ Autenticação: ${targetSale.id.toUpperCase()}`;
                     </button>
 
                     <button 
-                      onClick={() => handleCopyContractText(selectedSaleForContract)} 
+                      onClick={() => handleCopyContractText(activeContractSale)} 
                       className="h-9 px-3 rounded-xl bg-gray-100 border border-gray-300 text-gray-800 hover:bg-gray-200 transition-all flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider shadow-sm active:scale-95 cursor-pointer" 
                       title="Copiar Texto do Contrato"
                     >
@@ -3929,18 +3980,26 @@ Autenticação: ${targetSale.id.toUpperCase()}`;
 
                     <button 
                       onClick={() => {
-                        const sale = selectedSaleForContract;
+                        if (isContractSigned) {
+                          showToast('Este contrato já foi assinado digitalmente e está bloqueado para edições.', 'error');
+                          return;
+                        }
+                        const sale = activeContractSale;
                         setSelectedSaleForContract(null);
                         setSaleToEdit(sale);
                         setShowSaleForm(true);
                         setActiveView('sales');
                         window.scrollTo({ top: 0, behavior: 'smooth' });
                       }}
-                      className="h-9 px-3 rounded-xl bg-amber-500/10 border border-amber-500/40 text-amber-800 hover:bg-amber-500 hover:text-black transition-all flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider shadow-sm active:scale-95 cursor-pointer"
-                      title="Editar este contrato"
+                      className={`h-9 px-3 rounded-xl border transition-all flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider shadow-sm active:scale-95 ${
+                        isContractSigned
+                          ? 'bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed'
+                          : 'bg-amber-500/10 border-amber-500/40 text-amber-800 hover:bg-amber-500 hover:text-black cursor-pointer'
+                      }`}
+                      title={isContractSigned ? 'Contrato assinado digitalmente (edição bloqueada)' : 'Editar este contrato'}
                     >
                       <Pencil size={14} />
-                      <span className="hidden sm:inline">Editar</span>
+                      <span className="hidden sm:inline">{isContractSigned ? 'Selado' : 'Editar'}</span>
                     </button>
 
                     <button 
@@ -4122,7 +4181,7 @@ Autenticação: ${targetSale.id.toUpperCase()}`;
                           <p className="text-center text-[8.5px] text-slate-400 uppercase tracking-wider mb-5">
                             E por estarem de pleno acordo, firmam o presente compromisso.
                           </p>
-                          <div className="grid grid-cols-2 gap-8 sm:gap-14 px-4">
+                          <div className="grid grid-cols-2 gap-8 sm:gap-14 px-4 items-end">
                             <div className="text-center space-y-1">
                               <div className="h-[1.5px] bg-slate-700 w-full"></div>
                               <div className="flex flex-col">
@@ -4130,10 +4189,22 @@ Autenticação: ${targetSale.id.toUpperCase()}`;
                                 <span className="text-[7.5px] text-slate-400 font-bold uppercase tracking-widest">Vendedor(a)</span>
                               </div>
                             </div>
-                            <div className="text-center space-y-1">
+                            <div className="text-center space-y-1 flex flex-col items-center">
+                              {isContractSigned && contractSigImg && (
+                                <div className="mb-1 flex flex-col items-center">
+                                  <img
+                                    src={contractSigImg}
+                                    alt={`Assinatura de ${activeContractSale.client}`}
+                                    className="max-h-14 max-w-[180px] object-contain filter contrast-125"
+                                  />
+                                  <span className="text-[7.5px] font-black text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200 mt-0.5">
+                                    ✓ Assinado Digitalmente
+                                  </span>
+                                </div>
+                              )}
                               <div className="h-[1.5px] bg-slate-700 w-full"></div>
                               <div className="flex flex-col">
-                                <strong className="text-[9.5px] font-bold uppercase text-slate-900">{selectedSaleForContract.client}</strong>
+                                <strong className="text-[9.5px] font-bold uppercase text-slate-900">{activeContractSale.client}</strong>
                                 <span className="text-[7.5px] text-slate-400 font-bold uppercase tracking-widest">Comprador(a)</span>
                               </div>
                             </div>
@@ -4141,17 +4212,28 @@ Autenticação: ${targetSale.id.toUpperCase()}`;
                         </div>
 
                         {/* Rodapé de Autenticação */}
-                        <div className="mt-3 pt-2 flex justify-between border-t border-dashed border-slate-200 text-[7.5px] text-slate-400 uppercase font-mono">
-                          <span>Autenticação: {selectedSaleForContract.id.toUpperCase()}</span>
-                          <span>Via Original Digital • Emissão: {dateFormatted}</span>
-                        </div>
+                        {isContractSigned && contractHash ? (
+                          <div className="mt-3 p-2.5 rounded-xl bg-emerald-50/80 border border-emerald-200 text-[7.5px] text-emerald-950 font-mono space-y-0.5">
+                            <div className="font-bold break-all">HASH SHA-256: {contractHash}</div>
+                            <div className="flex flex-wrap justify-between text-emerald-800 gap-2">
+                              <span>IP: {contractIp || 'Registrado'}</span>
+                              <span>DATA/HORA: {contractSignedAt || dateFormatted} • MP 2.200-2/2001</span>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="mt-3 pt-2 flex justify-between border-t border-dashed border-slate-200 text-[7.5px] text-slate-400 uppercase font-mono">
+                            <span>Autenticação: {activeContractSale.id.toUpperCase()}</span>
+                            <span>Via Original Digital • Emissão: {dateFormatted}</span>
+                          </div>
+                        )}
                       </div>
                     );
                   })()}
                 </div>
               </motion.div>
             </div>
-          )}
+            );
+          })()}
 
           {selectedInstallmentForReceipt && (() => {
             const correspondingSale = sales.find(s => s.id === selectedInstallmentForReceipt.saleId || (selectedInstallmentForReceipt?.id && selectedInstallmentForReceipt.id.replace('entrada-', '') === s.id));
@@ -4815,6 +4897,33 @@ Autenticação: ${targetSale.id.toUpperCase()}`;
                 </div>
               </motion.div>
             </div>
+          )}
+
+          {shareSignModalSale && (
+            <ShareSigningLinkModal
+              key="modal-share-sign"
+              sale={sales.find(s => s.id === shareSignModalSale.id) || shareSignModalSale}
+              settings={settings}
+              onClose={() => setShareSignModalSale(null)}
+              onSignOnDevice={(saleToSign) => {
+                setShareSignModalSale(null);
+                setClientSigningSaleId(saleToSign.id);
+              }}
+              onViewAudit={(saleForAudit) => {
+                setShareSignModalSale(null);
+                setAuditModalSale(saleForAudit);
+              }}
+            />
+          )}
+
+          {auditModalSale && (
+            <SignatureAuditModal
+              key="modal-signature-audit"
+              sale={sales.find(s => s.id === auditModalSale.id) || auditModalSale}
+              settings={settings}
+              installments={installments}
+              onClose={() => setAuditModalSale(null)}
+            />
           )}
 
           {confirmModal.show && (

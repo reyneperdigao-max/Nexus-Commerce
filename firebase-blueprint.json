@@ -32,7 +32,14 @@
         "installmentValue": { "type": "number" },
         "date": { "type": "string", "format": "date" },
         "status": { "type": "string" },
-        "createdAt": { "type": "string", "format": "date-time" }
+        "createdAt": { "type": "string", "format": "date-time" },
+        "isSigned": { "type": "boolean" },
+        "signatureImage": { "type": "string" },
+        "signedAt": { "type": "string", "format": "date-time" },
+        "signerIp": { "type": "string" },
+        "signerUserAgent": { "type": "string" },
+        "signatureHash": { "type": "string" },
+        "signature": { "type": "object" }
       },
       "required": ["productId", "productName", "client", "total", "installmentsCount", "installmentValue", "date", "status", "createdAt"]
     },

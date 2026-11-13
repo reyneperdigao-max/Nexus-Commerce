@@ -132,7 +132,7 @@ export function createContractPDFDoc(
   doc.text('Comprador(a):', left + 4, y);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(15, 23, 42);
-  doc.text(sale.client.toUpperCase(), left + 30, y);
+  doc.text((sale.client || 'CLIENTE').toUpperCase(), left + 30, y);
 
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(100, 116, 139);
@@ -214,7 +214,7 @@ export function createContractPDFDoc(
   const clauses = [
     {
       title: 'CLÁUSULA 1ª – DAS PARTES CONTRATANTES',
-      body: `Pelo presente instrumento, de um lado denominada(o) VENDEDOR(A): ${sellerName}; e de outro lado denominada(o) COMPRADOR(A): ${sale.client.toUpperCase()}, portador(a) do CPF/Doc nº ${sale.clientCpf || 'N/A'}, telefone ${sale.clientPhone || 'N/A'}${sale.clientAddress ? `, domiciliado(a) em ${sale.clientAddress}` : ''}, firmam o presente compromisso de compra e venda mercantil.`
+      body: `Pelo presente instrumento, de um lado denominada(o) VENDEDOR(A): ${sellerName}; e de outro lado denominada(o) COMPRADOR(A): ${(sale.client || 'CLIENTE').toUpperCase()}, portador(a) do CPF/Doc nº ${sale.clientCpf || 'N/A'}, telefone ${sale.clientPhone || 'N/A'}${sale.clientAddress ? `, domiciliado(a) em ${sale.clientAddress}` : ''}, firmam o presente compromisso de compra e venda mercantil.`
     },
     {
       title: 'CLÁUSULA 2ª – DO OBJETO DA NEGOCIAÇÃO',
@@ -279,7 +279,7 @@ export function createContractPDFDoc(
   doc.line(left + 6, y, left + 82, y);
 
   // Inserção da imagem da assinatura desenhada pelo comprador
-  if (sigImg) {
+  if (sigImg && typeof sigImg === 'string' && sigImg.startsWith('data:image/')) {
     try {
       doc.addImage(sigImg, 'PNG', left + 115, y - 14, 46, 13);
     } catch (e) {
@@ -295,7 +295,7 @@ export function createContractPDFDoc(
   doc.setFontSize(9);
   doc.setTextColor(15, 23, 42);
   doc.text(sellerName.substring(0, 36), left + 44, y, { align: 'center' });
-  doc.text(sale.client.toUpperCase().substring(0, 36), left + 138, y, { align: 'center' });
+  doc.text((sale.client || 'CLIENTE').toUpperCase().substring(0, 36), left + 138, y, { align: 'center' });
 
   y += 3.8;
   doc.setFont('helvetica', 'normal');
@@ -322,19 +322,19 @@ export function createContractPDFDoc(
     const signedAt = audit?.signedAtFormatted || (sale.signedAt ? new Date(sale.signedAt).toLocaleString('pt-BR') : dateFormatted);
 
     doc.setFont('courier', 'bold');
-    doc.setFontSize(6.2);
+    doc.setFontSize(6);
     doc.setTextColor(51, 65, 85);
-    doc.text(`AUTENTICAÇÃO DIGITAL: HASH ${hash.substring(0, 36)}... • IP: ${ip} • DATA/HORA: ${signedAt}`, left, footerY + 1.8);
+    doc.text(`HASH DE AUTENTICAÇÃO (SHA-256): ${hash}`, left, footerY + 1.8);
 
     doc.setFont('courier', 'normal');
     doc.setFontSize(5.8);
     doc.setTextColor(100, 116, 139);
-    doc.text(`ACEITE VINCULADO VIA WEB • MP Nº 2.200-2/2001 E ART. 784, III CPC • INTEGRIDADE E AUTENTICIDADE GARANTIDAS`, left, footerY + 5.2);
+    doc.text(`IP: ${ip} • DATA/HORA: ${signedAt} • MP 2.200-2/2001 E ART. 784, III CPC`, left, footerY + 5.2);
   } else {
     doc.setFont('courier', 'normal');
     doc.setFontSize(7.2);
     doc.setTextColor(148, 163, 184);
-    doc.text(`AUTENTICAÇÃO: ${sale.id.toUpperCase()} • DOCUMENTO DIGITAL`, left, footerY + 4.5);
+    doc.text(`AUTENTICAÇÃO: ${(sale.id || '').toUpperCase()} • DOCUMENTO DIGITAL`, left, footerY + 4.5);
     doc.text(`VIA ORIGINAL • EMISSÃO: ${dateFormatted}`, right, footerY + 4.5, { align: 'right' });
   }
 
@@ -705,7 +705,7 @@ export function buildContractHTML(sale: Sale, settings: Settings, installments?:
           <table style="width: 100%; border-collapse: collapse; font-size: 10px;">
             <tr>
               <td style="padding: 2.5px 0; color: #64748b; width: 22%;"><strong>Comprador(a):</strong></td>
-              <td style="padding: 2.5px 0; color: #0f172a; font-weight: 700;">${sale.client.toUpperCase()}</td>
+              <td style="padding: 2.5px 0; color: #0f172a; font-weight: 700;">${(sale.client || 'CLIENTE').toUpperCase()}</td>
               <td style="padding: 2.5px 0; color: #64748b; width: 20%;"><strong>CPF / Doc:</strong></td>
               <td style="padding: 2.5px 0; color: #0f172a; font-weight: 700;">${sale.clientCpf || 'Registrado em Sistema'}</td>
             </tr>
@@ -744,7 +744,7 @@ export function buildContractHTML(sale: Sale, settings: Settings, installments?:
               Cláusula 1ª – Das Partes Contratantes
             </strong>
             <p style="margin: 2px 0 0 0; text-align: justify;">
-              Pelo presente instrumento, de um lado denominada(o) <strong>VENDEDOR(A)</strong>: <strong>${sellerName}</strong>; e de outro lado denominada(o) <strong>COMPRADOR(A)</strong>: <strong>${sale.client.toUpperCase()}</strong>, CPF/Doc nº <strong>${sale.clientCpf || 'N/A'}</strong>, tel <strong>${sale.clientPhone || 'N/A'}</strong>${sale.clientAddress ? `, residente em ${sale.clientAddress}` : ''}, firmam o presente compromisso de compra e venda mercantil.
+              Pelo presente instrumento, de um lado denominada(o) <strong>VENDEDOR(A)</strong>: <strong>${sellerName}</strong>; e de outro lado denominada(o) <strong>COMPRADOR(A)</strong>: <strong>${(sale.client || 'CLIENTE').toUpperCase()}</strong>, CPF/Doc nº <strong>${sale.clientCpf || 'N/A'}</strong>, tel <strong>${sale.clientPhone || 'N/A'}</strong>${sale.clientAddress ? `, residente em ${sale.clientAddress}` : ''}, firmam o presente compromisso de compra e venda mercantil.
             </p>
           </div>
 
@@ -816,7 +816,7 @@ export function buildContractHTML(sale: Sale, settings: Settings, installments?:
                   : ''}
               </div>
               <div style="border-top: 1.2px solid #334155; margin-bottom: 4px;"></div>
-              <strong style="font-size: 10px; text-transform: uppercase; color: #0f172a; display: block;">${sale.client.toUpperCase()}</strong>
+              <strong style="font-size: 10px; text-transform: uppercase; color: #0f172a; display: block;">${(sale.client || 'CLIENTE').toUpperCase()}</strong>
               <span style="font-size: 8px; color: #64748b; font-weight: 700; text-transform: uppercase;">Comprador(a)</span>
               ${(sale.isSigned || sale.signature?.signed) 
                 ? `<div style="font-size: 7.5px; font-weight: 800; color: #15803d; margin-top: 2px;">[ ASSINADO DIGITALMENTE ]</div>` 
@@ -837,7 +837,7 @@ export function buildContractHTML(sale: Sale, settings: Settings, installments?:
             </div>
           ` : `
             <div style="display: flex; justify-content: space-between;">
-              <span>Autenticação: ${sale.id.toUpperCase()}</span>
+              <span>Autenticação: ${(sale.id || '').toUpperCase()}</span>
               <span>Via Original Digital • Emissão: ${dateFormatted}</span>
             </div>
           `}

@@ -44,6 +44,10 @@ export async function testConnection() {
   }
 }
 
+if (typeof window !== 'undefined') {
+  testConnection();
+}
+
 export enum OperationType {
   CREATE = 'create',
   UPDATE = 'update',
@@ -88,6 +92,10 @@ export function cleanData<T extends object>(data: T): T {
     if (value === undefined) return;
     if (typeof value === 'number' && isNaN(value)) {
       clean[key] = 0;
+      return;
+    }
+    if (value !== null && typeof value === 'object' && !Array.isArray(value) && !(value instanceof Date)) {
+      clean[key] = cleanData(value);
       return;
     }
     clean[key] = value;
