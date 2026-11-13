@@ -817,11 +817,11 @@ Emissão: ${dateFormatted} • ${company}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ⚖️ CLÁUSULAS E CONDIÇÕES PRINCIPAIS
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-1. OBJETO: Venda do bem/serviço discriminado acima em perfeitas condições de uso.
+1. OBJETO E RESERVA DE DOMÍNIO: Venda com reserva de domínio (art. 521 e seguintes do Código Civil) do bem ${(targetSale.productName || 'Produto Registrado').toUpperCase()}, entregue em perfeitas condições de uso, permanecendo a propriedade resolúvel com o VENDEDOR até a quitação integral de todas as parcelas.
 2. PAGAMENTO: O Comprador se compromete a efetuar os pagamentos nas datas estipuladas.
 3. ANTECIPAÇÃO: É facultado ao Comprador amortizar ou quitar parcelas a qualquer momento com abatimento proporcional.
-4. ATRASO E BLOQUEIO REMOTO: Eventual atraso acarretará multa de 2% sobre o valor vencido e juros de mora de 1% ao mês pro rata die. O atraso superior a 5 dias corridos autoriza o VENDEDOR a realizar o bloqueio do aparelho de forma remota, com desbloqueio em até 24h após quitação integral. Proibida tentativa de remoção ou burla da segurança sob pena de vencimento antecipado de todo o saldo devedor.
-5. EFICÁCIA: Documento reconhecido como título de crédito e confissão de dívida líquida e certa (Art. 784, CPC).
+4. TOLERÂNCIA, ENCARGOS E RESTRIÇÃO POR ATRASO: EVENTUAL ATRASO NA QUITAÇÃO DE PARCELAS ACARRETARÁ MULTA MORATÓRIA DE 2% SOBRE O VALOR VENCIDO, ACRESCIDA DE JUROS DE MORA DE 1% AO MÊS (PRO RATA DIE). APÓS 3 DIAS CORRIDOS DE ATRASO, O VENDEDOR FICA AUTORIZADO A APLICAR RESTRIÇÃO PARCIAL DE FUNCIONALIDADES DO APARELHO COM CONTATO NA TELA. APÓS 5 DIAS CORRIDOS, FICA AUTORIZADO O BLOQUEIO TOTAL DO APARELHO ATÉ REGULARIZAÇÃO, COM DESBLOQUEIO EM ATÉ 24H APÓS PAGAMENTO INTEGRAL. Proibida tentativa de remoção, formatação clandestina ou burla do sistema de segurança, sob pena de vencimento antecipado do saldo devedor e medidas legais cabíveis.
+5. EFICÁCIA, NOTIFICAÇÕES E CONFISSÃO DE DÍVIDA: Título executivo extrajudicial (Art. 784, III CPC), com plena validade jurídica para notificações e cobranças enviadas via WhatsApp ao número cadastrado.
 
 Assinado Eletronicamente:
 • Vendedor(a): ${sellerName}
@@ -1086,25 +1086,26 @@ Autenticação: ${targetSale.id.toUpperCase()}`;
           <AnimatePresence mode="wait">
             <motion.div key={activeView} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }}>
               {activeView === 'dashboard' && (
-                <div className="flex flex-col gap-4 sm:gap-8 animate-view-enter">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pl-1 sm:pl-0">
+                <div className="flex flex-col gap-6 sm:gap-7 animate-view-enter">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                      <div className="flex flex-col">
-                        <h1 className="text-lg sm:text-xl font-bold text-white tracking-tight">
-                           Olá, <span className="text-white font-black italic">{settings.userName ? settings.userName.trim().split(' ')[0].charAt(0).toUpperCase() + settings.userName.trim().split(' ')[0].slice(1).substring(0).toLowerCase() : ''}</span>.
+                        <h1 className="text-xl sm:text-2xl font-bold text-white tracking-tight">
+                           Olá, <span className="text-gold">{settings.userName ? settings.userName.trim().split(' ')[0].charAt(0).toUpperCase() + settings.userName.trim().split(' ')[0].slice(1).toLowerCase() : 'Operador'}</span>
                         </h1>
-                        <p className="text-[9px] text-zinc-550 font-bold uppercase mt-0.5 tracking-[0.25em]" style={{ color: '#71717a' }}>
-                           gerencie suas vendas
+                        <p className="text-xs text-zinc-400 mt-0.5">
+                           Visão geral da operação, recebíveis e contratos ativos
                         </p>
                      </div>
                      <button
+                       type="button"
                        onClick={() => {
                          setSaleToEdit(null);
                          setShowSaleForm(true);
                          setActiveView('sales');
                        }}
-                       className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-gold hover:bg-amber-400 text-black font-black uppercase text-[10px] sm:text-xs tracking-wider rounded-xl transition-all shadow-md active:scale-95 cursor-pointer self-start sm:self-auto"
+                       className="flex items-center gap-2 px-4 h-10 bg-gradient-to-r from-[#d4a438] to-[#e5b84b] hover:brightness-105 text-[#080a0f] font-bold text-xs tracking-tight rounded-xl transition-all shadow-[0_4px_16px_rgba(229,184,75,0.2)] active:scale-95 cursor-pointer self-start sm:self-auto whitespace-nowrap shrink-0"
                      >
-                       <Plus size={14} />
+                       <Plus size={15} />
                        <span>Nova Venda</span>
                      </button>
                   </div>
@@ -1125,64 +1126,65 @@ Autenticação: ${targetSale.id.toUpperCase()}`;
                     }} 
                   />
                   
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-8">
-                    <div className="glass-card p-6 sm:p-8 flex flex-col gap-6">
-                      <div 
-                        onClick={() => setActiveView('sales')}
-                        className="flex items-center justify-between cursor-pointer group/header hover:opacity-80 transition-opacity"
-                      >
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 sm:gap-6">
+                    <div className="glass-card p-5 sm:p-7 flex flex-col gap-5">
+                      <div className="flex items-center justify-between">
                          <div>
-                            <h3 className="text-base sm:text-lg font-black italic uppercase text-white tracking-widest">Fluxo Recente</h3>
-                            <p className="text-[9px] sm:text-[10px] text-gray-500 font-bold uppercase mt-1">Últimas movimentações</p>
+                            <h3 className="text-base sm:text-lg font-bold text-white tracking-tight">Fluxo Recente</h3>
+                            <p className="text-xs text-zinc-400 mt-0.5">Últimos contratos registrados</p>
                          </div>
-                         <button onClick={() => setActiveView('sales')} className="text-[9px] sm:text-[10px] font-black uppercase text-gold hover:underline">Ver Todos</button>
+                         <button type="button" onClick={() => setActiveView('sales')} className="text-xs font-semibold text-gold hover:text-amber-300 transition-colors cursor-pointer whitespace-nowrap">Ver todos</button>
                       </div>
-                      <div className="flex flex-col gap-3">
+                      <div className="flex flex-col gap-2.5">
                         {isInitialLoading && sales.length === 0 ? (
-                          <div className="p-8 bg-[rgba(255,255,255,0.02)] border border-line rounded-2xl flex flex-col items-center justify-center gap-3 text-center">
+                          <div className="p-8 bg-white/[0.02] border border-line rounded-xl flex flex-col items-center justify-center gap-3 text-center">
                             <div className="w-6 h-6 border-2 border-gold/30 border-t-gold rounded-full animate-spin" />
-                            <span className="text-[10px] text-gold font-black uppercase tracking-widest animate-pulse">Carregando dados com segurança...</span>
+                            <span className="text-xs text-zinc-400 font-medium">Carregando contratos...</span>
                           </div>
                         ) : sales.length === 0 ? (
-                          <div className="p-6 bg-[rgba(255,255,255,0.02)] border border-line rounded-2xl text-center">
-                            <span className="text-[10px] text-gray-500 font-bold uppercase tracking-widest">Nenhum contrato ativo</span>
+                          <div className="p-8 bg-white/[0.02] border border-line rounded-xl text-center">
+                            <span className="text-xs text-zinc-500 font-medium">Nenhum contrato ativo no momento</span>
                           </div>
                         ) : (
-                          sales.slice(-5).reverse().map(sale => (
+                          sales.slice(-5).reverse().map(sale => {
+                            const signed = !!(sale.isSigned || sale.signature?.signed);
+                            return (
                             <div 
                               key={sale.id} 
-                              className="p-3 sm:p-4 bg-[rgba(255,255,255,0.02)] border border-line rounded-2xl flex flex-wrap sm:flex-nowrap items-center justify-between gap-3 group hover:bg-[rgba(255,215,0,0.05)] transition-all"
+                              className="p-3 sm:p-3.5 bg-white/[0.02] border border-white/[0.06] rounded-xl flex flex-wrap sm:flex-nowrap items-center justify-between gap-3 group hover:bg-white/[0.04] hover:border-white/[0.12] transition-colors"
                             >
                               <div 
                                 onClick={() => setSelectedSaleForContract(sale)}
-                                className="flex items-center gap-3 sm:gap-4 min-w-0 cursor-pointer flex-1"
+                                className="flex items-center gap-3 min-w-0 cursor-pointer flex-1"
                                 title="Clique para visualizar o contrato completo"
                               >
-                                <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-[rgba(255,215,0,0.1)] text-gold flex items-center justify-center border border-[rgba(255,215,0,0.1)] shrink-0 group-hover:scale-105 transition-transform">
-                                  <ShoppingBag size={16} />
+                                <div className="w-9 h-9 rounded-lg bg-gold/10 text-gold flex items-center justify-center border border-gold/20 shrink-0">
+                                  <ShoppingBag size={15} />
                                 </div>
                                 <div className="flex flex-col min-w-0">
-                                  <span className="font-black text-white italic text-xs sm:text-sm truncate max-w-[120px] sm:max-w-[160px] uppercase tracking-tighter group-hover:text-gold transition-colors">{sale.productName}</span>
-                                  <span className="text-[8px] sm:text-[9px] text-gray-400 font-bold uppercase truncate">{sale.client}</span>
+                                  <span className="font-semibold text-zinc-100 text-xs sm:text-sm truncate max-w-[140px] sm:max-w-[190px] group-hover:text-gold transition-colors">{sale.productName}</span>
+                                  <span className="text-[11px] text-zinc-400 truncate">{sale.client}</span>
                                 </div>
                               </div>
                               
                               <div className="flex items-center gap-3 self-end sm:self-auto shrink-0">
                                 <div className="text-right">
-                                  <p className="font-black text-white italic text-xs sm:text-sm">
+                                  <p className="font-bold text-white text-xs sm:text-sm tabular-figure">
                                     {hideDashboardValues ? 'R$ ••••••' : money(sale.total)}
                                   </p>
-                                  <span className="text-[8px] text-green-neon font-black uppercase">KPI OK</span>
+                                  <span className={`text-[10px] font-medium ${signed ? 'text-emerald-400' : 'text-zinc-500'}`}>
+                                    {signed ? 'Assinado' : `${sale.installmentsCount || 1}x · ${sale.date}`}
+                                  </span>
                                 </div>
 
-                                <div className="flex items-center gap-1 pl-2 border-l border-line/60">
+                                <div className="flex items-center gap-1 pl-2.5 border-l border-white/[0.08]">
                                   <button
                                     type="button"
                                     onClick={(e) => {
                                       e.stopPropagation();
                                       setSelectedSaleForContract(sale);
                                     }}
-                                    className="h-8 w-8 rounded-lg border border-line bg-white/5 text-gray-400 hover:text-gold hover:border-gold transition-all grid place-items-center active:scale-95 cursor-pointer"
+                                    className="h-8 w-8 rounded-lg border border-white/[0.08] bg-white/[0.03] text-zinc-400 hover:text-gold hover:border-gold/40 transition-colors grid place-items-center cursor-pointer"
                                     title="Visualizar Contrato"
                                   >
                                     <FileText size={13} />
@@ -1196,7 +1198,7 @@ Autenticação: ${targetSale.id.toUpperCase()}`;
                                       setActiveView('sales');
                                       window.scrollTo({ top: 0, behavior: 'smooth' });
                                     }}
-                                    className="h-8 w-8 rounded-lg border border-line bg-white/5 text-gray-400 hover:text-gold hover:border-gold transition-all grid place-items-center active:scale-95 cursor-pointer"
+                                    className="h-8 w-8 rounded-lg border border-white/[0.08] bg-white/[0.03] text-zinc-400 hover:text-gold hover:border-gold/40 transition-colors grid place-items-center cursor-pointer"
                                     title="Editar Contrato"
                                   >
                                     <Pencil size={13} />
@@ -1214,7 +1216,7 @@ Autenticação: ${targetSale.id.toUpperCase()}`;
                                         }
                                       );
                                     }}
-                                    className="h-8 w-8 rounded-lg border border-line bg-white/5 text-gray-400 hover:text-red-500 hover:border-red-500 transition-all grid place-items-center active:scale-95 cursor-pointer"
+                                    className="h-8 w-8 rounded-lg border border-white/[0.08] bg-white/[0.03] text-zinc-400 hover:text-red-400 hover:border-red-500/40 transition-colors grid place-items-center cursor-pointer"
                                     title="Excluir Contrato"
                                   >
                                     <Trash2 size={13} />
@@ -1222,38 +1224,38 @@ Autenticação: ${targetSale.id.toUpperCase()}`;
                                 </div>
                               </div>
                             </div>
-                          ))
+                          );})
                         )}
                       </div>
                     </div>
 
-                    <div className="glass-card p-6 sm:p-8 flex flex-col gap-6">
-                      <div 
-                        onClick={() => setActiveView('stock')}
-                        className="cursor-pointer group/header hover:opacity-80 transition-opacity"
-                      >
-                        <h3 className="text-base sm:text-lg font-black italic uppercase text-white tracking-widest">Produtos em Destaque</h3>
-                        <p className="text-[9px] sm:text-[10px] text-gray-500 font-bold uppercase mt-1">Produtos com maior tração</p>
+                    <div className="glass-card p-5 sm:p-7 flex flex-col gap-5">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h3 className="text-base sm:text-lg font-bold text-white tracking-tight">Produtos em Destaque</h3>
+                          <p className="text-xs text-zinc-400 mt-0.5">Disponíveis no catálogo</p>
+                        </div>
+                        <button type="button" onClick={() => setActiveView('stock')} className="text-xs font-semibold text-gold hover:text-amber-300 transition-colors cursor-pointer whitespace-nowrap">Ver estoque</button>
                       </div>
                       <div className="grid grid-cols-2 gap-3 sm:gap-4">
                         {products.filter(p => p.status === 'Disponivel').slice(0, 4).map(product => (
                           <div 
                             key={product.id} 
                             onClick={() => { setActiveView('stock'); setSearchTerm(product.name); }}
-                            className="p-3 sm:p-4 bg-[rgba(0,0,0,0.4)] border border-line rounded-2xl sm:rounded-3xl flex flex-col gap-3 sm:gap-4 group hover:border-[rgba(255,215,0,0.3)] transition-all cursor-pointer active:scale-95"
+                            className="p-3 sm:p-3.5 bg-white/[0.02] border border-white/[0.06] rounded-xl flex flex-col gap-3 group hover:border-gold/35 hover:bg-white/[0.04] transition-colors cursor-pointer"
                           >
-                             <div className="w-full aspect-square rounded-xl sm:rounded-2xl bg-zinc-900 border border-line overflow-hidden">
+                             <div className="w-full aspect-square rounded-lg bg-[#080a0f] border border-white/[0.06] overflow-hidden">
                                 {product.photo ? (
-                                  <img src={product.photo} className="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all" />
+                                  <img src={product.photo} alt={product.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
                                 ) : (
-                                  <div className="w-full h-full flex items-center justify-center text-[rgba(255,215,0,0.1)]">
-                                     <Package size={20} />
+                                  <div className="w-full h-full flex items-center justify-center text-gold/20">
+                                     <Package size={24} />
                                   </div>
                                 )}
                              </div>
                              <div>
-                                <h4 className="text-[10px] sm:text-xs font-black text-white truncate uppercase italic">{product.name}</h4>
-                                <p className="text-xs sm:text-sm font-black text-gold mt-1 italic">
+                                <h4 className="text-xs font-semibold text-zinc-100 truncate">{product.name}</h4>
+                                <p className="text-sm font-bold text-gold mt-0.5 tabular-figure">
                                   {hideDashboardValues ? 'R$ ••••••' : money(product.sale)}
                                 </p>
                              </div>
@@ -1277,7 +1279,7 @@ Autenticação: ${targetSale.id.toUpperCase()}`;
                           <ArrowLeft size={18} />
                         </button>
                       )}
-                      <h2 className="text-xl sm:text-2xl font-black tracking-tight text-white italic uppercase truncate">
+                      <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-white truncate">
                         {selectedClient || 'Inteligência de Clientes'}
                       </h2>
                     </div>
@@ -1750,8 +1752,8 @@ Autenticação: ${targetSale.id.toUpperCase()}`;
                   {/* TOP HEADER */}
                   <div className="flex flex-col lg:flex-row items-center justify-between gap-4 px-1">
                     <div>
-                      <h2 className="text-xl sm:text-3xl font-black tracking-tight text-white italic uppercase">Estoque de Produtos</h2>
-                      <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mt-0.5">Gerenciamento, Custos e Disponibilidade de Ativos</p>
+                      <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-white">Estoque de Produtos</h2>
+                      <p className="text-xs text-zinc-400 mt-0.5">Gerenciamento, custos e disponibilidade de ativos</p>
                     </div>
                     <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto">
                       <div className="relative group flex-1 min-w-[200px] sm:w-64">
@@ -2160,8 +2162,8 @@ Autenticação: ${targetSale.id.toUpperCase()}`;
                     return (
                     <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="p-6 sm:p-10 glass-card max-w-3xl mx-auto w-full border border-[rgba(255,215,0,0.2)] shadow-[0_20px_50px_rgba(0,0,0,0.5)]">
                       <div className="text-center mb-8 sm:mb-10">
-                         <h2 className="text-xl sm:text-3xl font-black italic uppercase text-white tracking-tighter">{saleToEdit ? 'Editar Contrato / Venda' : 'Nova Venda & Contrato'}</h2>
-                         <p className="text-[10px] text-gray-500 font-bold uppercase mt-1">Preencha os dados da operação comercial</p>
+                         <h2 className="text-xl sm:text-2xl font-bold text-white tracking-tight">{saleToEdit ? 'Editar Contrato e Venda' : 'Nova Venda e Contrato'}</h2>
+                         <p className="text-xs text-zinc-400 mt-1">Preencha os dados da operação comercial</p>
                       </div>
                       <form key={saleToEdit ? `edit-${saleToEdit.id}` : 'new-sale'} className="flex flex-col gap-4 sm:gap-6" onSubmit={async (e) => { 
                         e.preventDefault(); 
@@ -2889,49 +2891,49 @@ Autenticação: ${targetSale.id.toUpperCase()}`;
               {activeView === 'transactions' && (
                 <div className="flex flex-col gap-4 sm:gap-8 animate-view-enter">
                   {/* Top Summary Cards */}
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
-                    <div className="bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.05)] rounded-[20px] sm:rounded-[24px] p-6 flex flex-col gap-4 relative overflow-hidden group hover:border-[rgba(255,255,255,0.08)] transition-all">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-5">
+                    <div className="glass-card p-5 sm:p-6 flex flex-col gap-3">
                       <div className="flex items-center justify-between">
-                        <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest block font-sans">Acumulado Entradas</span>
-                        <div className="w-8 h-8 rounded-lg bg-[rgba(255,215,0,0.05)] text-gold flex items-center justify-center border border-[rgba(255,215,0,0.1)]">
+                        <span className="text-xs font-medium text-zinc-400 block">Acumulado Entradas</span>
+                        <div className="w-9 h-9 rounded-lg bg-gold/10 text-gold flex items-center justify-center border border-gold/20">
                           <Wallet size={16} />
                         </div>
                       </div>
                       <div>
-                        <strong className="text-2xl sm:text-3xl font-bold text-white tracking-tight block font-sans">
+                        <strong className="text-2xl sm:text-3xl font-bold text-white tracking-tight block tabular-figure">
                           {money(transactions.filter(t => t.type === 'entrada').reduce((acc, t) => acc + (Number(t.value) || 0), 0))}
                         </strong>
-                        <span className="text-[10px] text-gray-500 font-medium block mt-1">Somas de valores de entrada em caixa</span>
+                        <span className="text-[11px] text-zinc-500 block mt-1">Somas de valores de entrada em caixa</span>
                       </div>
                     </div>
 
-                    <div className="bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.05)] rounded-[20px] sm:rounded-[24px] p-6 flex flex-col gap-4 relative overflow-hidden group hover:border-[rgba(255,255,255,0.08)] transition-all">
+                    <div className="glass-card p-5 sm:p-6 flex flex-col gap-3">
                       <div className="flex items-center justify-between">
-                        <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest block font-sans">Acumulado Parcelas</span>
-                        <div className="w-8 h-8 rounded-lg bg-[rgba(34,197,94,0.05)] text-green-500 flex items-center justify-center border border-[rgba(34,197,94,0.1)]">
+                        <span className="text-xs font-medium text-zinc-400 block">Acumulado Parcelas</span>
+                        <div className="w-9 h-9 rounded-lg bg-emerald-500/10 text-emerald-400 flex items-center justify-center border border-emerald-500/20">
                           <DollarSign size={16} />
                         </div>
                       </div>
                       <div>
-                        <strong className="text-2xl sm:text-3xl font-bold text-white tracking-tight block font-sans">
+                        <strong className="text-2xl sm:text-3xl font-bold text-white tracking-tight block tabular-figure">
                           {money(transactions.filter(t => t.type === 'parcela').reduce((acc, t) => acc + (Number(t.value) || 0), 0))}
                         </strong>
-                        <span className="text-[10px] text-gray-500 font-medium block mt-1">Somas de parcelas recebidas liquidadas</span>
+                        <span className="text-[11px] text-zinc-500 block mt-1">Somas de parcelas recebidas liquidadas</span>
                       </div>
                     </div>
 
-                    <div className="bg-[rgba(255,215,0,0.02)] border border-[rgba(255,215,0,0.08)] rounded-[20px] sm:rounded-[24px] p-6 flex flex-col gap-4 relative overflow-hidden group hover:border-[rgba(255,215,0,0.15)] transition-all">
+                    <div className="glass-card p-5 sm:p-6 flex flex-col gap-3 border-gold/20">
                       <div className="flex items-center justify-between">
-                        <span className="text-[10px] font-black text-gold/80 uppercase tracking-widest block font-sans">Total Transacionado</span>
-                        <div className="w-8 h-8 rounded-lg bg-[rgba(255,215,0,0.05)] text-gold flex items-center justify-center border border-[rgba(255,215,0,0.15)]">
+                        <span className="text-xs font-medium text-gold/90 block">Total Transacionado</span>
+                        <div className="w-9 h-9 rounded-lg bg-gold/10 text-gold flex items-center justify-center border border-gold/25">
                           <BadgeDollarSign size={16} />
                         </div>
                       </div>
                       <div>
-                        <strong className="text-2xl sm:text-3xl font-bold text-gold tracking-tight block font-sans">
+                        <strong className="text-2xl sm:text-3xl font-bold text-gold tracking-tight block tabular-figure">
                           {money(transactions.reduce((acc, t) => acc + (Number(t.value) || 0), 0))}
                         </strong>
-                        <span className="text-[10px] text-gold/60 font-medium block mt-1">Fluxo total conciliado no sistema</span>
+                        <span className="text-[11px] text-zinc-400 block mt-1">Fluxo total conciliado no sistema</span>
                       </div>
                     </div>
                   </div>
@@ -3134,12 +3136,9 @@ Autenticação: ${targetSale.id.toUpperCase()}`;
                          <Calculator size={80} />
                       </div>
                       <div>
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="w-2 h-2 rounded-full bg-gold animate-pulse" />
-                          <span className="text-[9px] font-black uppercase text-gold tracking-widest">Simulador Comercial</span>
-                        </div>
-                        <h3 className="text-xl sm:text-2xl font-black italic uppercase text-white tracking-tighter">Engenharia Financeira</h3>
-                        <p className="text-[9px] sm:text-[10px] text-gray-500 font-bold uppercase tracking-[0.2em] mt-1">Cálculo de Preço À Vista & Parcelamento</p>
+                        <span className="text-xs font-semibold text-gold block mb-1">Simulador Comercial</span>
+                        <h3 className="text-xl sm:text-2xl font-bold text-white tracking-tight">Engenharia Financeira</h3>
+                        <p className="text-xs text-zinc-400 mt-1">Cálculo de preço à vista e parcelamento</p>
                       </div>
                       
                       <div className="flex flex-col gap-4 sm:gap-5">
@@ -3444,13 +3443,13 @@ Autenticação: ${targetSale.id.toUpperCase()}`;
                 <div className="flex flex-col gap-6 sm:gap-8 animate-view-enter h-full">
                   {activeSettingsTab === null ? (
                     /* Elegant master choices layout appearing by themselves */
-                    <div className="space-y-8 animate-view-enter">
-                      <div className="text-center md:text-left">
-                        <h3 className="text-2xl sm:text-3xl font-black italic uppercase text-zinc-100 tracking-tight logo-title">Ajustes da Conta</h3>
-                        <p className="text-[9px] sm:text-[10px] text-zinc-500 font-bold uppercase mt-1 tracking-[0.3em]">Selecione uma categoria para configurar seu ecossistema Nexus Private</p>
+                    <div className="space-y-6 animate-view-enter">
+                      <div>
+                        <h3 className="text-xl sm:text-2xl font-bold text-white tracking-tight">Ajustes da Conta</h3>
+                        <p className="text-xs text-zinc-400 mt-1">Selecione uma categoria para configurar o sistema</p>
                       </div>
 
-                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 sm:gap-8">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
                         {[
                           { id: 'profile', label: 'Operador', icon: User, desc: 'Configure seus dados pessoais, foto de identificação e conta do sistema.', labelHighlight: 'Identidade' },
                           { id: 'finance', label: 'Financeiro', icon: Wallet, desc: 'Cadastre nomes de favorecido, chaves de recebimento e chaves PIX de liquidez.', labelHighlight: 'Liquidez' },
@@ -3458,25 +3457,23 @@ Autenticação: ${targetSale.id.toUpperCase()}`;
                           { id: 'system', label: 'Sistema', icon: ShieldCheck, desc: 'Controle a segurança do banco, reset de registros locais e preferências do operador.', labelHighlight: 'Segurança' },
                         ].map((option) => (
                           <button
+                            type="button"
                             key={option.id}
                             onClick={() => setActiveSettingsTab(option.id)}
-                            className="bg-[rgba(5,5,5,0.8)] hover:bg-[rgba(15,15,15,0.95)] border border-zinc-900 hover:border-gold/30 rounded-[32px] p-8 text-left transition-all duration-300 group relative overflow-hidden group/card shadow-2xl flex flex-col justify-between min-h-[250px] cursor-pointer"
+                            className="glass-card hover:bg-[#131825] hover:border-gold/35 p-6 text-left transition-colors duration-200 group flex flex-col justify-between min-h-[210px] cursor-pointer"
                           >
-                            {/* Inner ambient glow on hover */}
-                            <div className="absolute top-0 right-0 w-32 h-32 bg-[rgba(255,215,0,0.01)] group-hover/card:bg-[rgba(255,215,0,0.04)] rounded-full -mr-16 -mt-16 blur-2xl transition-all duration-500 pointer-events-none" />
-                            
-                            <div className="flex justify-between items-start">
-                              <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.05)] text-gray-500 group-hover/card:text-gold group-hover/card:border-gold/30 group-hover/card:bg-gold/5 flex items-center justify-center transition-all duration-500 shrink-0">
-                                <option.icon size={22} className="sm:size-26" />
+                            <div className="flex justify-between items-start w-full">
+                              <div className="w-11 h-11 rounded-xl bg-white/[0.04] border border-white/[0.08] text-zinc-300 group-hover:text-gold group-hover:border-gold/30 group-hover:bg-gold/10 flex items-center justify-center transition-colors shrink-0">
+                                <option.icon size={20} />
                               </div>
-                              <span className="text-[8px] sm:text-[9px] font-black uppercase text-gold/60 tracking-widest bg-gold/5 border border-gold/10 px-3 py-1 rounded-full group-hover/card:border-gold/30 transition-all duration-500 leading-none">{option.labelHighlight}</span>
+                              <span className="text-[11px] font-medium text-gold/80">{option.labelHighlight}</span>
                             </div>
 
-                            <div className="mt-8 space-y-2">
-                              <h4 className="text-lg sm:text-xl font-black uppercase tracking-wide text-zinc-100 italic shrink-0 leading-none group-hover/card:text-white transition-colors logo-title">
+                            <div className="mt-6 space-y-1.5">
+                              <h4 className="text-base sm:text-lg font-bold text-zinc-100 group-hover:text-white transition-colors">
                                 {option.label}
                               </h4>
-                              <p className="text-[11px] sm:text-xs text-zinc-500 leading-relaxed font-semibold">
+                              <p className="text-xs text-zinc-400 leading-relaxed">
                                 {option.desc}
                               </p>
                             </div>
@@ -4141,30 +4138,30 @@ Autenticação: ${targetSale.id.toUpperCase()}`;
                           </div>
 
                           <div>
-                            <strong className="text-slate-900 uppercase block mb-0.5 text-[9.5px]">Cláusula 2ª – Do Objeto</strong>
+                            <strong className="text-slate-900 uppercase block mb-0.5 text-[9.5px]">Cláusula 2ª – Do Objeto e Reserva de Domínio</strong>
                             <p className="text-justify">
-                              O presente contrato tem por objeto a alienação do bem/serviço: <strong>{(selectedSaleForContract.productName || 'PRODUTO REGISTRADO').toUpperCase()}</strong>, entregue ou disponibilizado em perfeitas condições de uso, conferido e aceito pelo Comprador.
+                              O presente contrato tem por objeto a venda com reserva de domínio (nos termos do art. 521 e seguintes do Código Civil) do bem: <strong>{(activeContractSale.productName || 'PRODUTO REGISTRADO').toUpperCase()}</strong>, entregue em perfeitas condições de uso, conferido e aceito pelo Comprador. A propriedade resolúvel do bem permanece com o VENDEDOR até a liquidação integral de todas as parcelas pactuadas neste instrumento.
                             </p>
                           </div>
 
                           <div>
                             <strong className="text-slate-900 uppercase block mb-0.5 text-[9.5px]">Cláusula 3ª – Do Preço, Condições e Amortização</strong>
                             <p className="text-justify">
-                              O valor integral estipulado é de <strong>{money(selectedSaleForContract.total)}</strong>, a ser liquidado conforme discriminado no Quadro-Resumo, com vencimento todo dia <strong>{dueDay}</strong> de cada mês subsequente. É assegurado ao Comprador o direito de realizar quitações antecipadas ou amortizações com o devido abatimento proporcional.
+                              O valor integral estipulado é de <strong>{money(activeContractSale.total)}</strong>, a ser liquidado conforme discriminado no Quadro-Resumo, com vencimento todo dia <strong>{dueDay}</strong> de cada mês subsequente. É assegurado ao Comprador o direito de realizar quitações antecipadas ou amortizações com o devido abatimento proporcional.
                             </p>
                           </div>
 
                           <div>
-                            <strong className="text-slate-900 uppercase block mb-0.5 text-[9.5px]">Cláusula 4ª – Da Tolerância, Encargos e Bloqueio por Atraso</strong>
+                            <strong className="text-slate-900 uppercase block mb-0.5 text-[9.5px]">Cláusula 4ª – Da Tolerância, Encargos e Restrição por Atraso</strong>
                             <p className="text-justify">
-                              Eventual atraso na quitação de parcelas acarretará multa moratória de 2% (dois por cento) sobre o valor vencido, acrescida de juros de mora de 1% (um por cento) ao mês, calculados proporcionalmente aos dias de atraso (<em>pro rata die</em>) até a efetiva quitação. O atraso superior a 5 (cinco) dias corridos da data de vencimento autoriza o VENDEDOR a realizar o bloqueio do funcionamento do aparelho de forma remota, sendo o desbloqueio efetuado em até 24 horas após a confirmação do pagamento integral do débito e encargos. Fica expressamente proibida qualquer tentativa de remoção, formatação clandestina ou burla do sistema de segurança do dispositivo pelo comprador, sob pena de vencimento antecipado de todo o saldo devedor.
+                              EVENTUAL ATRASO NA QUITAÇÃO DE PARCELAS ACARRETARÁ MULTA MORATÓRIA DE 2% (DOIS POR CENTO) SOBRE O VALOR VENCIDO, ACRESCIDA DE JUROS DE MORA DE 1% (UM POR CENTO) AO MÊS, CALCULADOS <em>PRO RATA DIE</em> ATÉ A EFETIVA QUITAÇÃO. APÓS 3 (TRÊS) DIAS CORRIDOS DE ATRASO, O VENDEDOR FICA AUTORIZADO A APLICAR RESTRIÇÃO PARCIAL DE FUNCIONALIDADES DO APARELHO, EXIBINDO NA TELA O CONTATO PARA NEGOCIAÇÃO. PERSISTINDO A INADIMPLÊNCIA APÓS 5 (CINCO) DIAS CORRIDOS DE ATRASO, O VENDEDOR FICA AUTORIZADO A REALIZAR O BLOQUEIO TOTAL DO FUNCIONAMENTO DO APARELHO ATÉ A REGULARIZAÇÃO DO DÉBITO. O DESBLOQUEIO SERÁ EFETUADO EM ATÉ 24 (VINTE E QUATRO) HORAS APÓS A CONFIRMAÇÃO DO PAGAMENTO INTEGRAL. Fica expressamente proibida qualquer tentativa de remoção, formatação clandestina ou burla do sistema de segurança do dispositivo pelo comprador, sob pena de vencimento antecipado de todo o saldo devedor e adoção das medidas legais cabíveis.
                             </p>
                           </div>
 
                           <div>
-                            <strong className="text-slate-900 uppercase block mb-0.5 text-[9.5px]">Cláusula 5ª – Da Eficácia e Título Executivo</strong>
+                            <strong className="text-slate-900 uppercase block mb-0.5 text-[9.5px]">Cláusula 5ª – Da Eficácia, Notificações e Confissão de Dívida</strong>
                             <p className="text-justify">
-                              As partes reconhecem a plena validade jurídica deste instrumento eletrônico e seus respectivos comprovantes, constituindo confissão líquida, certa e exigível de dívida nos termos do art. 784, inciso III do Código de Processo Civil.
+                              As partes reconhecem a plena validade jurídica deste instrumento eletrônico e de seus respectivos comprovantes, constituindo confissão líquida, certa e exigível de dívida nos termos do art. 784, inciso III do Código de Processo Civil Brasileiro. Fica acordado que avisos, notificações e cobranças enviadas por meio do aplicativo de mensagens WhatsApp ao número cadastrado pelo Comprador possuem plena validade jurídica para fins de comunicação formal.
                             </p>
                           </div>
 

@@ -1,24 +1,20 @@
-import { Settings as SettingsIcon, Menu, Wallet, ShoppingBag, Boxes, User, Activity, AlertCircle, Calendar, TrendingUp, DollarSign, ShieldCheck, Eye, EyeOff } from 'lucide-react';
-import { Product, Sale, Installment } from '../types';
+import { Settings as SettingsIcon, Menu, Activity, AlertCircle, Calendar, TrendingUp, DollarSign, ShieldCheck, Eye, EyeOff, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import { isSameMonthAndYear, parseDateToMidnight } from '../lib/dateUtils';
 
 export function Logo({ className = "", showText = true }: { className?: string, showText?: boolean }) {
   return (
-    <div className={`flex items-center gap-3 sm:gap-3.5 ${className} overflow-hidden`}>
-      <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-gradient-to-br from-gold via-amber-400 to-yellow-600 flex items-center justify-center text-black font-black text-base sm:text-lg shadow-[0_0_24px_rgba(255,215,0,0.25)] border border-gold/40 shrink-0 transition-transform duration-300 hover:scale-105">
+    <div className={`flex items-center gap-3 ${className} overflow-hidden`}>
+      <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-br from-[#f3cf7a] via-[#e5b84b] to-[#b88924] flex items-center justify-center text-[#080a0f] font-extrabold text-sm sm:text-base shadow-[0_4px_16px_rgba(229,184,75,0.22)] border border-white/20 shrink-0">
         NC
       </div>
       {showText && (
         <div className="flex flex-col min-w-0">
-          <h2 className="text-base sm:text-lg font-black text-white tracking-widest leading-none shrink-0 uppercase">
-            NEXUS <span className="text-white/50 font-extrabold">COMMERCE</span>
+          <h2 className="text-sm sm:text-[15px] font-bold text-white tracking-tight leading-tight shrink-0 whitespace-nowrap">
+            Nexus <span className="text-zinc-400 font-semibold">Commerce</span>
           </h2>
-          <div className="flex items-center gap-1.5 mt-1">
-            <span className="w-1.5 h-1.5 rounded-full bg-gold animate-pulse" />
-            <span className="text-[8px] sm:text-[9px] text-gold font-black uppercase tracking-[0.25em] shrink-0">
-              SISTEMA EXECUTIVO
-            </span>
-          </div>
+          <span className="text-[10px] text-gold/85 font-medium tracking-wide shrink-0 whitespace-nowrap mt-0.5">
+            Gestão Comercial
+          </span>
         </div>
       )}
     </div>
@@ -43,61 +39,64 @@ export function Topbar({
   onToggleHideDashboardValues?: () => void;
 }) {
   return (
-    <header className="h-16 sm:h-20 bg-black/85 backdrop-blur-2xl border-b border-white/[0.08] px-4 sm:px-8 flex items-center justify-between sticky top-0 z-40">
-      <div className="flex items-center gap-3 sm:gap-4 overflow-hidden">
+    <header className="h-16 bg-[#080a0f]/85 backdrop-blur-xl border-b border-white/[0.07] px-4 sm:px-8 flex items-center justify-between sticky top-0 z-40">
+      <div className="flex items-center gap-3 min-w-0">
         {/* Mobile menu button */}
         <button 
+          type="button"
           onClick={onOpenMobileMenu} 
-          className="sm:hidden w-10 h-10 rounded-xl bg-card border border-white/[0.08] flex items-center justify-center text-gray-300 active:scale-90 transition-transform cursor-pointer"
-        >
-          <Menu size={20} />
-        </button>
-
-        {/* Desktop toggle button to fully hide/show sidebar */}
-        <button 
-          onClick={onToggleDesktopSidebar} 
-          className="hidden sm:flex w-10 h-10 rounded-xl border border-white/[0.08] bg-white/[0.03] hover:bg-white/[0.06] items-center justify-center text-gray-300 hover:text-gold hover:border-gold/30 transition-all active:scale-90 cursor-pointer"
-          title={desktopSidebarOpen ? "Ocultar Menu Lateral" : "Exibir Menu Lateral"}
+          className="sm:hidden w-10 h-10 rounded-xl bg-white/[0.04] border border-white/[0.08] flex items-center justify-center text-zinc-300 hover:text-white active:scale-95 transition-all cursor-pointer shrink-0"
+          aria-label="Abrir menu"
         >
           <Menu size={18} />
         </button>
 
-        <div className="flex items-center gap-2">
-          <span className="hidden sm:inline-block w-1.5 h-4 bg-gold rounded-full" />
-          <h2 className="text-sm sm:text-base font-black text-white uppercase tracking-wider truncate">
+        {/* Desktop toggle button to hide/show sidebar */}
+        <button 
+          type="button"
+          onClick={onToggleDesktopSidebar} 
+          className="hidden sm:flex w-9 h-9 rounded-lg border border-white/[0.08] bg-white/[0.02] hover:bg-white/[0.06] items-center justify-center text-zinc-400 hover:text-zinc-100 hover:border-white/[0.15] transition-all cursor-pointer shrink-0"
+          title={desktopSidebarOpen ? "Ocultar Menu Lateral" : "Exibir Menu Lateral"}
+          aria-label={desktopSidebarOpen ? "Ocultar Menu Lateral" : "Exibir Menu Lateral"}
+        >
+          {desktopSidebarOpen ? <PanelLeftClose size={17} /> : <PanelLeftOpen size={17} />}
+        </button>
+
+        <div className="flex items-center gap-2 text-sm min-w-0">
+          <span className="hidden md:inline text-zinc-500 font-medium whitespace-nowrap">Nexus Commerce</span>
+          <span className="hidden md:inline text-zinc-600" aria-hidden="true">/</span>
+          <h2 className="text-sm sm:text-[15px] font-semibold text-zinc-100 tracking-tight truncate">
             {viewTitle}
           </h2>
         </div>
       </div>
 
-      <div className="flex items-center gap-2 sm:gap-3">
-        {/* Olho para ocultar / exibir números do Dashboard (ao lado da engrenagem) */}
+      <div className="flex items-center gap-2 shrink-0">
         {onToggleHideDashboardValues && (
           <button 
             type="button"
             onClick={onToggleHideDashboardValues}
-            className={`w-10 h-10 border rounded-xl flex items-center justify-center transition-all group active:scale-90 cursor-pointer ${
+            className={`h-9 px-2.5 sm:px-3 border rounded-lg flex items-center gap-2 text-xs font-medium transition-all cursor-pointer whitespace-nowrap ${
               hideDashboardValues 
-                ? 'bg-gold/15 border-gold/40 text-gold shadow-[0_0_15px_rgba(255,215,0,0.2)]' 
-                : 'bg-white/[0.03] border-white/[0.08] hover:border-gold/30 hover:bg-white/[0.06] text-gray-300 hover:text-gold'
+                ? 'bg-gold/15 border-gold/35 text-gold' 
+                : 'bg-white/[0.03] border-white/[0.08] hover:border-white/[0.16] hover:bg-white/[0.06] text-zinc-300 hover:text-white'
             }`}
-            title={hideDashboardValues ? "Exibir números do Dashboard" : "Ocultar números do Dashboard"}
-            aria-label={hideDashboardValues ? "Exibir números do Dashboard" : "Ocultar números do Dashboard"}
+            title={hideDashboardValues ? "Exibir valores financeiros" : "Ocultar valores financeiros"}
+            aria-label={hideDashboardValues ? "Exibir valores financeiros" : "Ocultar valores financeiros"}
           >
-            {hideDashboardValues ? (
-              <EyeOff size={18} className="transition-transform group-hover:scale-110" />
-            ) : (
-              <Eye size={18} className="transition-transform group-hover:scale-110" />
-            )}
+            {hideDashboardValues ? <EyeOff size={15} /> : <Eye size={15} />}
+            <span className="hidden md:inline">{hideDashboardValues ? 'Valores ocultos' : 'Privacidade'}</span>
           </button>
         )}
 
         <button 
+          type="button"
           onClick={onOpenSettings}
-          className="w-10 h-10 bg-white/[0.03] border border-white/[0.08] hover:border-gold/30 hover:bg-white/[0.06] rounded-xl flex items-center justify-center text-gray-300 hover:text-gold transition-all group active:scale-90 cursor-pointer"
+          className="w-9 h-9 bg-white/[0.03] border border-white/[0.08] hover:border-white/[0.16] hover:bg-white/[0.06] rounded-lg flex items-center justify-center text-zinc-300 hover:text-gold transition-all group cursor-pointer"
           title="Configurações do Sistema"
+          aria-label="Configurações do Sistema"
         >
-          <SettingsIcon size={18} className="group-hover:rotate-90 transition-transform duration-500" />
+          <SettingsIcon size={16} className="group-hover:rotate-45 transition-transform duration-300" />
         </button>
       </div>
     </header>
@@ -105,7 +104,6 @@ export function Topbar({
 }
 
 export function DashboardStats({ 
-  products, 
   sales, 
   installments, 
   closings = [], 
@@ -191,7 +189,7 @@ export function DashboardStats({
       .filter(i => i.status === 'Pendente')
       .sort((a, b) => parseDateToMidnight(a.dueDate).getTime() - parseDateToMidnight(b.dueDate).getTime());
     if (sortedPending.length < 3) {
-      return [150, 240, 180, 310, 260, 420, 380, 510]; // Fluid modern progression mock-wave
+      return [150, 240, 180, 310, 260, 420, 380, 510];
     }
     return sortedPending.slice(0, 10).map(i => Number(i.value) || 0);
   };
@@ -214,254 +212,203 @@ export function DashboardStats({
     return `${linePath} L ${width.toFixed(1)} ${height.toFixed(1)} L 0 ${height.toFixed(1)} Z`;
   };
 
-  // Circle progress math for adimplência gauge
   const gaugeRadius = 14;
   const gaugeCircumference = 2 * Math.PI * gaugeRadius;
   const gaugeOffset = gaugeCircumference - (healthRate / 100) * gaugeCircumference;
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-4 gap-4 sm:gap-5 px-1">
-      {/* Bento Card 1: Valores a Receber */}
-      <div 
+    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 sm:gap-5">
+      {/* KPI Card 1: Valores a Receber */}
+      <button 
+        type="button"
         onClick={() => onNavigate('sales')}
-        className="glass-card group p-5 sm:p-6 flex flex-col justify-between border border-white/5 hover:border-blue-500/30 transition-all duration-500 hover:scale-[1.02] hover:-translate-y-1 relative overflow-hidden cursor-pointer active:scale-95 min-h-[160px]"
+        className="glass-card group p-5 sm:p-6 flex flex-col justify-between text-left hover:bg-[#131825] hover:border-blue-400/35 transition-colors duration-200 cursor-pointer min-h-[156px]"
       >
-        <div className="absolute -right-6 -top-6 w-32 h-32 rounded-full blur-3xl opacity-0 group-hover:opacity-10 transition-opacity duration-700 bg-blue-500" />
-        
-        <div className="flex items-center justify-between relative z-10">
-          <div className="w-11 h-11 rounded-xl flex items-center justify-center bg-blue-500/10 border border-blue-500/20 group-hover:border-blue-500/40 transition-all duration-500">
-            <TrendingUp size={20} className="text-blue-400 group-hover:scale-110 transition-transform duration-500" />
+        <div className="flex items-center justify-between w-full">
+          <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-blue-500/10 border border-blue-500/20 text-blue-400">
+            <TrendingUp size={18} />
           </div>
           
-          {/* Glowing mini path */}
-          <div className="opacity-60 group-hover:opacity-100 transition-opacity duration-500">
-            <svg width="100" height="28" viewBox="0 0 100 28" className="overflow-visible">
+          <div className={`opacity-75 group-hover:opacity-100 transition-opacity duration-200 ${hideValues ? 'blur-sm opacity-20 pointer-events-none' : ''}`}>
+            <svg width="96" height="28" viewBox="0 0 100 28" className="overflow-visible">
               <defs>
                 <linearGradient id="blue-grad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.3" />
-                  <stop offset="100%" stopColor="#3b82f6" stopOpacity="0" />
+                  <stop offset="0%" stopColor="#60a5fa" stopOpacity="0.25" />
+                  <stop offset="100%" stopColor="#60a5fa" stopOpacity="0" />
                 </linearGradient>
               </defs>
-              <path 
-                d={drawSparklineArea(getReceivablesTrendPoints(), 100, 28)} 
-                fill="url(#blue-grad)" 
-              />
-              <path 
-                d={drawSparkline(getReceivablesTrendPoints(), 100, 28)} 
-                fill="none" 
-                stroke="#3b82f6" 
-                strokeWidth="2" 
-                strokeLinecap="round" 
-                strokeLinejoin="round" 
-              />
+              <path d={drawSparklineArea(getReceivablesTrendPoints(), 100, 28)} fill="url(#blue-grad)" />
+              <path d={drawSparkline(getReceivablesTrendPoints(), 100, 28)} fill="none" stroke="#60a5fa" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
           </div>
         </div>
 
-        <div className="relative z-10 mt-2">
-          <span className="text-[10px] font-bold uppercase tracking-[0.2em] mb-1 block text-white/40">Valores a Receber</span>
-          <strong className="text-2xl sm:text-3xl font-black block text-blue-400 group-hover:text-blue-300 transition-colors duration-500">
+        <div className="mt-4 w-full">
+          <span className="text-[11px] font-medium text-zinc-400 block">Valores a receber</span>
+          <strong className="text-2xl sm:text-[26px] font-bold block text-white tracking-tight tabular-figure mt-0.5">
             {displayMoney(receivablesValue)}
           </strong>
-          <div className="flex items-center gap-2 mt-2">
-            <div className="w-1.5 h-1.5 rounded-full bg-blue-400 shadow-[0_0_8px_#3b82f6]" />
-            <p className="text-[10px] font-bold uppercase tracking-wider text-white/30">Total Pendente Futuro</p>
-          </div>
+          <p className="text-[11px] text-zinc-500 mt-1.5 truncate">
+            Carteira ativa · Total pendente futuro
+          </p>
         </div>
-      </div>
+      </button>
 
-      {/* Bento Card 2: Faturamento Realizado (Recebido no Mês / Ciclo Aberto) */}
-      <div 
+      {/* KPI Card 2: Faturamento Realizado */}
+      <button 
+        type="button"
         onClick={() => onNavigate('reports')}
-        className="glass-card group p-5 sm:p-6 flex flex-col justify-between border border-white/5 hover:border-gold/30 transition-all duration-500 hover:scale-[1.02] hover:-translate-y-1 relative overflow-hidden cursor-pointer active:scale-95 min-h-[160px]"
+        className="glass-card group p-5 sm:p-6 flex flex-col justify-between text-left hover:bg-[#131825] hover:border-gold/35 transition-colors duration-200 cursor-pointer min-h-[156px]"
         title="Clique para acessar os Relatórios Mensais"
       >
-        <div className="absolute -right-6 -top-6 w-32 h-32 rounded-full blur-3xl opacity-0 group-hover:opacity-10 transition-opacity duration-700 bg-gold" />
-        
-        <div className="flex items-center justify-between relative z-10">
-          <div className="w-11 h-11 rounded-xl flex items-center justify-center bg-gold/10 border border-gold/20 group-hover:border-gold/40 transition-all duration-500">
-            <DollarSign size={20} className="text-gold group-hover:scale-110 transition-transform duration-500" />
+        <div className="flex items-center justify-between w-full">
+          <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-gold/10 border border-gold/25 text-gold">
+            <DollarSign size={18} />
           </div>
           
-          {/* Glowing mini path */}
-          <div className={`opacity-60 group-hover:opacity-100 transition-opacity duration-500 ${hideValues ? 'filter blur-sm opacity-20 pointer-events-none' : ''}`}>
-            <svg width="100" height="28" viewBox="0 0 100 28" className="overflow-visible">
+          <div className={`opacity-75 group-hover:opacity-100 transition-opacity duration-200 ${hideValues ? 'blur-sm opacity-20 pointer-events-none' : ''}`}>
+            <svg width="96" height="28" viewBox="0 0 100 28" className="overflow-visible">
               <defs>
                 <linearGradient id="gold-grad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#ffd700" stopOpacity="0.3" />
-                  <stop offset="100%" stopColor="#ffd700" stopOpacity="0" />
+                  <stop offset="0%" stopColor="#e5b84b" stopOpacity="0.25" />
+                  <stop offset="100%" stopColor="#e5b84b" stopOpacity="0" />
                 </linearGradient>
               </defs>
-              <path 
-                d={drawSparklineArea(getSalesTrendPoints(), 100, 28)} 
-                fill="url(#gold-grad)" 
-              />
-              <path 
-                d={drawSparkline(getSalesTrendPoints(), 100, 28)} 
-                fill="none" 
-                stroke="#ffd700" 
-                strokeWidth="2" 
-                strokeLinecap="round" 
-                strokeLinejoin="round" 
-              />
+              <path d={drawSparklineArea(getSalesTrendPoints(), 100, 28)} fill="url(#gold-grad)" />
+              <path d={drawSparkline(getSalesTrendPoints(), 100, 28)} fill="none" stroke="#e5b84b" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
           </div>
         </div>
 
-        <div className="relative z-10 mt-2">
-          <div className="flex items-center justify-between gap-1 mb-1">
-            <span className="text-[10px] font-bold uppercase tracking-[0.2em] block text-white/40">Faturamento Realizado</span>
+        <div className="mt-4 w-full">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[11px] font-medium text-zinc-400">Faturamento realizado</span>
             {lastClosingDate && (
-              <span className="text-[8px] font-black uppercase px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-300 border border-amber-500/20">
-                Ciclo Aberto
-              </span>
+              <span className="text-[10px] font-semibold text-gold/90">Ciclo aberto</span>
             )}
           </div>
-          <strong className="text-2xl sm:text-3xl font-black block text-gold group-hover:text-amber-300 transition-colors duration-500">
+          <strong className="text-2xl sm:text-[26px] font-bold block text-gold tracking-tight tabular-figure mt-0.5">
             {displayMoney(currentProfit)}
           </strong>
-          <div className="flex items-center gap-2 mt-2">
-            <div className={`w-1.5 h-1.5 rounded-full ${currentProfit > 0 ? 'bg-gold shadow-[0_0_8px_#ffd700]' : 'bg-zinc-600'}`} />
-            <p className="text-[10px] font-bold uppercase tracking-wider text-white/30 truncate">
-              {currentProfit === 0 && lastClosingDate ? 'Caixa Zerado pós-fechamento' : 'Total Recebido no Mês'}
-            </p>
-          </div>
+          <p className="text-[11px] text-zinc-500 mt-1.5 truncate">
+            {currentProfit === 0 && lastClosingDate ? 'Caixa zerado pós-fechamento' : 'Total recebido no mês'}
+          </p>
         </div>
-      </div>
+      </button>
 
-      {/* Bento Card 3: Índice de Adimplência (Credit Health) */}
-      <div 
+      {/* KPI Card 3: Índice de Adimplência */}
+      <button 
+        type="button"
         onClick={() => onNavigate('sales')}
-        className="glass-card group p-5 sm:p-6 flex flex-col justify-between border border-white/5 hover:border-green-neon/30 transition-all duration-500 hover:scale-[1.02] hover:-translate-y-1 relative overflow-hidden cursor-pointer active:scale-95 min-h-[160px]"
+        className="glass-card group p-5 sm:p-6 flex flex-col justify-between text-left hover:bg-[#131825] hover:border-emerald-400/35 transition-colors duration-200 cursor-pointer min-h-[156px]"
       >
-        <div className="absolute -right-6 -top-6 w-32 h-32 rounded-full blur-3xl opacity-0 group-hover:opacity-10 transition-opacity duration-700 bg-green-neon" />
-        
-        <div className="flex items-center justify-between relative z-10">
-          <div className="w-11 h-11 rounded-xl flex items-center justify-center bg-[#39ff14]/10 border border-[#39ff14]/20 group-hover:border-[#39ff14]/40 transition-all duration-500">
-            <Activity size={20} className="text-green-neon group-hover:scale-110 transition-transform duration-500" />
+        <div className="flex items-center justify-between w-full">
+          <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-emerald-500/10 border border-emerald-500/20 text-emerald-400">
+            <Activity size={18} />
           </div>
           
-          {/* Gauge Widget */}
-          <div className={`relative flex items-center justify-center w-10 h-10 shrink-0 ${hideValues ? 'filter blur-sm opacity-20' : ''}`}>
-            <svg className="w-12 h-12" viewBox="0 0 36 36">
-              <circle cx="18" cy="18" r={gaugeRadius} className="stroke-zinc-900 fill-none" strokeWidth="3" />
+          <div className={`relative flex items-center justify-center w-10 h-10 shrink-0 ${hideValues ? 'blur-sm opacity-20' : ''}`}>
+            <svg className="w-11 h-11" viewBox="0 0 36 36">
+              <circle cx="18" cy="18" r={gaugeRadius} className="stroke-white/[0.08] fill-none" strokeWidth="2.8" />
               <circle 
                 cx="18" 
                 cy="18" 
                 r={gaugeRadius} 
-                className="stroke-green-neon fill-none transition-all duration-1000 ease-out" 
-                strokeWidth="3"
+                className="stroke-emerald-400 fill-none transition-all duration-700 ease-out" 
+                strokeWidth="2.8"
                 strokeDasharray={gaugeCircumference}
                 strokeDashoffset={gaugeOffset}
                 strokeLinecap="round"
                 style={{ transform: 'rotate(-90deg)', transformOrigin: '50% 50%' }}
               />
             </svg>
-            <span className="absolute text-[8px] font-black text-green-neon">{Math.round(healthRate)}%</span>
+            <span className="absolute text-[9px] font-bold text-emerald-400 tabular-figure">{Math.round(healthRate)}%</span>
           </div>
         </div>
 
-        <div className="relative z-10 mt-2">
-          <span className="text-[10px] font-bold uppercase tracking-[0.2em] mb-1 block text-white/40">Índice de Adimplência</span>
-          <strong className="text-2xl sm:text-3xl font-black block text-green-neon">
+        <div className="mt-4 w-full">
+          <span className="text-[11px] font-medium text-zinc-400 block">Índice de adimplência</span>
+          <strong className="text-2xl sm:text-[26px] font-bold block text-emerald-400 tracking-tight tabular-figure mt-0.5">
             {hideValues ? '•••%' : `${healthRate.toFixed(1)}%`}
           </strong>
-          <div className="flex items-center gap-2 mt-2">
-            <div className="w-1.5 h-1.5 rounded-full bg-green-neon shadow-[0_0_8px_#39FF14]" />
-            <p className="text-[10px] font-bold uppercase tracking-wider text-white/30 truncate">
-              {overdueCount === 0 ? "Sem faturas atrasadas" : `${overdueCount} parcelas em risco`}
-            </p>
-          </div>
+          <p className="text-[11px] text-zinc-500 mt-1.5 truncate">
+            {overdueCount === 0 ? "Carteira saudável · Sem atrasos" : `${overdueCount} parcelas em atraso`}
+          </p>
         </div>
-      </div>
+      </button>
 
       {/* Container dos dois cards menores: Vencem Hoje e Atrasados */}
-      <div className="col-span-1 sm:col-span-2 lg:col-span-1 grid grid-cols-2 gap-3 sm:gap-4">
+      <div className="col-span-1 sm:col-span-2 xl:col-span-1 grid grid-cols-2 gap-3 sm:gap-4">
         {/* Card 1: Vencem Hoje */}
-        <div 
+        <button 
+          type="button"
           onClick={() => onNavigate('sales', 'Hoje')}
-          className={`glass-card group p-4 sm:p-5 flex flex-col justify-between border transition-all duration-500 hover:scale-[1.02] hover:-translate-y-1 relative overflow-hidden cursor-pointer active:scale-95 min-h-[160px] ${
+          className={`glass-card group p-4 sm:p-5 flex flex-col justify-between text-left transition-colors duration-200 cursor-pointer min-h-[156px] ${
             dueTodayCount > 0 
-              ? 'border-purple-500/20 hover:border-purple-500/40 shadow-[0_0_20px_rgba(168,85,247,0.1)]'
-              : 'border-white/5 hover:border-emerald-500/30'
+              ? 'border-purple-400/25 hover:border-purple-400/45 hover:bg-[#131825]'
+              : 'hover:border-white/[0.16] hover:bg-[#131825]'
           }`}
         >
-          <div className="absolute -right-6 -top-6 w-24 h-24 rounded-full blur-2xl opacity-0 group-hover:opacity-10 transition-opacity duration-700 bg-purple-500" />
-          
-          <div className="flex items-center justify-between relative z-10">
-            <div className={`w-8 h-8 sm:w-9 sm:h-9 rounded-lg flex items-center justify-center transition-all duration-500 ${
+          <div className="flex items-center justify-between w-full">
+            <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${
               dueTodayCount > 0 
-                ? 'bg-purple-500/10 border border-purple-500/20 text-purple-400' 
-                : 'bg-zinc-800/50 border border-zinc-700/30 text-zinc-500'
+                ? 'bg-purple-500/12 border border-purple-500/25 text-purple-300' 
+                : 'bg-white/[0.04] border border-white/[0.08] text-zinc-400'
             }`}>
-              <Calendar size={14} className={dueTodayCount > 0 ? "animate-bounce" : ""} />
+              <Calendar size={15} />
             </div>
             
-            <div>
-              {dueTodayCount > 0 ? (
-                <span className="px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-wider bg-purple-500/20 text-purple-400 border border-purple-500/30">Hoje</span>
-              ) : (
-                <span className="px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-wider bg-zinc-800/40 text-zinc-500 border border-zinc-750">Ok</span>
-              )}
-            </div>
+            <span className={`text-[10px] font-semibold ${dueTodayCount > 0 ? 'text-purple-300' : 'text-zinc-500'}`}>
+              {dueTodayCount > 0 ? 'Hoje' : 'Em dia'}
+            </span>
           </div>
 
-          <div className="relative z-10 mt-2">
-            <span className="text-[9px] font-black uppercase tracking-[0.15em] mb-0.5 block text-white/40">Vencem hoje</span>
-            <strong className="text-base sm:text-lg font-black block text-zinc-100 group-hover:text-white transition-colors duration-500 leading-tight">
+          <div className="mt-3 w-full">
+            <span className="text-[11px] font-medium text-zinc-400 block">Vencem hoje</span>
+            <strong className="text-lg sm:text-xl font-bold block text-zinc-100 tabular-figure leading-snug mt-0.5">
               {displayCount(dueTodayCount, 'parcela', 'parcelas')}
             </strong>
-            <p className="text-[8px] font-bold uppercase tracking-wider text-white/20 mt-1 truncate">
+            <p className="text-[11px] text-zinc-500 mt-1 truncate">
               {dueTodayCount > 0 ? "Receber hoje" : "Sem vencimentos"}
             </p>
           </div>
-        </div>
+        </button>
 
         {/* Card 2: Atrasados */}
-        <div 
+        <button 
+          type="button"
           onClick={() => onNavigate('sales', 'Atrasados')}
-          className={`glass-card group p-4 sm:p-5 flex flex-col justify-between border transition-all duration-500 hover:scale-[1.02] hover:-translate-y-1 relative overflow-hidden cursor-pointer active:scale-95 min-h-[160px] ${
+          className={`glass-card group p-4 sm:p-5 flex flex-col justify-between text-left transition-colors duration-200 cursor-pointer min-h-[156px] ${
             overdueCount > 0 
-              ? 'border-red-500/20 hover:border-red-500/40 shadow-[0_0_20px_rgba(239,68,68,0.1)]' 
-              : 'border-white/5 hover:border-emerald-500/30'
+              ? 'border-red-500/30 hover:border-red-500/50 hover:bg-[#131825]'
+              : 'hover:border-emerald-400/35 hover:bg-[#131825]'
           }`}
         >
-          <div className="absolute -right-6 -top-6 w-24 h-24 rounded-full blur-2xl opacity-0 group-hover:opacity-10 transition-opacity duration-700 bg-red-500" />
-          
-          <div className="flex items-center justify-between relative z-10">
-            <div className={`w-8 h-8 sm:w-9 sm:h-9 rounded-lg flex items-center justify-center transition-all duration-500 ${
+          <div className="flex items-center justify-between w-full">
+            <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${
               overdueCount > 0 
-                ? 'bg-red-500/10 border border-red-500/20 text-red-500' 
-                : 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-400'
+                ? 'bg-red-500/12 border border-red-500/25 text-red-400' 
+                : 'bg-emerald-500/12 border border-emerald-500/25 text-emerald-400'
             }`}>
-              {overdueCount > 0 ? (
-                <AlertCircle size={14} className="animate-pulse" />
-              ) : (
-                <ShieldCheck size={14} />
-              )}
+              {overdueCount > 0 ? <AlertCircle size={15} /> : <ShieldCheck size={15} />}
             </div>
             
-            <div>
-              {overdueCount > 0 ? (
-                <span className="px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-wider bg-red-500/20 text-red-400 animate-pulse border border-red-500/30">Risco</span>
-              ) : (
-                <span className="px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-wider bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">Zero</span>
-              )}
-            </div>
+            <span className={`text-[10px] font-semibold ${overdueCount > 0 ? 'text-red-400' : 'text-emerald-400'}`}>
+              {overdueCount > 0 ? 'Atenção' : 'Regular'}
+            </span>
           </div>
 
-          <div className="relative z-10 mt-2">
-            <span className="text-[9px] font-black uppercase tracking-[0.15em] mb-0.5 block text-white/40">Atrasados</span>
-            <strong className="text-base sm:text-lg font-black block text-zinc-100 group-hover:text-white transition-colors duration-500 leading-tight">
+          <div className="mt-3 w-full">
+            <span className="text-[11px] font-medium text-zinc-400 block">Atrasados</span>
+            <strong className="text-lg sm:text-xl font-bold block text-zinc-100 tabular-figure leading-snug mt-0.5">
               {displayCount(overdueCount, 'pendente', 'pendentes')}
             </strong>
-            <p className="text-[8px] font-bold uppercase tracking-wider text-white/20 mt-1 truncate">
-              {overdueCount > 0 ? "Requer atenção" : "Nenhum atraso"}
+            <p className="text-[11px] text-zinc-500 mt-1 truncate">
+              {overdueCount > 0 ? "Requer cobrança" : "Nenhum atraso"}
             </p>
           </div>
-        </div>
+        </button>
       </div>
-
     </div>
   );
 }

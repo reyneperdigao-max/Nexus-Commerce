@@ -211,26 +211,28 @@ export function createContractPDFDoc(
   // 3. Cláusulas Contratuais
   y = boxTop + boxHeight + 6;
 
+  const productUpper = (sale.productName || 'PRODUTO REGISTRADO').toUpperCase();
+
   const clauses = [
     {
       title: 'CLÁUSULA 1ª – DAS PARTES CONTRATANTES',
       body: `Pelo presente instrumento, de um lado denominada(o) VENDEDOR(A): ${sellerName}; e de outro lado denominada(o) COMPRADOR(A): ${(sale.client || 'CLIENTE').toUpperCase()}, portador(a) do CPF/Doc nº ${sale.clientCpf || 'N/A'}, telefone ${sale.clientPhone || 'N/A'}${sale.clientAddress ? `, domiciliado(a) em ${sale.clientAddress}` : ''}, firmam o presente compromisso de compra e venda mercantil.`
     },
     {
-      title: 'CLÁUSULA 2ª – DO OBJETO DA NEGOCIAÇÃO',
-      body: `O presente contrato tem por objeto a alienação do bem/serviço: ${(sale.productName || 'PRODUTO REGISTRADO').toUpperCase()}, entregue ou disponibilizado em perfeitas condições de uso e funcionamento, conferido e aceito pelo Comprador.`
+      title: 'CLÁUSULA 2ª – DO OBJETO E RESERVA DE DOMÍNIO',
+      body: `O presente contrato tem por objeto a venda com reserva de domínio (nos termos do art. 521 e seguintes do Código Civil) do bem: ${productUpper}, entregue em perfeitas condições de uso, conferido e aceito pelo Comprador. A propriedade resolúvel do bem permanece com o VENDEDOR até a liquidação integral de todas as parcelas pactuadas neste instrumento.`
     },
     {
       title: 'CLÁUSULA 3ª – DO PREÇO, CONDIÇÕES E AMORTIZAÇÃO',
       body: `O valor total estipulado é de ${money(sale.total)}, a ser liquidado conforme discriminado no Quadro-Resumo, com vencimento estipulado para todo dia ${dueDay} de cada mês subsequente. Fica assegurado ao Comprador o direito de realizar quitações antecipadas ou amortizações extraordinárias com abatimento proporcional da dívida.`
     },
     {
-      title: 'CLÁUSULA 4ª – DA TOLERÂNCIA, ENCARGOS E BLOQUEIO POR ATRASO',
-      body: 'Eventual atraso na quitação de parcelas acarretará multa moratória de 2% (dois por cento) sobre o valor vencido, acrescida de juros de mora de 1% (um por cento) ao mês, calculados proporcionalmente aos dias de atraso (pro rata die) até a efetiva quitação. O atraso superior a 5 (cinco) dias corridos da data de vencimento autoriza o VENDEDOR a realizar o bloqueio do funcionamento do aparelho de forma remota, sendo o desbloqueio efetuado em até 24 horas após a confirmação do pagamento integral do débito e encargos. Fica expressamente proibida qualquer tentativa de remoção, formatação clandestina ou burla do sistema de segurança do dispositivo pelo comprador, sob pena de vencimento antecipado de todo o saldo devedor.'
+      title: 'CLÁUSULA 4ª – DA TOLERÂNCIA, ENCARGOS E RESTRIÇÃO POR ATRASO',
+      body: 'EVENTUAL ATRASO NA QUITAÇÃO DE PARCELAS ACARRETARÁ MULTA MORATÓRIA DE 2% (DOIS POR CENTO) SOBRE O VALOR VENCIDO, ACRESCIDA DE JUROS DE MORA DE 1% (UM POR CENTO) AO MÊS, CALCULADOS PRO RATA DIE ATÉ A EFETIVA QUITAÇÃO. APÓS 3 (TRÊS) DIAS CORRIDOS DE ATRASO, O VENDEDOR FICA AUTORIZADO A APLICAR RESTRIÇÃO PARCIAL DE FUNCIONALIDADES DO APARELHO, EXIBINDO NA TELA O CONTATO PARA NEGOCIAÇÃO. PERSISTINDO A INADIMPLÊNCIA APÓS 5 (CINCO) DIAS CORRIDOS DE ATRASO, O VENDEDOR FICA AUTORIZADO A REALIZAR O BLOQUEIO TOTAL DO FUNCIONAMENTO DO APARELHO ATÉ A REGULARIZAÇÃO DO DÉBITO. O DESBLOQUEIO SERÁ EFETUADO EM ATÉ 24 (VINTE E QUATRO) HORAS APÓS A CONFIRMAÇÃO DO PAGAMENTO INTEGRAL. Fica expressamente proibida qualquer tentativa de remoção, formatação clandestina ou burla do sistema de segurança do dispositivo pelo comprador, sob pena de vencimento antecipado de todo o saldo devedor e adoção das medidas legais cabíveis.'
     },
     {
-      title: 'CLÁUSULA 5ª – DA EFICÁCIA E CONFISSÃO DE DÍVIDA',
-      body: 'As partes reconhecem a plena validade jurídica deste instrumento eletrônico e seus respectivos comprovantes, constituindo confissão líquida, certa e exigível de dívida nos termos do art. 784, inciso III do Código de Processo Civil Brasileiro.'
+      title: 'CLÁUSULA 5ª – DA EFICÁCIA, NOTIFICAÇÕES E CONFISSÃO DE DÍVIDA',
+      body: 'As partes reconhecem a plena validade jurídica deste instrumento eletrônico e de seus respectivos comprovantes, constituindo confissão líquida, certa e exigível de dívida nos termos do art. 784, inciso III do Código de Processo Civil Brasileiro. Fica acordado que avisos, notificações e cobranças enviadas por meio do aplicativo de mensagens WhatsApp ao número cadastrado pelo Comprador possuem plena validade jurídica para fins de comunicação formal.'
     },
     {
       title: 'CLÁUSULA 6ª – DO FORO DE ELEIÇÃO',
@@ -240,17 +242,17 @@ export function createContractPDFDoc(
 
   for (const c of clauses) {
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(8.8);
+    doc.setFontSize(8.4);
     doc.setTextColor(15, 23, 42);
     doc.text(c.title, left, y);
-    y += 4.2;
+    y += 3.8;
 
     doc.setFont('helvetica', 'normal');
-    doc.setFontSize(8.2);
+    doc.setFontSize(7.8);
     doc.setTextColor(51, 65, 85);
     const lines = doc.splitTextToSize(c.body, width);
     doc.text(lines, left, y);
-    y += (lines.length * 3.8) + 3.4;
+    y += (lines.length * 3.5) + 2.6;
   }
 
   // 4. Declaração de Aceite & Assinaturas - posicionadas perfeitamente para preencher toda a folha
@@ -259,6 +261,9 @@ export function createContractPDFDoc(
   
   if (y + minSignatureSpace < footerY - 4) {
     y = footerY - minSignatureSpace - 4;
+  } else if (y + minSignatureSpace > footerY - 2) {
+    doc.addPage();
+    y = 24;
   }
 
   doc.setFont('helvetica', 'italic');
@@ -750,10 +755,10 @@ export function buildContractHTML(sale: Sale, settings: Settings, installments?:
 
           <div style="margin-bottom: 7px;">
             <strong style="color: #0f172a; text-transform: uppercase; display: block; font-size: 10px;">
-              Cláusula 2ª – Do Objeto
+              Cláusula 2ª – Do Objeto e Reserva de Domínio
             </strong>
             <p style="margin: 2px 0 0 0; text-align: justify;">
-              O presente contrato tem por objeto a alienação do bem/serviço: <strong>${(sale.productName || 'PRODUTO REGISTRADO').toUpperCase()}</strong>, entregue ou disponibilizado em perfeitas condições de uso e funcionamento, conferido e aceito pelo COMPRADOR.
+              O presente contrato tem por objeto a venda com reserva de domínio (nos termos do art. 521 e seguintes do Código Civil) do bem: <strong>${(sale.productName || 'PRODUTO REGISTRADO').toUpperCase()}</strong>, entregue em perfeitas condições de uso, conferido e aceito pelo Comprador. A propriedade resolúvel do bem permanece com o VENDEDOR até a liquidação integral de todas as parcelas pactuadas neste instrumento.
             </p>
           </div>
 
@@ -768,19 +773,19 @@ export function buildContractHTML(sale: Sale, settings: Settings, installments?:
 
           <div style="margin-bottom: 7px;">
             <strong style="color: #0f172a; text-transform: uppercase; display: block; font-size: 10px;">
-              Cláusula 4ª – Da Tolerância, Encargos e Bloqueio por Atraso
+              Cláusula 4ª – Da Tolerância, Encargos e Restrição por Atraso
             </strong>
             <p style="margin: 2px 0 0 0; text-align: justify;">
-              Eventual atraso na quitação de parcelas acarretará multa moratória de 2% (dois por cento) sobre o valor vencido, acrescida de juros de mora de 1% (um por cento) ao mês, calculados proporcionalmente aos dias de atraso (<em>pro rata die</em>) até a efetiva quitação. O atraso superior a 5 (cinco) dias corridos da data de vencimento autoriza o VENDEDOR a realizar o bloqueio do funcionamento do aparelho de forma remota, sendo o desbloqueio efetuado em até 24 horas após a confirmação do pagamento integral do débito e encargos. Fica expressamente proibida qualquer tentativa de remoção, formatação clandestina ou burla do sistema de segurança do dispositivo pelo comprador, sob pena de vencimento antecipado de todo o saldo devedor.
+              EVENTUAL ATRASO NA QUITAÇÃO DE PARCELAS ACARRETARÁ MULTA MORATÓRIA DE 2% (DOIS POR CENTO) SOBRE O VALOR VENCIDO, ACRESCIDA DE JUROS DE MORA DE 1% (UM POR CENTO) AO MÊS, CALCULADOS <em>PRO RATA DIE</em> ATÉ A EFETIVA QUITAÇÃO. APÓS 3 (TRÊS) DIAS CORRIDOS DE ATRASO, O VENDEDOR FICA AUTORIZADO A APLICAR RESTRIÇÃO PARCIAL DE FUNCIONALIDADES DO APARELHO, EXIBINDO NA TELA O CONTATO PARA NEGOCIAÇÃO. PERSISTINDO A INADIMPLÊNCIA APÓS 5 (CINCO) DIAS CORRIDOS DE ATRASO, O VENDEDOR FICA AUTORIZADO A REALIZAR O BLOQUEIO TOTAL DO FUNCIONAMENTO DO APARELHO ATÉ A REGULARIZAÇÃO DO DÉBITO. O DESBLOQUEIO SERÁ EFETUADO EM ATÉ 24 (VINTE E QUATRO) HORAS APÓS A CONFIRMAÇÃO DO PAGAMENTO INTEGRAL. Fica expressamente proibida qualquer tentativa de remoção, formatação clandestina ou burla do sistema de segurança do dispositivo pelo comprador, sob pena de vencimento antecipado de todo o saldo devedor e adoção das medidas legais cabíveis.
             </p>
           </div>
 
           <div style="margin-bottom: 7px;">
             <strong style="color: #0f172a; text-transform: uppercase; display: block; font-size: 10px;">
-              Cláusula 5ª – Da Eficácia e Título Executivo
+              Cláusula 5ª – Da Eficácia, Notificações e Confissão de Dívida
             </strong>
             <p style="margin: 2px 0 0 0; text-align: justify;">
-              As partes reconhecem a plena validade jurídica deste documento eletrônico e comprovantes, constituindo confissão líquida, certa e exigível de dívida nos termos do art. 784, inciso III do Código de Processo Civil Brasileiro.
+              As partes reconhecem a plena validade jurídica deste instrumento eletrônico e de seus respectivos comprovantes, constituindo confissão líquida, certa e exigível de dívida nos termos do art. 784, inciso III do Código de Processo Civil Brasileiro. Fica acordado que avisos, notificações e cobranças enviadas por meio do aplicativo de mensagens WhatsApp ao número cadastrado pelo Comprador possuem plena validade jurídica para fins de comunicação formal.
             </p>
           </div>
 

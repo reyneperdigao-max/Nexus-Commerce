@@ -507,10 +507,10 @@ export const ClientSigningPortal: React.FC<ClientSigningPortalProps> = ({
 
             <div>
               <strong className="text-slate-900 uppercase block text-[10.5px] font-black mb-1">
-                Cláusula 2ª – Do Objeto da Negociação
+                Cláusula 2ª – Do Objeto e Reserva de Domínio
               </strong>
               <p className="text-justify leading-relaxed">
-                O presente contrato tem por objeto a alienação do bem/serviço: <strong>{(sale.productName || 'PRODUTO REGISTRADO').toUpperCase()}</strong>, entregue ou disponibilizado em perfeitas condições de uso e funcionamento, conferido e aceito pelo Comprador.
+                O presente contrato tem por objeto a venda com reserva de domínio (nos termos do art. 521 e seguintes do Código Civil) do bem: <strong>{(sale.productName || 'PRODUTO REGISTRADO').toUpperCase()}</strong>, entregue em perfeitas condições de uso, conferido e aceito pelo Comprador. A propriedade resolúvel do bem permanece com o VENDEDOR até a liquidação integral de todas as parcelas pactuadas neste instrumento.
               </p>
             </div>
 
@@ -525,19 +525,19 @@ export const ClientSigningPortal: React.FC<ClientSigningPortalProps> = ({
 
             <div className="p-3 bg-amber-50/70 border-l-4 border-amber-500 rounded-r-xl">
               <strong className="text-amber-950 uppercase block text-[10.5px] font-black mb-1">
-                Cláusula 4ª – Da Tolerância, Encargos e Bloqueio por Atraso
+                Cláusula 4ª – Da Tolerância, Encargos e Restrição por Atraso
               </strong>
               <p className="text-justify text-slate-800 leading-relaxed">
-                Eventual atraso na quitação de parcelas acarretará multa moratória de 2% (dois por cento) sobre o valor vencido, acrescida de juros de mora de 1% (um por cento) ao mês, calculados proporcionalmente aos dias de atraso (<em>pro rata die</em>) até a efetiva quitação. O atraso superior a 5 (cinco) dias corridos da data de vencimento autoriza o VENDEDOR a realizar o bloqueio do funcionamento do aparelho de forma remota, sendo o desbloqueio efetuado em até 24 horas após a confirmação do pagamento integral do débito e encargos. Fica expressamente proibida qualquer tentativa de remoção, formatação clandestina ou burla do sistema de segurança do dispositivo pelo comprador, sob pena de vencimento antecipado de todo o saldo devedor.
+                EVENTUAL ATRASO NA QUITAÇÃO DE PARCELAS ACARRETARÁ MULTA MORATÓRIA DE 2% (DOIS POR CENTO) SOBRE O VALOR VENCIDO, ACRESCIDA DE JUROS DE MORA DE 1% (UM POR CENTO) AO MÊS, CALCULADOS <em>PRO RATA DIE</em> ATÉ A EFETIVA QUITAÇÃO. APÓS 3 (TRÊS) DIAS CORRIDOS DE ATRASO, O VENDEDOR FICA AUTORIZADO A APLICAR RESTRIÇÃO PARCIAL DE FUNCIONALIDADES DO APARELHO, EXIBINDO NA TELA O CONTATO PARA NEGOCIAÇÃO. PERSISTINDO A INADIMPLÊNCIA APÓS 5 (CINCO) DIAS CORRIDOS DE ATRASO, O VENDEDOR FICA AUTORIZADO A REALIZAR O BLOQUEIO TOTAL DO FUNCIONAMENTO DO APARELHO ATÉ A REGULARIZAÇÃO DO DÉBITO. O DESBLOQUEIO SERÁ EFETUADO EM ATÉ 24 (VINTE E QUATRO) HORAS APÓS A CONFIRMAÇÃO DO PAGAMENTO INTEGRAL. Fica expressamente proibida qualquer tentativa de remoção, formatação clandestina ou burla do sistema de segurança do dispositivo pelo comprador, sob pena de vencimento antecipado de todo o saldo devedor e adoção das medidas legais cabíveis.
               </p>
             </div>
 
             <div>
               <strong className="text-slate-900 uppercase block text-[10.5px] font-black mb-1">
-                Cláusula 5ª – Da Eficácia e Confissão de Dívida
+                Cláusula 5ª – Da Eficácia, Notificações e Confissão de Dívida
               </strong>
               <p className="text-justify leading-relaxed">
-                As partes reconhecem a plena validade jurídica deste instrumento eletrônico e seus respectivos comprovantes, constituindo confissão líquida, certa e exigível de dívida nos termos do art. 784, inciso III do Código de Processo Civil Brasileiro.
+                As partes reconhecem a plena validade jurídica deste instrumento eletrônico e de seus respectivos comprovantes, constituindo confissão líquida, certa e exigível de dívida nos termos do art. 784, inciso III do Código de Processo Civil Brasileiro. Fica acordado que avisos, notificações e cobranças enviadas por meio do aplicativo de mensagens WhatsApp ao número cadastrado pelo Comprador possuem plena validade jurídica para fins de comunicação formal.
               </p>
             </div>
 
