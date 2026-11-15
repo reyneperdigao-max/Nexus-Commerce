@@ -19,7 +19,7 @@ import {
   formatAuditTimestampBR 
 } from '../lib/signatureService';
 import { db } from '../lib/firebase';
-import { doc, getDoc, collection, query, where, getDocs, onSnapshot } from 'firebase/firestore';
+import { doc, getDoc, onSnapshot } from 'firebase/firestore';
 
 interface ClientSigningPortalProps {
   saleId: string;
@@ -57,7 +57,7 @@ export const ClientSigningPortal: React.FC<ClientSigningPortalProps> = ({
   const cleanId = (saleId || '').trim();
   const normalizedTarget = cleanId.replace(/^CT-/i, '').toLowerCase();
 
-  // Localiza a venda no estado sincronizado ou no fallback remoto direto (sem falsos positivos em string vazia)
+  // Localiza a venda no estado sincronizado (modo presencial) ou no snapshot público
   const matchedFromState = cleanId
     ? sales.find(s => {
         const sid = String(s.id || '').trim();
@@ -84,6 +84,62 @@ export const ClientSigningPortal: React.FC<ClientSigningPortalProps> = ({
   const effectiveSettings = remoteSettings || settings;
   const effectiveInstallments = installments.length > 0 ? installments : remoteInstallments;
 
+  const applyPublicContractSnapshot = useCallback((docId: string, data: any) => {
+    const resolvedSaleId = String(data.saleId || docId);
+    const mappedSale: Sale = {
+      id: resolvedSaleId,
+      productId: '',
+      productName: data.productName || 'Produto Comercial',
+      client: data.client || 'Cliente',
+      clientPhone: data.clientPhone || '',
+      clientCpf: data.clientCpf || '',
+      clientAddress: data.clientAddress || '',
+      total: Number(data.total) || 0,
+      downPayment: Number(data.downPayment) || 0,
+      profit: 0,
+      installmentsCount: Number(data.installmentsCount) || 1,
+      installmentValue: Number(data.installmentValue) || 0,
+      date: data.date || data.createdAt || '',
+      status: data.status === 'Liquidada' ? 'Liquidada' : 'Ativa',
+      createdAt: data.createdAt || '',
+      isInterestOnly: Boolean(data.isInterestOnly),
+      interestRate: Number(data.interestRate) || 0,
+      sellerName: data.sellerName,
+      isSigned: Boolean(data.isSigned || data.signature?.signed),
+      signature: data.signature,
+      signatureImage: data.signatureImage || data.signature?.signatureImage,
+      signedAt: data.signedAt || data.signature?.signedAt,
+      signerIp: data.signerIp || data.signature?.signerIp,
+      signerUserAgent: data.signerUserAgent || data.signature?.signerUserAgent,
+      signatureHash: data.signatureHash || data.signature?.signatureHash,
+    };
+
+    setRemoteSale(mappedSale);
+    setRemoteSettings({
+      ...settings,
+      companyName: data.companyName || settings.companyName || 'Nexus Commerce',
+      companyDocument: data.companyDocument || settings.companyDocument || '',
+      companyPhone: data.companyPhone || settings.companyPhone || '',
+      companyAddress: data.companyAddress || settings.companyAddress || '',
+    });
+
+    if (data.firstDueDate || data.date) {
+      setRemoteInstallments([
+        {
+          id: `due-${resolvedSaleId}`,
+          saleId: resolvedSaleId,
+          client: mappedSale.client,
+          productName: mappedSale.productName,
+          number: 1,
+          total: mappedSale.installmentsCount,
+          value: mappedSale.installmentValue,
+          dueDate: data.firstDueDate || data.date,
+          status: 'Pendente',
+        },
+      ]);
+    }
+  }, [settings]);
+
   const loadDirectFromFirestore = useCallback(async () => {
     if (!cleanId) {
       setIsFetchingRemote(false);
@@ -94,35 +150,9 @@ export const ClientSigningPortal: React.FC<ClientSigningPortalProps> = ({
     setFetchError(null);
 
     try {
-      let foundSale: Sale | null = null;
-
-      // 1. Tenta buscar pelo ID exato
-      const saleSnap = await getDoc(doc(db, 'sales', cleanId));
-      if (saleSnap.exists()) {
-        foundSale = { ...(saleSnap.data() as Sale), id: saleSnap.id };
-      } else if (normalizedTarget.length >= 4) {
-        // 2. Fallback para códigos curtos (ex: CT-XXXXXXXX ou prefixo)
-        const allSalesSnap = await getDocs(collection(db, 'sales'));
-        const matchedDoc = allSalesSnap.docs.find(d =>
-          d.id.toLowerCase().startsWith(normalizedTarget)
-        );
-        if (matchedDoc) {
-          foundSale = { ...(matchedDoc.data() as Sale), id: matchedDoc.id };
-        }
-      }
-
-      if (foundSale) {
-        setRemoteSale(foundSale);
-        const instQuery = query(collection(db, 'installments'), where('saleId', '==', foundSale.id));
-        const instSnap = await getDocs(instQuery);
-        if (!instSnap.empty) {
-          setRemoteInstallments(instSnap.docs.map(d => ({ ...(d.data() as Installment), id: d.id })));
-        }
-      }
-
-      const settingsSnap = await getDoc(doc(db, 'settings', 'config'));
-      if (settingsSnap.exists()) {
-        setRemoteSettings(settingsSnap.data() as Settings);
+      const publicSnap = await getDoc(doc(db, 'publicContracts', cleanId));
+      if (publicSnap.exists()) {
+        applyPublicContractSnapshot(publicSnap.id, publicSnap.data());
       }
     } catch (err: any) {
       console.warn('Busca direta do contrato para assinatura:', err?.code || err);
@@ -132,9 +162,9 @@ export const ClientSigningPortal: React.FC<ClientSigningPortalProps> = ({
     } finally {
       setIsFetchingRemote(false);
     }
-  }, [cleanId, normalizedTarget]);
+  }, [cleanId, applyPublicContractSnapshot]);
 
-  // Escuta em tempo real do documento específico (garante recuperação mesmo em rede lenta)
+  // Escuta em tempo real do documento público específico
   useEffect(() => {
     if (!cleanId) {
       setIsFetchingRemote(false);
@@ -144,10 +174,10 @@ export const ClientSigningPortal: React.FC<ClientSigningPortalProps> = ({
     loadDirectFromFirestore();
 
     const unsubDoc = onSnapshot(
-      doc(db, 'sales', cleanId),
+      doc(db, 'publicContracts', cleanId),
       (snap) => {
         if (snap.exists()) {
-          setRemoteSale({ ...(snap.data() as Sale), id: snap.id });
+          applyPublicContractSnapshot(snap.id, snap.data());
           setIsFetchingRemote(false);
         }
       },
@@ -160,7 +190,7 @@ export const ClientSigningPortal: React.FC<ClientSigningPortalProps> = ({
     );
 
     return () => unsubDoc();
-  }, [cleanId, retryToken, loadDirectFromFirestore]);
+  }, [cleanId, retryToken, loadDirectFromFirestore, applyPublicContractSnapshot]);
 
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'smooth' });

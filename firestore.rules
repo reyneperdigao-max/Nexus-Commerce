@@ -1,8 +1,384 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+
+    // Global safety net: deny everything by default
     match /{document=**} {
-      allow read, write: if true;
+      allow read, write: if false;
+    }
+
+    // Core primitives
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    // Verified principal owner for legacy root data migration only
+    function isLegacyPrincipalOwner() {
+      return isSignedIn()
+        && request.auth.token.email == 'nexuscommercevendas@gmail.com'
+        && request.auth.token.email_verified == true;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128;
+    }
+
+    function optStr(data, field, maxLen) {
+      return !(field in data) || (data[field] is string && data[field].size() <= maxLen);
+    }
+
+    function optNum(data, field) {
+      return !(field in data) || (data[field] is number);
+    }
+
+    function optBool(data, field) {
+      return !(field in data) || (data[field] is bool);
+    }
+
+    function isValidSignatureAudit(sig) {
+      return sig is map
+        && sig.keys().hasOnly([
+          'signed', 'signatureImage', 'signedAt', 'signedAtFormatted',
+          'signerName', 'signerCpf', 'signerIp', 'signerUserAgent',
+          'signatureHash', 'acceptedTerms', 'authMethod'
+        ])
+        && optBool(sig, 'signed')
+        && optStr(sig, 'signatureImage', 750000)
+        && optStr(sig, 'signedAt', 64)
+        && optStr(sig, 'signedAtFormatted', 80)
+        && optStr(sig, 'signerName', 200)
+        && optStr(sig, 'signerCpf', 40)
+        && optStr(sig, 'signerIp', 128)
+        && optStr(sig, 'signerUserAgent', 512)
+        && optStr(sig, 'signatureHash', 128)
+        && optBool(sig, 'acceptedTerms')
+        && optStr(sig, 'authMethod', 300);
+    }
+
+    function isValidUserProfile(data) {
+      return data.keys().hasAll(['uid', 'email', 'updatedAt'])
+        && data.keys().hasOnly(['uid', 'email', 'displayName', 'createdAt', 'updatedAt'])
+        && data.uid == request.auth.uid
+        && data.email is string && data.email.size() <= 320
+        && data.updatedAt is string && data.updatedAt.size() <= 64
+        && optStr(data, 'displayName', 200)
+        && optStr(data, 'createdAt', 64);
+    }
+
+    function isValidProduct(data) {
+      return data.keys().hasAll(['name', 'category', 'cost', 'sale', 'status', 'createdAt'])
+        && data.keys().hasOnly(['id', 'name', 'category', 'photo', 'cost', 'sale', 'quantity', 'status', 'createdAt'])
+        && optStr(data, 'id', 128)
+        && data.name is string && data.name.size() > 0 && data.name.size() <= 200
+        && data.category is string && data.category.size() <= 120
+        && optStr(data, 'photo', 750000)
+        && data.cost is number
+        && data.sale is number
+        && optNum(data, 'quantity')
+        && data.status in ['Disponivel', 'Vendido']
+        && data.createdAt is string && data.createdAt.size() <= 64;
+    }
+
+    function isValidSale(data) {
+      return data.keys().hasAll([
+          'productId', 'productName', 'client', 'total',
+          'installmentsCount', 'installmentValue', 'date', 'status', 'createdAt'
+        ])
+        && data.keys().hasOnly([
+          'id', 'productId', 'productName', 'client', 'clientPhone', 'clientCpf',
+          'clientAddress', 'total', 'downPayment', 'profit', 'installmentsCount',
+          'installmentValue', 'date', 'status', 'createdAt', 'isInterestOnly',
+          'interestRate', 'costPrice', 'sellerName', 'isSigned', 'signatureImage',
+          'signedAt', 'signerIp', 'signerUserAgent', 'signatureHash', 'signature'
+        ])
+        && optStr(data, 'id', 128)
+        && data.productId is string && data.productId.size() <= 128
+        && data.productName is string && data.productName.size() <= 200
+        && data.client is string && data.client.size() <= 200
+        && optStr(data, 'clientPhone', 40)
+        && optStr(data, 'clientCpf', 40)
+        && optStr(data, 'clientAddress', 400)
+        && data.total is number
+        && optNum(data, 'downPayment')
+        && optNum(data, 'profit')
+        && data.installmentsCount is number
+        && data.installmentValue is number
+        && data.date is string && data.date.size() <= 64
+        && data.status in ['Ativa', 'Liquidada']
+        && data.createdAt is string && data.createdAt.size() <= 64
+        && optBool(data, 'isInterestOnly')
+        && optNum(data, 'interestRate')
+        && optNum(data, 'costPrice')
+        && optStr(data, 'sellerName', 200)
+        && optBool(data, 'isSigned')
+        && optStr(data, 'signatureImage', 750000)
+        && optStr(data, 'signedAt', 64)
+        && optStr(data, 'signerIp', 128)
+        && optStr(data, 'signerUserAgent', 512)
+        && optStr(data, 'signatureHash', 128)
+        && (!('signature' in data) || isValidSignatureAudit(data.signature));
+    }
+
+    function isValidInstallment(data) {
+      return data.keys().hasAll([
+          'saleId', 'client', 'productName', 'number',
+          'total', 'value', 'dueDate', 'status'
+        ])
+        && data.keys().hasOnly([
+          'id', 'saleId', 'client', 'productName', 'number', 'total', 'value',
+          'dueDate', 'status', 'paidAt', 'paymentMethod', 'originalValue',
+          'discountPercentage', 'discountAmount', 'isAdvanced'
+        ])
+        && optStr(data, 'id', 128)
+        && data.saleId is string && data.saleId.size() <= 128
+        && data.client is string && data.client.size() <= 200
+        && data.productName is string && data.productName.size() <= 200
+        && data.number is number
+        && data.total is number
+        && data.value is number
+        && data.dueDate is string && data.dueDate.size() <= 64
+        && data.status in ['Pendente', 'Pago']
+        && optStr(data, 'paidAt', 64)
+        && optStr(data, 'paymentMethod', 80)
+        && optNum(data, 'originalValue')
+        && optNum(data, 'discountPercentage')
+        && optNum(data, 'discountAmount')
+        && optBool(data, 'isAdvanced');
+    }
+
+    function isValidClosing(data) {
+      return data.keys().hasAll(['closedAt', 'periodName', 'profit', 'totalSales', 'salesCount'])
+        && data.keys().hasOnly(['id', 'closedAt', 'periodName', 'profit', 'totalSales', 'salesCount'])
+        && optStr(data, 'id', 128)
+        && data.closedAt is string && data.closedAt.size() <= 64
+        && data.periodName is string && data.periodName.size() <= 200
+        && data.profit is number
+        && data.totalSales is number
+        && data.salesCount is number;
+    }
+
+    function isValidSettings(data) {
+      return data.keys().hasOnly([
+          'userName', 'userRole', 'userFunction', 'userEmail', 'profilePhoto',
+          'pixName', 'pixKey', 'pixType', 'companyName', 'companyDocument',
+          'companyPhone', 'companyAddress', 'city', 'currency', 'language', 'theme',
+          'whatsappTemplate', 'currentOperator',
+          'op1Name', 'op1Role', 'op1Function', 'op1Email', 'op1Photo',
+          'op1PixName', 'op1PixKey', 'op1PixType',
+          'op2Name', 'op2Role', 'op2Function', 'op2Email', 'op2Photo',
+          'op2PixName', 'op2PixKey', 'op2PixType'
+        ])
+        && optStr(data, 'userName', 200)
+        && optStr(data, 'userRole', 120)
+        && optStr(data, 'userFunction', 120)
+        && optStr(data, 'userEmail', 320)
+        && optStr(data, 'profilePhoto', 750000)
+        && optStr(data, 'pixName', 200)
+        && optStr(data, 'pixKey', 200)
+        && optStr(data, 'pixType', 60)
+        && optStr(data, 'companyName', 200)
+        && optStr(data, 'companyDocument', 80)
+        && optStr(data, 'companyPhone', 60)
+        && optStr(data, 'companyAddress', 400)
+        && optStr(data, 'city', 120)
+        && optStr(data, 'currency', 16)
+        && optStr(data, 'language', 16)
+        && optStr(data, 'theme', 16)
+        && optStr(data, 'whatsappTemplate', 4000)
+        && optStr(data, 'currentOperator', 32)
+        && optStr(data, 'op1Name', 200)
+        && optStr(data, 'op1Role', 120)
+        && optStr(data, 'op1Function', 120)
+        && optStr(data, 'op1Email', 320)
+        && optStr(data, 'op1Photo', 750000)
+        && optStr(data, 'op1PixName', 200)
+        && optStr(data, 'op1PixKey', 200)
+        && optStr(data, 'op1PixType', 60)
+        && optStr(data, 'op2Name', 200)
+        && optStr(data, 'op2Role', 120)
+        && optStr(data, 'op2Function', 120)
+        && optStr(data, 'op2Email', 320)
+        && optStr(data, 'op2Photo', 750000)
+        && optStr(data, 'op2PixName', 200)
+        && optStr(data, 'op2PixKey', 200)
+        && optStr(data, 'op2PixType', 60);
+    }
+
+    function isValidMigration(data) {
+      return data.keys().hasAll(['completed', 'migratedAt', 'sourceEmail'])
+        && data.keys().hasOnly(['completed', 'migratedAt', 'sourceEmail', 'counts'])
+        && data.completed is bool
+        && data.migratedAt is string && data.migratedAt.size() <= 64
+        && data.sourceEmail is string && data.sourceEmail.size() <= 320
+        && (!('counts' in data) || data.counts is map);
+    }
+
+    function isValidPublicContract(data) {
+      return data.keys().hasAll([
+          'saleId', 'ownerUid', 'productName', 'client', 'total',
+          'installmentsCount', 'installmentValue', 'date', 'status', 'createdAt'
+        ])
+        && data.keys().hasOnly([
+          'saleId', 'ownerUid', 'productName', 'client', 'clientPhone', 'clientCpf',
+          'clientAddress', 'total', 'downPayment', 'installmentsCount',
+          'installmentValue', 'date', 'firstDueDate', 'dueDay', 'status', 'createdAt',
+          'isInterestOnly', 'interestRate', 'sellerName', 'companyName',
+          'companyDocument', 'companyPhone', 'companyAddress', 'isSigned',
+          'signatureImage', 'signedAt', 'signerIp', 'signerUserAgent',
+          'signatureHash', 'signature', 'updatedAt'
+        ])
+        && isValidId(data.saleId)
+        && isValidId(data.ownerUid)
+        && data.productName is string && data.productName.size() <= 200
+        && data.client is string && data.client.size() <= 200
+        && optStr(data, 'clientPhone', 40)
+        && optStr(data, 'clientCpf', 40)
+        && optStr(data, 'clientAddress', 400)
+        && data.total is number
+        && optNum(data, 'downPayment')
+        && data.installmentsCount is number
+        && data.installmentValue is number
+        && data.date is string && data.date.size() <= 64
+        && optStr(data, 'firstDueDate', 64)
+        && optStr(data, 'dueDay', 16)
+        && data.status in ['Ativa', 'Liquidada']
+        && data.createdAt is string && data.createdAt.size() <= 64
+        && optBool(data, 'isInterestOnly')
+        && optNum(data, 'interestRate')
+        && optStr(data, 'sellerName', 200)
+        && optStr(data, 'companyName', 200)
+        && optStr(data, 'companyDocument', 80)
+        && optStr(data, 'companyPhone', 60)
+        && optStr(data, 'companyAddress', 400)
+        && optBool(data, 'isSigned')
+        && optStr(data, 'signatureImage', 750000)
+        && optStr(data, 'signedAt', 64)
+        && optStr(data, 'signerIp', 128)
+        && optStr(data, 'signerUserAgent', 512)
+        && optStr(data, 'signatureHash', 128)
+        && (!('signature' in data) || isValidSignatureAudit(data.signature))
+        && optStr(data, 'updatedAt', 64);
+    }
+
+    // Health check document (read-only)
+    match /system/connection_test {
+      allow get: if true;
+      allow list, write: if false;
+    }
+
+    // Legacy root collections: strictly frozen & read-only ONLY for verified principal owner migration
+    match /products/{productId} {
+      allow read: if isLegacyPrincipalOwner();
+      allow write: if false;
+    }
+
+    match /sales/{saleId} {
+      allow read: if isLegacyPrincipalOwner();
+      allow write: if false;
+    }
+
+    match /installments/{installmentId} {
+      allow read: if isLegacyPrincipalOwner();
+      allow write: if false;
+    }
+
+    match /closings/{closingId} {
+      allow read: if isLegacyPrincipalOwner();
+      allow write: if false;
+    }
+
+    match /settings/{settingId} {
+      allow read: if isLegacyPrincipalOwner();
+      allow write: if false;
+    }
+
+    // Multi-tenant per-user isolated workspace
+    match /users/{userId} {
+      allow get: if isOwner(userId);
+      allow list: if false;
+      allow create, update: if isOwner(userId) && isValidUserProfile(incoming());
+      allow delete: if false;
+
+      match /products/{productId} {
+        allow read: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidId(productId) && isValidProduct(incoming());
+        allow update: if isOwner(userId) && isValidProduct(incoming())
+          && incoming().createdAt == existing().createdAt;
+        allow delete: if isOwner(userId);
+      }
+
+      match /sales/{saleId} {
+        allow read: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidId(saleId) && isValidSale(incoming());
+        allow update: if isOwner(userId) && isValidSale(incoming())
+          && incoming().createdAt == existing().createdAt;
+        allow delete: if isOwner(userId);
+      }
+
+      match /installments/{installmentId} {
+        allow read: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidId(installmentId) && isValidInstallment(incoming());
+        allow update: if isOwner(userId) && isValidInstallment(incoming())
+          && incoming().saleId == existing().saleId;
+        allow delete: if isOwner(userId);
+      }
+
+      match /closings/{closingId} {
+        allow read: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidId(closingId) && isValidClosing(incoming());
+        allow update: if false;
+        allow delete: if isOwner(userId);
+      }
+
+      match /settings/{settingId} {
+        allow read: if isOwner(userId);
+        allow create, update: if isOwner(userId) && (
+          (settingId == 'config' && isValidSettings(incoming())) ||
+          (settingId == 'migration' && isValidMigration(incoming()))
+        );
+        allow delete: if false;
+      }
+    }
+
+    // Public contract snapshots for external customer electronic signing (?sign=<saleId>)
+    match /publicContracts/{saleId} {
+      allow get: if isValidId(saleId);
+      allow list: if isSignedIn() && existing().ownerUid == request.auth.uid;
+      allow create: if isSignedIn()
+        && isValidId(saleId)
+        && incoming().saleId == saleId
+        && incoming().ownerUid == request.auth.uid
+        && isValidPublicContract(incoming());
+      allow update: if isValidPublicContract(incoming())
+        && incoming().saleId == existing().saleId
+        && incoming().ownerUid == existing().ownerUid
+        && incoming().createdAt == existing().createdAt
+        && (
+          (isSignedIn() && existing().ownerUid == request.auth.uid) ||
+          (
+            (!('isSigned' in existing()) || existing().isSigned == false)
+            && incoming().diff(existing()).affectedKeys().hasOnly([
+              'signature', 'isSigned', 'signatureImage', 'signedAt',
+              'signerIp', 'signerUserAgent', 'signatureHash', 'updatedAt'
+            ])
+            && incoming().isSigned == true
+            && incoming().signature is map
+            && incoming().signature.signed == true
+          )
+        );
+      allow delete: if isSignedIn() && existing().ownerUid == request.auth.uid;
     }
   }
 }

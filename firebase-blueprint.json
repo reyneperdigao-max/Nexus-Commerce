@@ -1,121 +1,211 @@
 {
   "entities": {
-    "Product": {
-      "title": "Product",
-      "description": "Stock of commercial assets",
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Authenticated user account metadata",
       "type": "object",
       "properties": {
-        "name": { "type": "string" },
-        "category": { "type": "string" },
-        "photo": { "type": "string" },
+        "uid": { "type": "string", "maxLength": 128 },
+        "email": { "type": "string", "maxLength": 320 },
+        "displayName": { "type": "string", "maxLength": 200 },
+        "createdAt": { "type": "string", "format": "date-time", "maxLength": 64 },
+        "updatedAt": { "type": "string", "format": "date-time", "maxLength": 64 }
+      },
+      "required": ["uid", "email", "updatedAt"]
+    },
+    "Product": {
+      "title": "Product",
+      "description": "User-scoped stock of commercial assets",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "name": { "type": "string", "maxLength": 200 },
+        "category": { "type": "string", "maxLength": 120 },
+        "photo": { "type": "string", "maxLength": 750000 },
         "cost": { "type": "number" },
         "sale": { "type": "number" },
-        "status": { "type": "string", "enum": ["Disponivel", "Vendido"] },
-        "createdAt": { "type": "string", "format": "date-time" }
+        "quantity": { "type": "number" },
+        "status": { "type": "string", "enum": ["Disponivel", "Vendido"], "maxLength": 32 },
+        "createdAt": { "type": "string", "format": "date-time", "maxLength": 64 }
       },
       "required": ["name", "category", "cost", "sale", "status", "createdAt"]
     },
     "Sale": {
       "title": "Sale",
-      "description": "Commercial contract record",
+      "description": "User-scoped commercial contract record",
       "type": "object",
       "properties": {
-        "productId": { "type": "string" },
-        "productName": { "type": "string" },
-        "client": { "type": "string" },
-        "clientPhone": { "type": "string" },
-        "clientCpf": { "type": "string" },
+        "id": { "type": "string", "maxLength": 128 },
+        "productId": { "type": "string", "maxLength": 128 },
+        "productName": { "type": "string", "maxLength": 200 },
+        "client": { "type": "string", "maxLength": 200 },
+        "clientPhone": { "type": "string", "maxLength": 40 },
+        "clientCpf": { "type": "string", "maxLength": 40 },
+        "clientAddress": { "type": "string", "maxLength": 400 },
         "total": { "type": "number" },
         "downPayment": { "type": "number" },
         "profit": { "type": "number" },
         "installmentsCount": { "type": "number" },
         "installmentValue": { "type": "number" },
-        "date": { "type": "string", "format": "date" },
-        "status": { "type": "string" },
-        "createdAt": { "type": "string", "format": "date-time" },
+        "date": { "type": "string", "format": "date", "maxLength": 64 },
+        "status": { "type": "string", "enum": ["Ativa", "Liquidada"], "maxLength": 32 },
+        "createdAt": { "type": "string", "format": "date-time", "maxLength": 64 },
+        "isInterestOnly": { "type": "boolean" },
+        "interestRate": { "type": "number" },
+        "costPrice": { "type": "number" },
+        "sellerName": { "type": "string", "maxLength": 200 },
         "isSigned": { "type": "boolean" },
-        "signatureImage": { "type": "string" },
-        "signedAt": { "type": "string", "format": "date-time" },
-        "signerIp": { "type": "string" },
-        "signerUserAgent": { "type": "string" },
-        "signatureHash": { "type": "string" },
+        "signatureImage": { "type": "string", "maxLength": 750000 },
+        "signedAt": { "type": "string", "format": "date-time", "maxLength": 64 },
+        "signerIp": { "type": "string", "maxLength": 128 },
+        "signerUserAgent": { "type": "string", "maxLength": 512 },
+        "signatureHash": { "type": "string", "maxLength": 128 },
         "signature": { "type": "object" }
       },
       "required": ["productId", "productName", "client", "total", "installmentsCount", "installmentValue", "date", "status", "createdAt"]
     },
     "Installment": {
       "title": "Installment",
-      "description": "Individual payment cycle for a sale",
+      "description": "User-scoped individual payment cycle for a sale",
       "type": "object",
       "properties": {
-        "saleId": { "type": "string" },
-        "client": { "type": "string" },
-        "productName": { "type": "string" },
+        "id": { "type": "string", "maxLength": 128 },
+        "saleId": { "type": "string", "maxLength": 128 },
+        "client": { "type": "string", "maxLength": 200 },
+        "productName": { "type": "string", "maxLength": 200 },
         "number": { "type": "number" },
         "total": { "type": "number" },
         "value": { "type": "number" },
-        "dueDate": { "type": "string", "format": "date-time" },
-        "status": { "type": "string", "enum": ["Pendente", "Pago"] },
-        "paidAt": { "type": "string", "format": "date-time" },
-        "paymentMethod": { "type": "string" }
+        "dueDate": { "type": "string", "format": "date-time", "maxLength": 64 },
+        "status": { "type": "string", "enum": ["Pendente", "Pago"], "maxLength": 32 },
+        "paidAt": { "type": "string", "format": "date-time", "maxLength": 64 },
+        "paymentMethod": { "type": "string", "maxLength": 80 },
+        "originalValue": { "type": "number" },
+        "discountPercentage": { "type": "number" },
+        "discountAmount": { "type": "number" },
+        "isAdvanced": { "type": "boolean" }
       },
       "required": ["saleId", "client", "productName", "number", "total", "value", "dueDate", "status"]
     },
     "Settings": {
       "title": "Settings",
-      "description": "System configuration and user profile",
+      "description": "User-scoped system configuration and operator profile",
       "type": "object",
       "properties": {
-        "userName": { "type": "string" },
-        "userRole": { "type": "string" },
-        "userEmail": { "type": "string" },
-        "pixName": { "type": "string" },
-        "pixKey": { "type": "string" },
-        "pixType": { "type": "string" },
-        "companyName": { "type": "string" },
-        "companyDocument": { "type": "string" },
-        "companyPhone": { "type": "string" },
-        "companyAddress": { "type": "string" },
-        "currency": { "type": "string" },
-        "language": { "type": "string" },
-        "theme": { "type": "string" }
+        "userName": { "type": "string", "maxLength": 200 },
+        "userRole": { "type": "string", "maxLength": 120 },
+        "userFunction": { "type": "string", "maxLength": 120 },
+        "userEmail": { "type": "string", "maxLength": 320 },
+        "profilePhoto": { "type": "string", "maxLength": 750000 },
+        "pixName": { "type": "string", "maxLength": 200 },
+        "pixKey": { "type": "string", "maxLength": 200 },
+        "pixType": { "type": "string", "maxLength": 60 },
+        "companyName": { "type": "string", "maxLength": 200 },
+        "companyDocument": { "type": "string", "maxLength": 80 },
+        "companyPhone": { "type": "string", "maxLength": 60 },
+        "companyAddress": { "type": "string", "maxLength": 400 },
+        "city": { "type": "string", "maxLength": 120 },
+        "currency": { "type": "string", "maxLength": 16 },
+        "language": { "type": "string", "maxLength": 16 },
+        "theme": { "type": "string", "enum": ["dark", "light"], "maxLength": 16 },
+        "whatsappTemplate": { "type": "string", "maxLength": 4000 },
+        "currentOperator": { "type": "string", "maxLength": 32 }
+      }
+    },
+    "MigrationStatus": {
+      "title": "MigrationStatus",
+      "description": "Tracks one-time legacy data migration for principal owner",
+      "type": "object",
+      "properties": {
+        "completed": { "type": "boolean" },
+        "migratedAt": { "type": "string", "format": "date-time", "maxLength": 64 },
+        "sourceEmail": { "type": "string", "maxLength": 320 },
+        "counts": { "type": "object" }
       },
-      "required": ["userName", "userEmail", "theme"]
+      "required": ["completed", "migratedAt", "sourceEmail"]
     },
     "Closing": {
       "title": "Closing",
-      "description": "Register closing records",
+      "description": "User-scoped register closing records",
       "type": "object",
       "properties": {
-        "closedAt": { "type": "string", "format": "date-time" },
-        "periodName": { "type": "string" },
+        "id": { "type": "string", "maxLength": 128 },
+        "closedAt": { "type": "string", "format": "date-time", "maxLength": 64 },
+        "periodName": { "type": "string", "maxLength": 200 },
         "profit": { "type": "number" },
         "totalSales": { "type": "number" },
         "salesCount": { "type": "number" }
       },
       "required": ["closedAt", "periodName", "profit", "totalSales", "salesCount"]
+    },
+    "PublicContract": {
+      "title": "PublicContract",
+      "description": "Sanitized contract snapshot indexed by unguessable UUID for external customer electronic signing",
+      "type": "object",
+      "properties": {
+        "saleId": { "type": "string", "maxLength": 128 },
+        "ownerUid": { "type": "string", "maxLength": 128 },
+        "productName": { "type": "string", "maxLength": 200 },
+        "client": { "type": "string", "maxLength": 200 },
+        "clientPhone": { "type": "string", "maxLength": 40 },
+        "clientCpf": { "type": "string", "maxLength": 40 },
+        "clientAddress": { "type": "string", "maxLength": 400 },
+        "total": { "type": "number" },
+        "downPayment": { "type": "number" },
+        "installmentsCount": { "type": "number" },
+        "installmentValue": { "type": "number" },
+        "date": { "type": "string", "maxLength": 64 },
+        "firstDueDate": { "type": "string", "maxLength": 64 },
+        "dueDay": { "type": "string", "maxLength": 16 },
+        "status": { "type": "string", "enum": ["Ativa", "Liquidada"], "maxLength": 32 },
+        "createdAt": { "type": "string", "format": "date-time", "maxLength": 64 },
+        "isInterestOnly": { "type": "boolean" },
+        "interestRate": { "type": "number" },
+        "sellerName": { "type": "string", "maxLength": 200 },
+        "companyName": { "type": "string", "maxLength": 200 },
+        "companyDocument": { "type": "string", "maxLength": 80 },
+        "companyPhone": { "type": "string", "maxLength": 60 },
+        "companyAddress": { "type": "string", "maxLength": 400 },
+        "isSigned": { "type": "boolean" },
+        "signatureImage": { "type": "string", "maxLength": 750000 },
+        "signedAt": { "type": "string", "format": "date-time", "maxLength": 64 },
+        "signerIp": { "type": "string", "maxLength": 128 },
+        "signerUserAgent": { "type": "string", "maxLength": 512 },
+        "signatureHash": { "type": "string", "maxLength": 128 },
+        "signature": { "type": "object" },
+        "updatedAt": { "type": "string", "format": "date-time", "maxLength": 64 }
+      },
+      "required": ["saleId", "ownerUid", "productName", "client", "total", "installmentsCount", "installmentValue", "date", "status", "createdAt"]
     }
   },
   "firestore": {
-    "/products/{productId}": {
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "User profile document"
+    },
+    "/users/{userId}/products/{productId}": {
       "schema": "Product",
-      "description": "Stock collection"
+      "description": "User-isolated stock collection"
     },
-    "/sales/{saleId}": {
+    "/users/{userId}/sales/{saleId}": {
       "schema": "Sale",
-      "description": "Sales contracts collection"
+      "description": "User-isolated sales contracts collection"
     },
-    "/installments/{installmentId}": {
+    "/users/{userId}/installments/{installmentId}": {
       "schema": "Installment",
-      "description": "Payment installments collection"
+      "description": "User-isolated payment installments collection"
     },
-    "/closings/{closingId}": {
+    "/users/{userId}/closings/{closingId}": {
       "schema": "Closing",
-      "description": "Cash register closing history"
+      "description": "User-isolated cash register closing history"
     },
-    "/settings/config": {
+    "/users/{userId}/settings/{settingId}": {
       "schema": "Settings",
-      "description": "Global settings document"
+      "description": "User-isolated configuration and migration documents"
+    },
+    "/publicContracts/{saleId}": {
+      "schema": "PublicContract",
+      "description": "Sanitized contract snapshot accessed by exact UUID for customer electronic signing"
     }
   }
 }

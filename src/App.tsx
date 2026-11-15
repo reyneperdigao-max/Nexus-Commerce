@@ -13,10 +13,15 @@ import { Boxes, Plus, X, Search, ImagePlus, User, Wallet, ShoppingBag, ArrowLeft
 import html2pdf from 'html2pdf.js';
 import { downloadContractAsPDF, fallbackPrintContract, shareContractFile, downloadReceiptAsPDF, getSystemSellerName } from './lib/pdfGenerator';
 import { formatLocalDateBR, getLocalDateString, getFutureLocalDateString, extractDueDay, parseDateToMidnight } from './lib/dateUtils';
-import { auth } from './lib/firebase';
-import { signInAnonymously, onAuthStateChanged } from 'firebase/auth';
+import { auth, signOut, resendVerificationEmail, linkAccountWithGoogle, translateFirebaseAuthError } from './lib/firebase';
+import { onAuthStateChanged, type User as FirebaseUser } from 'firebase/auth';
 
 export default function App() {
+  const [currentUser, setCurrentUser] = useState<FirebaseUser | null>(null);
+  const [authReady, setAuthReady] = useState(false);
+  const [migrationActionBusy, setMigrationActionBusy] = useState(false);
+  const isAuthenticated = Boolean(currentUser);
+
   const { 
     products, 
     sales, 
@@ -37,10 +42,10 @@ export default function App() {
     closeMonthlyRegister, 
     deleteClosing,
     saveDigitalSignature,
-    isInitialLoading
-  } = useNexusState();
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [authReady, setAuthReady] = useState(false);
+    isInitialLoading,
+    migrationState,
+    retryLegacyMigration
+  } = useNexusState(currentUser);
   const [reportsTab, setReportsTab] = useState<'installments' | 'closings'>('installments');
 
   // Estado de Assinatura Eletrônica e Acesso Público de Clientes
@@ -96,10 +101,23 @@ export default function App() {
   };
 
   useEffect(() => {
-    // We set authReady to true immediately since anonymous sign-in is restricted
-    // Persistence will work via relaxed Firestore rules
-    setAuthReady(true);
+    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+      setCurrentUser(firebaseUser);
+      setAuthReady(true);
+    });
+    return () => unsubscribe();
   }, []);
+
+  const handleLogout = async () => {
+    try {
+      await signOut();
+      setActiveView('dashboard');
+      setSelectedClient(null);
+      setIsMobileOpen(false);
+    } catch (err) {
+      console.error('Erro ao encerrar sessão:', err);
+    }
+  };
 
   const lastClosingDate = useMemo(() => {
     if (!closings || closings.length === 0) return '';
@@ -1056,16 +1074,25 @@ Autenticação: ${targetSale.id.toUpperCase()}`;
     );
   }
 
-  if (!authReady) return null;
+  if (!authReady) {
+    return (
+      <div className="min-h-screen w-full bg-[#080a0f] flex flex-col items-center justify-center gap-4 text-zinc-300">
+        <div className="w-10 h-10 border-2 border-gold border-t-transparent rounded-full animate-spin" />
+        <span className="text-xs font-medium text-zinc-400 tracking-wide">
+          Verificando sessão segura...
+        </span>
+      </div>
+    );
+  }
 
   if (!isAuthenticated) {
-    return <LoginScreen onLogin={() => setIsAuthenticated(true)} settings={settings} />;
+    return <LoginScreen />;
   }
 
 
   return (
     <div className="flex min-h-screen bg-bg-main text-white">
-      <Sidebar activeView={activeView} setActiveView={setActiveView} collapsed={collapsed} setCollapsed={setCollapsed} settings={settings} isMobileOpen={isMobileOpen} setIsMobileOpen={setIsMobileOpen} desktopSidebarOpen={desktopSidebarOpen} setDesktopSidebarOpen={setDesktopSidebarOpen} onLogout={() => setIsAuthenticated(false)} />
+      <Sidebar activeView={activeView} setActiveView={setActiveView} collapsed={collapsed} setCollapsed={setCollapsed} settings={settings} isMobileOpen={isMobileOpen} setIsMobileOpen={setIsMobileOpen} desktopSidebarOpen={desktopSidebarOpen} setDesktopSidebarOpen={setDesktopSidebarOpen} onLogout={handleLogout} />
       <BottomNavigation activeView={activeView} setActiveView={setActiveView} isMobileOpen={isMobileOpen} setIsMobileOpen={setIsMobileOpen} />
       <main className="flex-1 flex flex-col min-w-0">
         {isInitialLoading && (
@@ -1083,6 +1110,95 @@ Autenticação: ${targetSale.id.toUpperCase()}`;
           onToggleHideDashboardValues={toggleHideDashboardValues}
         />
         <div className="p-4 pb-24 sm:p-8 overflow-x-hidden custom-scrollbar">
+          {migrationState.status === 'migrating' && (
+            <div className="mb-6 p-4 rounded-2xl bg-gold/10 border border-gold/30 flex items-center gap-3 text-xs text-zinc-200">
+              <div className="w-4 h-4 border-2 border-gold border-t-transparent rounded-full animate-spin shrink-0" />
+              <span>Vinculando e migrando seus registros anteriores exclusivamente para <strong>{currentUser?.email}</strong>...</span>
+            </div>
+          )}
+          {migrationState.status === 'needs_verification' && (
+            <div className="mb-6 p-4 sm:p-5 rounded-2xl bg-[#121622] border border-gold/40 flex flex-col lg:flex-row lg:items-center justify-between gap-4 shadow-lg">
+              <div className="flex items-start gap-3">
+                <div className="w-9 h-9 rounded-xl bg-gold/15 border border-gold/30 text-gold flex items-center justify-center shrink-0 mt-0.5">
+                  <ShieldCheck size={18} />
+                </div>
+                <div className="space-y-1">
+                  <h3 className="text-xs sm:text-sm font-bold text-white">
+                    Confirme seu e-mail principal para importar os dados anteriores
+                  </h3>
+                  <p className="text-xs text-zinc-400 leading-relaxed">
+                    Enviamos um link de verificação para <strong className="text-zinc-200">{currentUser?.email}</strong>. Após confirmar no seu e-mail (ou autenticar com o Google), clique em &quot;Importar Dados Agora&quot; para vincular seus registros existentes com segurança.
+                  </p>
+                </div>
+              </div>
+              <div className="flex flex-wrap items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  disabled={migrationActionBusy}
+                  onClick={async () => {
+                    setMigrationActionBusy(true);
+                    try {
+                      await linkAccountWithGoogle();
+                      await retryLegacyMigration();
+                      showToast('Conta verificada e dados vinculados com sucesso!');
+                    } catch (err) {
+                      showToast(translateFirebaseAuthError(err), 'error');
+                    } finally {
+                      setMigrationActionBusy(false);
+                    }
+                  }}
+                  className="h-9 px-3.5 rounded-xl bg-white/[0.06] hover:bg-white/[0.12] border border-white/[0.12] text-zinc-100 text-xs font-semibold transition-colors cursor-pointer disabled:opacity-50"
+                >
+                  Verificar com Google
+                </button>
+                <button
+                  type="button"
+                  disabled={migrationActionBusy}
+                  onClick={async () => {
+                    setMigrationActionBusy(true);
+                    try {
+                      await resendVerificationEmail();
+                      showToast('E-mail de verificação reenviado!');
+                    } catch (err) {
+                      showToast(translateFirebaseAuthError(err), 'error');
+                    } finally {
+                      setMigrationActionBusy(false);
+                    }
+                  }}
+                  className="h-9 px-3.5 rounded-xl bg-white/[0.04] hover:bg-white/[0.09] border border-white/[0.1] text-zinc-300 text-xs font-medium transition-colors cursor-pointer disabled:opacity-50"
+                >
+                  Reenviar E-mail
+                </button>
+                <button
+                  type="button"
+                  disabled={migrationActionBusy}
+                  onClick={async () => {
+                    setMigrationActionBusy(true);
+                    try {
+                      await retryLegacyMigration();
+                    } finally {
+                      setMigrationActionBusy(false);
+                    }
+                  }}
+                  className="h-9 px-4 rounded-xl bg-gradient-to-r from-[#d4a438] to-[#e5b84b] text-[#080a0f] text-xs font-bold hover:brightness-105 transition-all cursor-pointer disabled:opacity-50"
+                >
+                  {migrationActionBusy ? 'Verificando...' : 'Importar Dados Agora'}
+                </button>
+              </div>
+            </div>
+          )}
+          {migrationState.status === 'error' && (
+            <div className="mb-6 p-4 rounded-2xl bg-red-500/10 border border-red-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-red-200">
+              <span>Não foi possível concluir a importação dos dados anteriores: {migrationState.errorMessage || 'Tente novamente.'}</span>
+              <button
+                type="button"
+                onClick={() => retryLegacyMigration()}
+                className="h-8 px-3.5 rounded-lg bg-red-500/20 hover:bg-red-500/30 border border-red-500/40 text-white font-semibold cursor-pointer shrink-0"
+              >
+                Tentar Novamente
+              </button>
+            </div>
+          )}
           <AnimatePresence mode="wait">
             <motion.div key={activeView} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }}>
               {activeView === 'dashboard' && (
@@ -3784,15 +3900,21 @@ Autenticação: ${targetSale.id.toUpperCase()}`;
                                     </div>
                                     <button 
                                        onClick={() => {
-                                          openConfirm('Reset Total', 'Deseja realmente apagar todos os registros de ativos e clientes?', () => {
-                                             localStorage.clear();
+                                          openConfirm('Reset Local', 'Deseja limpar o cache local desta conta neste navegador? Seus dados salvos na nuvem permanecem intactos.', () => {
+                                             if (currentUser?.uid) {
+                                               Object.keys(localStorage).forEach((k) => {
+                                                 if (k.startsWith(`nexus_cache_u_${currentUser.uid}_`)) {
+                                                   localStorage.removeItem(k);
+                                                 }
+                                               });
+                                             }
                                              window.location.reload();
                                           });
                                        }}
                                        type="button"
                                        className="h-14 w-full bg-[rgba(239,68,68,0.1)] hover:bg-[rgba(239,68,68,0.2)] text-red-500 border border-[rgba(239,68,68,0.2)] rounded-2xl font-black uppercase text-[10px] tracking-widest transition-all cursor-pointer"
                                     >
-                                       Deletar Todos os Dados Locais
+                                       Limpar Cache Local da Conta
                                     </button>
                                  </div>
                               </div>

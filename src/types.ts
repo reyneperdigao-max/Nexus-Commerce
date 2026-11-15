@@ -89,6 +89,7 @@ export interface Settings {
   companyDocument?: string;
   companyPhone?: string;
   companyAddress?: string;
+  city?: string;
   currency: string;
   language: string;
   theme: 'dark' | 'light';
