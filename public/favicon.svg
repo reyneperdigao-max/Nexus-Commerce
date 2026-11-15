@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 180">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="45%" r="60%">
+      <stop offset="0%" stop-color="#121622"/>
+      <stop offset="100%" stop-color="#07080c"/>
+    </radialGradient>
+    <linearGradient id="gold" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fae28e"/>
+      <stop offset="50%" stop-color="#e5b84b"/>
+      <stop offset="100%" stop-color="#a67b1f"/>
+    </linearGradient>
+  </defs>
+  <rect width="180" height="180" rx="38" fill="url(#bg)"/>
+  <rect x="8" y="8" width="164" height="164" rx="32" fill="none" stroke="#e5b84b" stroke-opacity="0.22" stroke-width="1.5"/>
+  <polygon points="90,22 149,56 149,124 90,158 31,124 31,56" fill="#0d1018" stroke="url(#gold)" stroke-width="4.5" stroke-linejoin="round"/>
+  <polygon points="90,31 141,60.5 141,119.5 90,149 39,119.5 39,60.5" fill="none" stroke="#e5b84b" stroke-opacity="0.35" stroke-width="1.5" stroke-linejoin="round"/>
+  <text x="90" y="109" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-weight="800" font-size="56" letter-spacing="-1" fill="url(#gold)">NC</text>
+</svg>
