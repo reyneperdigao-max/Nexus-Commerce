@@ -174,7 +174,7 @@ service cloud.firestore {
           'userName', 'userRole', 'userFunction', 'userEmail', 'profilePhoto',
           'pixName', 'pixKey', 'pixType', 'companyName', 'companyDocument',
           'companyPhone', 'companyAddress', 'city', 'currency', 'language', 'theme',
-          'whatsappTemplate', 'currentOperator',
+          'whatsappTemplate', 'currentOperator', 'capitalSyncV2',
           'op1Name', 'op1Role', 'op1Function', 'op1Email', 'op1Photo',
           'op1PixName', 'op1PixKey', 'op1PixType',
           'op2Name', 'op2Role', 'op2Function', 'op2Email', 'op2Photo',
@@ -198,6 +198,7 @@ service cloud.firestore {
         && optStr(data, 'theme', 16)
         && optStr(data, 'whatsappTemplate', 4000)
         && optStr(data, 'currentOperator', 32)
+        && optBool(data, 'capitalSyncV2')
         && optStr(data, 'op1Name', 200)
         && optStr(data, 'op1Role', 120)
         && optStr(data, 'op1Function', 120)

@@ -95,6 +95,7 @@ export interface Settings {
   theme: 'dark' | 'light';
   whatsappTemplate?: string;
   currentOperator?: 'operator1' | 'operator2';
+  capitalSyncV2?: boolean;
   op1Name?: string;
   op1Role?: string;
   op1Function?: string;

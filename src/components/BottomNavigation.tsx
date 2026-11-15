@@ -8,7 +8,12 @@ interface BottomNavigationProps {
   setIsMobileOpen: (open: boolean) => void;
 }
 
-export function BottomNavigation({ activeView, setActiveView, isMobileOpen, setIsMobileOpen }: BottomNavigationProps) {
+export function BottomNavigation({
+  activeView,
+  setActiveView,
+  isMobileOpen,
+  setIsMobileOpen,
+}: BottomNavigationProps) {
   const items = [
     { id: 'dashboard', label: 'Início', icon: LayoutDashboard },
     { id: 'sales', label: 'Vendas', icon: ShoppingBag },
@@ -17,10 +22,13 @@ export function BottomNavigation({ activeView, setActiveView, isMobileOpen, setI
   ];
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-40 bg-[#0a0d14]/95 backdrop-blur-xl border-t border-white/[0.08] px-3 pb-safe sm:hidden select-none">
+    <nav
+      aria-label="Navegação rápida"
+      className="fixed bottom-0 left-0 right-0 z-40 bg-[#090c13]/95 backdrop-blur-xl border-t border-white/[0.08] px-2 pb-safe sm:hidden select-none"
+    >
       <div className="h-16 flex items-center justify-around relative">
         {items.map((item) => {
-          const isActive = activeView === item.id;
+          const isActive = activeView === item.id && !isMobileOpen;
           return (
             <button
               key={item.id}
@@ -29,7 +37,7 @@ export function BottomNavigation({ activeView, setActiveView, isMobileOpen, setI
                 setActiveView(item.id);
                 setIsMobileOpen(false);
               }}
-              className={`flex flex-col items-center justify-center flex-1 h-full relative text-center py-1 transition-colors duration-150 cursor-pointer ${
+              className={`flex flex-col items-center justify-center flex-1 h-full min-h-[44px] relative text-center py-1 transition-colors duration-150 cursor-pointer ${
                 isActive ? 'text-gold' : 'text-zinc-400 hover:text-zinc-200'
               }`}
             >
@@ -46,11 +54,10 @@ export function BottomNavigation({ activeView, setActiveView, isMobileOpen, setI
           );
         })}
 
-        {/* More/Collapse Trigger */}
         <button
           type="button"
           onClick={() => setIsMobileOpen(!isMobileOpen)}
-          className={`flex flex-col items-center justify-center flex-1 h-full text-center py-1 transition-colors duration-150 cursor-pointer ${
+          className={`flex flex-col items-center justify-center flex-1 h-full min-h-[44px] text-center py-1 transition-colors duration-150 cursor-pointer ${
             isMobileOpen ? 'text-gold' : 'text-zinc-400 hover:text-zinc-200'
           }`}
         >
@@ -58,6 +65,6 @@ export function BottomNavigation({ activeView, setActiveView, isMobileOpen, setI
           <span className="text-[10px] font-semibold tracking-tight">Menu</span>
         </button>
       </div>
-    </div>
+    </nav>
   );
 }

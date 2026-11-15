@@ -134,6 +134,11 @@ export function MonthlyInstallmentsReport({
   const [activeTab, setActiveTab] = useState<'installments' | 'closings'>(initialTab || 'installments');
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'paid' | 'overdue'>('all');
   const [searchTerm, setSearchTerm] = useState('');
+  const [confirmDialog, setConfirmDialog] = useState<{
+    title: string;
+    message: string;
+    onConfirm: () => void;
+  } | null>(null);
 
   useEffect(() => {
     if (initialTab) {
@@ -489,52 +494,52 @@ export function MonthlyInstallmentsReport({
       {/* ========================================================================= */}
       <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2">
-            <span className="w-2.5 h-2.5 rounded-full bg-gold animate-pulse" />
-            <span className="text-[10px] font-black uppercase text-gold tracking-widest">Controle Financeiro</span>
-          </div>
-          <h2 className="text-xl sm:text-2xl font-black tracking-tight text-white uppercase mt-0.5">
+          <span className="text-[11px] font-semibold uppercase text-gold tracking-wider block">
+            Controle Financeiro
+          </span>
+          <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-white mt-0.5">
             Relatório de Parcelas & Previsão Mensal
           </h2>
-          <p className="text-[10px] sm:text-xs text-zinc-400 font-bold uppercase tracking-wider mt-1">
-            Soma exata das parcelas do mês e estimativa mensal da carteira de contratos
+          <p className="text-xs text-zinc-400 mt-0.5">
+            Consolidado das parcelas do mês e projeção recorrente da carteira
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto">
-          {/* Aba de Navegação Simples */}
-          <div className="flex items-center bg-black/60 p-1 rounded-xl border border-line-strong">
+        <div className="flex flex-wrap items-center gap-2.5 w-full lg:w-auto">
+          <div className="flex items-center bg-[#0d111a] p-1 rounded-xl border border-white/[0.08] flex-1 sm:flex-initial">
             <button
+              type="button"
               onClick={() => handleTabChange('installments')}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-black uppercase tracking-wider transition-all cursor-pointer ${
+              className={`flex-1 sm:flex-initial flex items-center justify-center gap-2 px-3.5 py-2 rounded-lg text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${
                 activeTab === 'installments'
-                  ? 'bg-gold text-black shadow-lg shadow-gold/20'
-                  : 'text-gray-400 hover:text-white'
+                  ? 'bg-gold text-[#07090e]'
+                  : 'text-zinc-400 hover:text-white'
               }`}
             >
               <Calendar size={14} />
-              <span>Previsão de Parcelas</span>
+              <span>Previsão</span>
             </button>
             <button
+              type="button"
               onClick={() => handleTabChange('closings')}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-black uppercase tracking-wider transition-all cursor-pointer ${
+              className={`flex-1 sm:flex-initial flex items-center justify-center gap-2 px-3.5 py-2 rounded-lg text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${
                 activeTab === 'closings'
-                  ? 'bg-gold text-black shadow-lg shadow-gold/20'
-                  : 'text-gray-400 hover:text-white'
+                  ? 'bg-gold text-[#07090e]'
+                  : 'text-zinc-400 hover:text-white'
               }`}
             >
               <Layers size={14} />
-              <span>Fechamento de Caixa</span>
+              <span>Fechamento</span>
             </button>
           </div>
 
-          {/* Botão de Exportar PDF */}
           <button
+            type="button"
             onClick={onDownloadPDF}
-            className="flex items-center gap-2 px-4 py-2 bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-white font-black uppercase text-xs tracking-wider rounded-xl transition-all shadow-md active:scale-95 cursor-pointer"
+            className="h-10 flex items-center justify-center gap-2 px-4 bg-[#0d111a] hover:bg-[#131824] border border-white/[0.1] text-zinc-100 font-semibold text-xs rounded-xl transition-all cursor-pointer whitespace-nowrap"
             title="Exportar Relatório Mensal em PDF"
           >
-            <FileText size={15} className="text-gold" />
+            <FileText size={14} className="text-gold" />
             <span>Exportar PDF</span>
           </button>
         </div>
@@ -611,127 +616,105 @@ export function MonthlyInstallmentsReport({
         <div className="flex flex-col gap-6">
           
           {/* GRID DE CARDS EXECUTIVOS */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
-            
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
             {/* CARD 1: SOMA DE TODAS AS PARCELAS DO MÊS SELECIONADO */}
-            <div className="glass-card p-5 sm:p-6 border-2 border-gold/40 bg-gold/[0.04] flex flex-col justify-between rounded-2xl relative overflow-hidden group">
-              <div className="absolute right-3 top-3 opacity-10 text-gold pointer-events-none">
-                <DollarSign size={64} />
-              </div>
+            <div className="glass-card p-5 border-gold/30 bg-gold/[0.04] flex flex-col justify-between gap-4">
               <div>
                 <div className="flex items-center justify-between gap-2">
-                  <span className="text-[10px] text-gold font-black uppercase tracking-widest flex items-center gap-1.5">
-                    <span className="w-2 h-2 rounded-full bg-gold animate-ping" />
-                    Soma das Parcelas do Mês
-                  </span>
-                  <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded bg-gold/20 text-gold border border-gold/40">
-                    {monthStats.countTotal} parcelas
+                  <span className="text-xs font-medium text-gold">Previsto no Mês</span>
+                  <span className="text-[11px] font-semibold px-2 py-0.5 rounded-md bg-gold/15 text-gold border border-gold/25 tabular-figure">
+                    {monthStats.countTotal} parc.
                   </span>
                 </div>
-                <strong className="text-2xl sm:text-3xl font-black text-gold mt-3 block tracking-tight">
+                <strong className="text-2xl font-bold text-gold mt-2 block tracking-tight tabular-figure">
                   {money(monthStats.totalExpected)}
                 </strong>
-                <p className="text-[10px] text-zinc-400 font-bold uppercase mt-1">
-                  Total de todas as parcelas com vencimento em {MONTH_NAMES[selectedMonthIndex]}/{selectedYear}
+                <p className="text-[11px] text-zinc-400 mt-1">
+                  Vencimentos em {MONTH_NAMES[selectedMonthIndex]}/{selectedYear}
                 </p>
               </div>
 
-              <div className="border-t border-gold/20 pt-3 mt-4 flex items-center justify-between text-xs text-zinc-300 font-bold">
+              <div className="border-t border-gold/15 pt-2.5 flex items-center justify-between text-xs text-zinc-400">
                 <span>Taxa de Quitação:</span>
-                <span className="text-white font-black">{monthStats.completionRate.toFixed(0)}% liquidado</span>
+                <span className="text-white font-semibold tabular-figure">{monthStats.completionRate.toFixed(0)}%</span>
               </div>
             </div>
 
             {/* CARD 2: JÁ RECEBIDO NO MÊS */}
-            <div className="glass-card p-5 sm:p-6 border border-green-500/30 bg-green-500/[0.03] flex flex-col justify-between rounded-2xl relative overflow-hidden group">
-              <div className="absolute right-3 top-3 opacity-10 text-green-400 pointer-events-none">
-                <CheckCircle2 size={64} />
-              </div>
+            <div className="glass-card p-5 border-emerald-500/25 bg-emerald-500/[0.03] flex flex-col justify-between gap-4">
               <div>
                 <div className="flex items-center justify-between gap-2">
-                  <span className="text-[10px] text-green-400 font-black uppercase tracking-widest flex items-center gap-1.5">
-                    <span className="w-2 h-2 rounded-full bg-green-400" />
-                    Já Recebido no Mês
-                  </span>
-                  <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded bg-green-500/20 text-green-400 border border-green-500/40">
+                  <span className="text-xs font-medium text-emerald-400">Recebido no Mês</span>
+                  <span className="text-[11px] font-semibold px-2 py-0.5 rounded-md bg-emerald-500/15 text-emerald-400 border border-emerald-500/25 tabular-figure">
                     {monthStats.countPaid} pagas
                   </span>
                 </div>
-                <strong className="text-2xl sm:text-3xl font-black text-green-neon mt-3 block tracking-tight">
+                <strong className="text-2xl font-bold text-emerald-400 mt-2 block tracking-tight tabular-figure">
                   {money(monthStats.totalPaid)}
                 </strong>
-                <p className="text-[10px] text-zinc-400 font-bold uppercase mt-1">
-                  Montante já quitado e confirmado para este mês
+                <p className="text-[11px] text-zinc-400 mt-1">
+                  Montante liquidado no período
                 </p>
               </div>
 
-              <div className="border-t border-green-500/20 pt-3 mt-4 flex items-center justify-between text-xs text-zinc-300 font-bold">
-                <span>Parcelas Quitadas:</span>
-                <span className="text-green-neon font-black">{monthStats.countPaid} de {monthStats.countTotal}</span>
-              </div>
-            </div>
-
-            {/* CARD 3: SALDO PENDENTE A RECEBER NO MÊS */}
-            <div className="glass-card p-5 sm:p-6 border border-amber-500/30 bg-amber-500/[0.03] flex flex-col justify-between rounded-2xl relative overflow-hidden group">
-              <div className="absolute right-3 top-3 opacity-10 text-amber-400 pointer-events-none">
-                <Clock size={64} />
-              </div>
-              <div>
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-[10px] text-amber-400 font-black uppercase tracking-widest flex items-center gap-1.5">
-                    <span className="w-2 h-2 rounded-full bg-amber-400" />
-                    Falta Receber no Mês
-                  </span>
-                  <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40">
-                    {monthStats.countPending + monthStats.countOverdue} a receber
-                  </span>
-                </div>
-                <strong className="text-2xl sm:text-3xl font-black text-amber-200 mt-3 block tracking-tight">
-                  {money(monthStats.totalUnpaid)}
-                </strong>
-                <p className="text-[10px] text-zinc-400 font-bold uppercase mt-1">
-                  Saldo pendente de parcelas a vencer ou em atraso
-                </p>
-              </div>
-
-              <div className="border-t border-amber-500/20 pt-3 mt-4 flex items-center justify-between text-xs text-zinc-300 font-bold">
-                <span>Em atraso:</span>
-                <span className={monthStats.countOverdue > 0 ? "text-red-400 font-black" : "text-zinc-400 font-black"}>
-                  {money(monthStats.totalOverdue)} ({monthStats.countOverdue} parc.)
+              <div className="border-t border-emerald-500/15 pt-2.5 flex items-center justify-between text-xs text-zinc-400">
+                <span>Quitadas:</span>
+                <span className="text-emerald-400 font-semibold tabular-figure">
+                  {monthStats.countPaid} de {monthStats.countTotal}
                 </span>
               </div>
             </div>
 
-            {/* CARD 4: ESTIMATIVA MENSAL DA CARTEIRA (TODAS AS VENDAS ATIVAS) */}
-            <div className="glass-card p-5 sm:p-6 border border-blue-500/30 bg-blue-500/[0.03] flex flex-col justify-between rounded-2xl relative overflow-hidden group">
-              <div className="absolute right-3 top-3 opacity-10 text-blue-400 pointer-events-none">
-                <TrendingUp size={64} />
-              </div>
+            {/* CARD 3: SALDO PENDENTE A RECEBER NO MÊS */}
+            <div className="glass-card p-5 border-amber-500/25 bg-amber-500/[0.03] flex flex-col justify-between gap-4">
               <div>
                 <div className="flex items-center justify-between gap-2">
-                  <span className="text-[10px] text-blue-400 font-black uppercase tracking-widest flex items-center gap-1.5">
-                    <span className="w-2 h-2 rounded-full bg-blue-400" />
-                    Estimativa Mensal da Carteira
-                  </span>
-                  <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded bg-blue-500/20 text-blue-300 border border-blue-500/40">
-                    {portfolioMonthlyEstimate.activeContractsCount} contratos
+                  <span className="text-xs font-medium text-amber-400">Falta Receber</span>
+                  <span className="text-[11px] font-semibold px-2 py-0.5 rounded-md bg-amber-500/15 text-amber-300 border border-amber-500/25 tabular-figure">
+                    {monthStats.countPending + monthStats.countOverdue} abertas
                   </span>
                 </div>
-                <strong className="text-2xl sm:text-3xl font-black text-blue-300 mt-3 block tracking-tight">
-                  {money(portfolioMonthlyEstimate.monthlySum)}
-                  <span className="text-xs text-blue-400 font-bold lowercase"> /mês</span>
+                <strong className="text-2xl font-bold text-amber-200 mt-2 block tracking-tight tabular-figure">
+                  {money(monthStats.totalUnpaid)}
                 </strong>
-                <p className="text-[10px] text-zinc-400 font-bold uppercase mt-1">
-                  Soma da mensalidade de todos os contratos ativos juntos
+                <p className="text-[11px] text-zinc-400 mt-1">
+                  A vencer e em atraso no mês
                 </p>
               </div>
 
-              <div className="border-t border-blue-500/20 pt-3 mt-4 flex items-center justify-between text-xs text-zinc-300 font-bold">
-                <span>Saldo Futuro Total:</span>
-                <span className="text-white font-black">{money(portfolioMonthlyEstimate.totalRemainingReceivables)}</span>
+              <div className="border-t border-amber-500/15 pt-2.5 flex items-center justify-between text-xs text-zinc-400">
+                <span>Em atraso:</span>
+                <span className={`font-semibold tabular-figure ${monthStats.countOverdue > 0 ? 'text-red-400' : 'text-zinc-400'}`}>
+                  {money(monthStats.totalOverdue)} ({monthStats.countOverdue})
+                </span>
               </div>
             </div>
 
+            {/* CARD 4: ESTIMATIVA MENSAL DA CARTEIRA */}
+            <div className="glass-card p-5 border-sky-500/25 bg-sky-500/[0.03] flex flex-col justify-between gap-4">
+              <div>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs font-medium text-sky-400">Estimativa Carteira</span>
+                  <span className="text-[11px] font-semibold px-2 py-0.5 rounded-md bg-sky-500/15 text-sky-300 border border-sky-500/25 tabular-figure">
+                    {portfolioMonthlyEstimate.activeContractsCount} ativos
+                  </span>
+                </div>
+                <strong className="text-2xl font-bold text-sky-300 mt-2 block tracking-tight tabular-figure">
+                  {money(portfolioMonthlyEstimate.monthlySum)}
+                  <span className="text-xs text-sky-400 font-medium">/mês</span>
+                </strong>
+                <p className="text-[11px] text-zinc-400 mt-1">
+                  Soma mensal dos contratos ativos
+                </p>
+              </div>
+
+              <div className="border-t border-sky-500/15 pt-2.5 flex items-center justify-between text-xs text-zinc-400">
+                <span>Saldo Futuro:</span>
+                <span className="text-white font-semibold tabular-figure">
+                  {money(portfolioMonthlyEstimate.totalRemainingReceivables)}
+                </span>
+              </div>
+            </div>
           </div>
 
           {/* ========================================================================= */}
@@ -812,17 +795,17 @@ export function MonthlyInstallmentsReport({
                       return null;
                     }}
                   />
-                  <Bar dataKey="previsto" fill="#FFD700" radius={[4, 4, 0, 0]} maxBarSize={28}>
+                  <Bar dataKey="previsto" fill="#f3ba2f" radius={[4, 4, 0, 0]} maxBarSize={28}>
                     {projectionTimeline.map((entry, index) => (
-                      <Cell 
-                        key={`cell-${index}`} 
-                        fill={entry.key === selectedMonth ? '#FFD700' : '#78620e'} 
+                      <Cell
+                        key={`cell-${index}`}
+                        fill={entry.key === selectedMonth ? '#f3ba2f' : '#574618'}
                         stroke={entry.key === selectedMonth ? '#FFFFFF' : 'none'}
-                        strokeWidth={entry.key === selectedMonth ? 2 : 0}
+                        strokeWidth={entry.key === selectedMonth ? 1.5 : 0}
                       />
                     ))}
                   </Bar>
-                  <Bar dataKey="recebido" fill="#22C55E" radius={[4, 4, 0, 0]} maxBarSize={28} />
+                  <Bar dataKey="recebido" fill="#10b981" radius={[4, 4, 0, 0]} maxBarSize={28} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -854,62 +837,72 @@ export function MonthlyInstallmentsReport({
             </div>
           </div>
 
-          {/* ========================================================================= */}
-          {/* 5. TABELA DETALHADA DE PARCELAS DO MÊS SELECIONADO                        */}
-          {/* ========================================================================= */}
-          <div className="glass-card border border-line-strong overflow-hidden bg-black/40 backdrop-blur-md rounded-2xl">
-            {/* Cabeçalho da Tabela & Filtros */}
-            <div className="p-4 sm:p-6 border-b border-line-strong flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+          {/* 5. LISTA & TABELA DETALHADA DE PARCELAS DO MÊS */}
+          <div className="glass-card overflow-hidden">
+            <div className="p-4 sm:p-6 border-b border-white/[0.08] flex flex-col xl:flex-row xl:items-center justify-between gap-4">
               <div>
-                <div className="flex items-center gap-2">
-                  <h3 className="text-base sm:text-lg font-black uppercase text-white">
+                <div className="flex items-center gap-2.5 flex-wrap">
+                  <h3 className="text-base sm:text-lg font-bold text-white">
                     Parcelas de {MONTH_NAMES[selectedMonthIndex]} {selectedYear}
                   </h3>
-                  <span className="px-2.5 py-0.5 rounded-full bg-gold/10 text-gold text-[10px] font-black uppercase border border-gold/30">
-                    {filteredMonthInstallments.length} no total
+                  <span className="px-2.5 py-0.5 rounded-md bg-gold/10 text-gold text-xs font-semibold border border-gold/25 tabular-figure">
+                    {filteredMonthInstallments.length}
                   </span>
                 </div>
-                <p className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider mt-0.5">
-                  Lista completa de recebimentos previstos, baixas e cobranças
+                <p className="text-xs text-zinc-400 mt-0.5">
+                  Recebimentos previstos, baixas e cobranças via WhatsApp
                 </p>
               </div>
 
-              <div className="flex flex-wrap items-center gap-2.5">
-                {/* Campo de Busca */}
-                <div className="relative group min-w-[220px]">
-                  <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-500 group-focus-within:text-gold transition-colors" size={14} />
+              <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-2.5">
+                <div className="relative group min-w-[200px]">
+                  <Search
+                    className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-500 group-focus-within:text-gold transition-colors"
+                    size={15}
+                  />
                   <input
                     type="search"
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                     placeholder="Buscar cliente ou produto..."
-                    className="h-10 w-full bg-black border border-line-strong rounded-xl pl-9 pr-3 text-xs font-bold text-white outline-none focus:border-gold transition-all"
+                    className="h-10 w-full bg-[#07090e] border border-white/[0.1] rounded-xl pl-9 pr-3 text-xs text-white outline-none focus:border-gold transition-colors"
                   />
                 </div>
 
-                {/* Filtros por Status */}
-                <div className="flex items-center bg-zinc-900 p-1 rounded-xl border border-zinc-800 text-[10px] font-black uppercase">
+                <div className="flex items-center bg-[#07090e] p-1 rounded-xl border border-white/[0.08] overflow-x-auto no-scrollbar">
                   <button
+                    type="button"
                     onClick={() => setStatusFilter('all')}
-                    className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${statusFilter === 'all' ? 'bg-gold text-black shadow-sm' : 'text-gray-400 hover:text-white'}`}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${
+                      statusFilter === 'all' ? 'bg-gold text-[#07090e]' : 'text-zinc-400 hover:text-white'
+                    }`}
                   >
                     Todas ({monthStats.countTotal})
                   </button>
                   <button
+                    type="button"
                     onClick={() => setStatusFilter('pending')}
-                    className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${statusFilter === 'pending' ? 'bg-amber-500 text-black shadow-sm' : 'text-gray-400 hover:text-white'}`}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${
+                      statusFilter === 'pending' ? 'bg-amber-500 text-[#07090e]' : 'text-zinc-400 hover:text-white'
+                    }`}
                   >
                     A Vencer ({monthStats.countPending})
                   </button>
                   <button
+                    type="button"
                     onClick={() => setStatusFilter('paid')}
-                    className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${statusFilter === 'paid' ? 'bg-green-500 text-black shadow-sm' : 'text-gray-400 hover:text-white'}`}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${
+                      statusFilter === 'paid' ? 'bg-emerald-500 text-[#07090e]' : 'text-zinc-400 hover:text-white'
+                    }`}
                   >
                     Pagas ({monthStats.countPaid})
                   </button>
                   <button
+                    type="button"
                     onClick={() => setStatusFilter('overdue')}
-                    className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${statusFilter === 'overdue' ? 'bg-red-500 text-white shadow-sm' : 'text-gray-400 hover:text-white'}`}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${
+                      statusFilter === 'overdue' ? 'bg-red-500 text-white' : 'text-zinc-400 hover:text-white'
+                    }`}
                   >
                     Atrasadas ({monthStats.countOverdue})
                   </button>
@@ -917,163 +910,260 @@ export function MonthlyInstallmentsReport({
               </div>
             </div>
 
-            {/* Conteúdo da Tabela */}
             {filteredMonthInstallments.length === 0 ? (
-              <div className="p-16 text-center flex flex-col items-center justify-center">
-                <Calendar size={44} className="text-zinc-700 mb-3" />
-                <p className="text-gray-400 uppercase font-black text-xs tracking-widest">
+              <div className="p-12 text-center flex flex-col items-center justify-center">
+                <Calendar size={36} className="text-zinc-600 mb-3" />
+                <p className="text-zinc-400 font-medium text-xs">
                   Nenhuma parcela encontrada para os filtros selecionados neste mês.
                 </p>
                 <button
-                  onClick={() => { setStatusFilter('all'); setSearchTerm(''); }}
-                  className="mt-3 text-xs text-gold font-bold uppercase hover:underline cursor-pointer"
+                  type="button"
+                  onClick={() => {
+                    setStatusFilter('all');
+                    setSearchTerm('');
+                  }}
+                  className="mt-3 text-xs text-gold font-semibold hover:underline cursor-pointer"
                 >
-                  Limpar Filtros de Busca
+                  Limpar filtros
                 </button>
               </div>
             ) : (
-              <div className="overflow-x-auto custom-scrollbar">
-                <table className="w-full text-left min-w-[780px]">
-                  <thead>
-                    <tr className="border-b border-line-strong text-[10px] uppercase text-zinc-400 font-black bg-white/[0.02] h-12">
-                      <th className="p-4 pl-6">Cliente</th>
-                      <th className="p-4">Produto</th>
-                      <th className="p-4 text-center">Nº Parcela</th>
-                      <th className="p-4 text-center">Data Vencimento</th>
-                      <th className="p-4 text-center">Valor da Parcela</th>
-                      <th className="p-4 text-center">Status</th>
-                      <th className="p-4 text-right pr-6">Ações Rápidas</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-zinc-900">
-                    {filteredMonthInstallments.map((inst) => {
-                      const today = new Date();
-                      today.setHours(0, 0, 0, 0);
+              <>
+                {/* Mobile Cards View */}
+                <div className="md:hidden divide-y divide-white/[0.06]">
+                  {filteredMonthInstallments.map((inst) => {
+                    const today = new Date();
+                    today.setHours(0, 0, 0, 0);
+                    const parsed = parseDateSafe(inst.dueDate);
+                    let isOverdue = false;
+                    let isDueToday = false;
+                    let diffDays = 0;
 
-                      const parsed = parseDateSafe(inst.dueDate);
-                      let isOverdue = false;
-                      let isDueToday = false;
-                      let diffDays = 0;
-
-                      if (parsed) {
-                        const due = new Date(parsed.year, parsed.month - 1, parsed.day);
-                        due.setHours(0, 0, 0, 0);
-                        isOverdue = inst.status !== 'Pago' && due < today;
-                        isDueToday = inst.status !== 'Pago' && due.getTime() === today.getTime();
-                        if (isOverdue) {
-                          diffDays = Math.ceil((today.getTime() - due.getTime()) / (1000 * 60 * 60 * 24));
-                        }
+                    if (parsed) {
+                      const due = new Date(parsed.year, parsed.month - 1, parsed.day);
+                      due.setHours(0, 0, 0, 0);
+                      isOverdue = inst.status !== 'Pago' && due < today;
+                      isDueToday = inst.status !== 'Pago' && due.getTime() === today.getTime();
+                      if (isOverdue) {
+                        diffDays = Math.ceil((today.getTime() - due.getTime()) / (1000 * 60 * 60 * 24));
                       }
+                    }
 
-                      const isPaid = inst.status === 'Pago';
+                    const isPaid = inst.status === 'Pago';
 
-                      return (
-                        <tr key={inst.id} className="hover:bg-white/[0.02] transition-colors h-16">
-                          
-                          {/* Nome do Cliente */}
-                          <td className="p-4 pl-6">
-                            <div className="flex items-center gap-3">
-                              <div className="w-8 h-8 rounded-lg bg-gold/10 border border-gold/30 text-gold font-black text-xs flex items-center justify-center shrink-0">
-                                {inst.client ? inst.client.charAt(0).toUpperCase() : 'C'}
-                              </div>
-                              <span className="uppercase text-white font-bold tracking-wide text-xs">
-                                {inst.client}
+                    return (
+                      <div key={inst.id} className="p-4 flex flex-col gap-3">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <div className="w-9 h-9 rounded-lg bg-gold/10 border border-gold/25 text-gold font-bold text-xs flex items-center justify-center shrink-0">
+                              {inst.client ? inst.client.charAt(0).toUpperCase() : 'C'}
+                            </div>
+                            <div className="min-w-0">
+                              <span className="text-sm font-semibold text-white block truncate">{inst.client}</span>
+                              <span className="text-xs text-zinc-400 block truncate">
+                                {inst.productName || 'Produto Registrado'} · {inst.number}/{inst.total}
                               </span>
                             </div>
-                          </td>
+                          </div>
 
-                          {/* Nome do Produto */}
-                          <td className="p-4">
-                            <span className="text-xs text-zinc-300 font-medium">
-                              {inst.productName || 'Produto Registrado'}
-                            </span>
-                          </td>
-
-                          {/* Número da Parcela */}
-                          <td className="p-4 text-xs text-zinc-300 font-black text-center">
-                            <span className="px-2 py-1 rounded bg-zinc-900 border border-zinc-700">
-                              {String(inst.number).padStart(2, '0')} / {String(inst.total).padStart(2, '0')}
-                            </span>
-                          </td>
-
-                          {/* Data de Vencimento */}
-                          <td className="p-4 text-xs text-zinc-300 font-bold text-center">
-                            {formatDateBR(inst.dueDate)}
-                          </td>
-
-                          {/* Valor da Parcela */}
-                          <td className="p-4 text-center font-black text-sm">
-                            <span className={isPaid ? 'text-green-neon' : 'text-gold'}>
+                          <div className="text-right shrink-0">
+                            <strong
+                              className={`text-sm font-bold tabular-figure block ${
+                                isPaid ? 'text-emerald-400' : 'text-gold'
+                              }`}
+                            >
                               {money(Number(inst.value) || 0)}
-                            </span>
-                          </td>
+                            </strong>
+                            <span className="text-[11px] text-zinc-400 tabular-figure">{formatDateBR(inst.dueDate)}</span>
+                          </div>
+                        </div>
 
-                          {/* Status Badge */}
-                          <td className="p-4 text-center">
-                            {isPaid && (
-                              <span className="px-2.5 py-1 rounded-md bg-green-500/10 text-green-neon border border-green-500/30 text-[10px] font-black uppercase tracking-wider inline-flex items-center gap-1">
+                        <div className="flex items-center justify-between gap-2 pt-1">
+                          <div>
+                            {isPaid ? (
+                              <span className="px-2.5 py-1 rounded-md bg-emerald-500/10 text-emerald-400 border border-emerald-500/25 text-[11px] font-semibold inline-flex items-center gap-1">
                                 <Check size={11} /> Pago
                               </span>
-                            )}
-                            {!isPaid && isDueToday && (
-                              <span className="px-2.5 py-1 rounded-md bg-gold/20 text-gold border border-gold/40 text-[10px] font-black uppercase tracking-wider animate-pulse inline-flex items-center gap-1">
+                            ) : isDueToday ? (
+                              <span className="px-2.5 py-1 rounded-md bg-gold/15 text-gold border border-gold/30 text-[11px] font-semibold inline-flex items-center gap-1">
                                 <Clock size={11} /> Vence Hoje
                               </span>
-                            )}
-                            {!isPaid && isOverdue && (
-                              <span className="px-2.5 py-1 rounded-md bg-red-500/10 text-red-400 border border-red-500/30 text-[10px] font-black uppercase tracking-wider inline-flex items-center gap-1">
-                                <AlertTriangle size={11} /> {diffDays}d em atraso
+                            ) : isOverdue ? (
+                              <span className="px-2.5 py-1 rounded-md bg-red-500/10 text-red-400 border border-red-500/25 text-[11px] font-semibold inline-flex items-center gap-1">
+                                <AlertTriangle size={11} /> {diffDays}d atraso
                               </span>
-                            )}
-                            {!isPaid && !isDueToday && !isOverdue && (
-                              <span className="px-2.5 py-1 rounded-md bg-amber-500/10 text-amber-300 border border-amber-500/30 text-[10px] font-black uppercase tracking-wider">
+                            ) : (
+                              <span className="px-2.5 py-1 rounded-md bg-amber-500/10 text-amber-300 border border-amber-500/25 text-[11px] font-semibold">
                                 A Vencer
                               </span>
                             )}
-                          </td>
+                          </div>
 
-                          {/* Ações Comerciais */}
-                          <td className="p-4 pr-6 text-right">
-                            <div className="flex items-center justify-end gap-2">
-                              {!isPaid && (
-                                <>
-                                  <button
-                                    onClick={() => sendWhatsAppReminder(inst)}
-                                    className="h-8 px-3 rounded-lg bg-[#25D366]/10 hover:bg-[#25D366]/20 border border-[#25D366]/30 text-[#25D366] text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer"
-                                    title="Cobrar via WhatsApp"
-                                  >
-                                    <MessageCircle size={13} />
-                                    <span>Cobrar</span>
-                                  </button>
-                                  <button
-                                    onClick={() => onPayInstallment(inst)}
-                                    className="h-8 px-3.5 rounded-lg bg-gold hover:bg-gold/90 text-black text-[10px] font-black uppercase tracking-wider transition-all shadow-md cursor-pointer active:scale-95"
-                                    title="Registrar Pagamento / Baixa"
-                                  >
-                                    Dar Baixa
-                                  </button>
-                                </>
-                              )}
-
-                              {isPaid && (
+                          <div className="flex items-center gap-2">
+                            {!isPaid ? (
+                              <>
                                 <button
-                                  onClick={() => onViewReceipt(inst)}
-                                  className="h-8 px-3 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-zinc-300 text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer"
-                                  title="Ver Comprovante de Pagamento"
+                                  type="button"
+                                  onClick={() => sendWhatsAppReminder(inst)}
+                                  className="h-9 px-3 rounded-lg bg-[#25D366]/15 border border-[#25D366]/30 text-[#25D366] text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
                                 >
-                                  <Receipt size={13} className="text-gold" />
-                                  <span>Recibo</span>
+                                  <MessageCircle size={13} />
+                                  <span>Cobrar</span>
                                 </button>
-                              )}
-                            </div>
-                          </td>
+                                <button
+                                  type="button"
+                                  onClick={() => onPayInstallment(inst)}
+                                  className="h-9 px-3.5 rounded-lg bg-gold text-[#07090e] text-xs font-bold cursor-pointer"
+                                >
+                                  Dar Baixa
+                                </button>
+                              </>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => onViewReceipt(inst)}
+                                className="h-9 px-3 rounded-lg bg-white/[0.05] border border-white/[0.1] text-zinc-200 text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
+                              >
+                                <Receipt size={13} className="text-gold" />
+                                <span>Recibo</span>
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
 
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
+                {/* Desktop Table View */}
+                <div className="hidden md:block overflow-x-auto custom-scrollbar">
+                  <table className="w-full text-left min-w-[760px]">
+                    <thead>
+                      <tr className="border-b border-white/[0.08] text-xs text-zinc-400 font-semibold bg-white/[0.02] h-12">
+                        <th className="p-4 pl-6">Cliente</th>
+                        <th className="p-4">Produto</th>
+                        <th className="p-4 text-center">Parcela</th>
+                        <th className="p-4 text-center">Vencimento</th>
+                        <th className="p-4 text-center">Valor</th>
+                        <th className="p-4 text-center">Status</th>
+                        <th className="p-4 text-right pr-6">Ações</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-white/[0.05]">
+                      {filteredMonthInstallments.map((inst) => {
+                        const today = new Date();
+                        today.setHours(0, 0, 0, 0);
+
+                        const parsed = parseDateSafe(inst.dueDate);
+                        let isOverdue = false;
+                        let isDueToday = false;
+                        let diffDays = 0;
+
+                        if (parsed) {
+                          const due = new Date(parsed.year, parsed.month - 1, parsed.day);
+                          due.setHours(0, 0, 0, 0);
+                          isOverdue = inst.status !== 'Pago' && due < today;
+                          isDueToday = inst.status !== 'Pago' && due.getTime() === today.getTime();
+                          if (isOverdue) {
+                            diffDays = Math.ceil((today.getTime() - due.getTime()) / (1000 * 60 * 60 * 24));
+                          }
+                        }
+
+                        const isPaid = inst.status === 'Pago';
+
+                        return (
+                          <tr key={inst.id} className="hover:bg-white/[0.02] transition-colors h-16">
+                            <td className="p-4 pl-6">
+                              <div className="flex items-center gap-3">
+                                <div className="w-8 h-8 rounded-lg bg-gold/10 border border-gold/25 text-gold font-bold text-xs flex items-center justify-center shrink-0">
+                                  {inst.client ? inst.client.charAt(0).toUpperCase() : 'C'}
+                                </div>
+                                <span className="text-white font-semibold text-xs">{inst.client}</span>
+                              </div>
+                            </td>
+
+                            <td className="p-4">
+                              <span className="text-xs text-zinc-300">{inst.productName || 'Produto Registrado'}</span>
+                            </td>
+
+                            <td className="p-4 text-xs text-zinc-300 font-semibold text-center tabular-figure">
+                              <span className="px-2 py-1 rounded bg-[#07090e] border border-white/[0.08]">
+                                {String(inst.number).padStart(2, '0')}/{String(inst.total).padStart(2, '0')}
+                              </span>
+                            </td>
+
+                            <td className="p-4 text-xs text-zinc-300 font-medium text-center tabular-figure">
+                              {formatDateBR(inst.dueDate)}
+                            </td>
+
+                            <td className="p-4 text-center font-bold text-sm tabular-figure">
+                              <span className={isPaid ? 'text-emerald-400' : 'text-gold'}>
+                                {money(Number(inst.value) || 0)}
+                              </span>
+                            </td>
+
+                            <td className="p-4 text-center">
+                              {isPaid && (
+                                <span className="px-2.5 py-1 rounded-md bg-emerald-500/10 text-emerald-400 border border-emerald-500/25 text-[11px] font-semibold inline-flex items-center gap-1">
+                                  <Check size={11} /> Pago
+                                </span>
+                              )}
+                              {!isPaid && isDueToday && (
+                                <span className="px-2.5 py-1 rounded-md bg-gold/15 text-gold border border-gold/30 text-[11px] font-semibold inline-flex items-center gap-1">
+                                  <Clock size={11} /> Vence Hoje
+                                </span>
+                              )}
+                              {!isPaid && isOverdue && (
+                                <span className="px-2.5 py-1 rounded-md bg-red-500/10 text-red-400 border border-red-500/25 text-[11px] font-semibold inline-flex items-center gap-1">
+                                  <AlertTriangle size={11} /> {diffDays}d atraso
+                                </span>
+                              )}
+                              {!isPaid && !isDueToday && !isOverdue && (
+                                <span className="px-2.5 py-1 rounded-md bg-amber-500/10 text-amber-300 border border-amber-500/25 text-[11px] font-semibold">
+                                  A Vencer
+                                </span>
+                              )}
+                            </td>
+
+                            <td className="p-4 pr-6 text-right">
+                              <div className="flex items-center justify-end gap-2">
+                                {!isPaid ? (
+                                  <>
+                                    <button
+                                      type="button"
+                                      onClick={() => sendWhatsAppReminder(inst)}
+                                      className="h-8 px-3 rounded-lg bg-[#25D366]/10 hover:bg-[#25D366]/20 border border-[#25D366]/30 text-[#25D366] text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer"
+                                    >
+                                      <MessageCircle size={13} />
+                                      <span>Cobrar</span>
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => onPayInstallment(inst)}
+                                      className="h-8 px-3.5 rounded-lg bg-gold hover:brightness-110 text-[#07090e] text-xs font-bold transition-all cursor-pointer"
+                                    >
+                                      Dar Baixa
+                                    </button>
+                                  </>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    onClick={() => onViewReceipt(inst)}
+                                    className="h-8 px-3 rounded-lg bg-white/[0.05] hover:bg-white/[0.1] border border-white/[0.1] text-zinc-200 text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer"
+                                  >
+                                    <Receipt size={13} className="text-gold" />
+                                    <span>Recibo</span>
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </>
             )}
           </div>
 
@@ -1085,186 +1175,245 @@ export function MonthlyInstallmentsReport({
       {/* ========================================================================= */}
       {activeTab === 'closings' && (
         <div className="flex flex-col gap-6">
-          {/* Card de Ação para Fechar Caixa (Configuração Nexus Private) */}
-          <div className="glass-card p-6 border border-amber-500/30 bg-amber-500/[0.03] rounded-2xl flex flex-col gap-6">
+          <div className="glass-card p-5 sm:p-6 border-amber-500/25 bg-amber-500/[0.03] flex flex-col gap-5">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-              <div className="flex flex-col gap-1.5">
-                <div className="flex items-center gap-2">
-                  <span className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse shadow-[0_0_8px_#f59e0b]" />
-                  <h3 className="text-base sm:text-lg font-black text-amber-200 uppercase tracking-wider">
-                    Consolidar e Fechar Caixa Mensal
-                  </h3>
-                  <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
-                    Padrão Nexus Private
-                  </span>
-                </div>
-                <p className="text-xs text-amber-100/80 max-w-2xl leading-relaxed">
-                  Ao consolidar o fechamento de caixa, o faturamento realizado no ciclo (<strong className="text-gold">{money(cycleRealizedFaturamento)}</strong>) será arquivado para registro contábil e o <strong className="text-white">faturamento do mês no Dashboard será ZERADO</strong> para a abertura de um novo ciclo comercial.
+              <div className="flex flex-col gap-1">
+                <h3 className="text-base sm:text-lg font-bold text-amber-200">
+                  Consolidar e Fechar Caixa Mensal
+                </h3>
+                <p className="text-xs text-zinc-300 max-w-2xl leading-relaxed">
+                  Ao consolidar o fechamento, o faturamento realizado no ciclo (
+                  <strong className="text-gold tabular-figure">{money(cycleRealizedFaturamento)}</strong>) será
+                  arquivado e o <strong className="text-white">faturamento do mês no Painel será zerado</strong> para
+                  início do novo ciclo.
                 </p>
               </div>
 
-              {/* Status do Ciclo */}
-              <div className="px-3.5 py-2 rounded-xl bg-black/60 border border-amber-500/20 text-right shrink-0">
-                <span className="text-[9px] font-bold text-zinc-400 uppercase tracking-widest block">Status do Caixa</span>
-                <span className="text-xs font-black text-amber-300 uppercase block mt-0.5">
-                  {lastClosingDate ? `Último Fechamento: ${new Date(lastClosingDate).toLocaleDateString('pt-BR')}` : 'Ciclo Inicial Aberto'}
+              <div className="px-3.5 py-2 rounded-xl bg-[#07090e] border border-amber-500/25 shrink-0">
+                <span className="text-[11px] text-zinc-400 block">Status do Caixa</span>
+                <span className="text-xs font-semibold text-amber-300 block mt-0.5">
+                  {lastClosingDate
+                    ? `Último Fechamento: ${new Date(lastClosingDate).toLocaleDateString('pt-BR')}`
+                    : 'Ciclo Inicial Aberto'}
                 </span>
               </div>
             </div>
 
-            {/* Painel com Métricas do Ciclo Atual */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 border-t border-amber-500/20">
-              <div className="p-3.5 rounded-xl bg-black/50 border border-white/5 flex flex-col justify-between">
-                <span className="text-[9px] uppercase font-bold text-zinc-400 tracking-wider">Faturamento do Ciclo Aberto</span>
-                <strong className="text-xl sm:text-2xl font-black text-gold mt-1 block">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 border-t border-white/[0.08]">
+              <div className="p-4 rounded-xl bg-[#07090e]/70 border border-white/[0.07]">
+                <span className="text-xs text-zinc-400 block">Faturamento do Ciclo Aberto</span>
+                <strong className="text-xl font-bold text-gold mt-1 block tabular-figure">
                   {money(cycleRealizedFaturamento)}
                 </strong>
-                <span className="text-[9px] text-zinc-400 mt-1 block">
-                  Entradas: {money(cycleDownPayments)} | Parcelas: {money(cyclePaidInstallments)}
-                </span>
-                <span className="text-[8px] font-black text-amber-400 uppercase tracking-widest mt-1">
-                  ↓ Será zerado no Dashboard ao fechar
+                <span className="text-[11px] text-zinc-400 mt-1 block tabular-figure">
+                  Entradas: {money(cycleDownPayments)} · Parcelas: {money(cyclePaidInstallments)}
                 </span>
               </div>
 
-              <div className="p-3.5 rounded-xl bg-black/50 border border-white/5 flex flex-col justify-between">
-                <span className="text-[9px] uppercase font-bold text-zinc-400 tracking-wider">Novos Contratos no Ciclo</span>
-                <strong className="text-xl sm:text-2xl font-black text-white mt-1 block">
+              <div className="p-4 rounded-xl bg-[#07090e]/70 border border-white/[0.07]">
+                <span className="text-xs text-zinc-400 block">Novos Contratos no Ciclo</span>
+                <strong className="text-xl font-bold text-white mt-1 block tabular-figure">
                   {cycleSalesCount} {cycleSalesCount === 1 ? 'venda' : 'vendas'}
                 </strong>
-                <span className="text-[9px] text-zinc-400 mt-1 block">
-                  Capital Movimentado: {money(cycleSalesVolume)}
-                </span>
-                <span className="text-[8px] font-black text-blue-400 uppercase tracking-widest mt-1">
-                  Ativas aguardando consolidação
+                <span className="text-[11px] text-zinc-400 mt-1 block tabular-figure">
+                  Volume: {money(cycleSalesVolume)}
                 </span>
               </div>
 
-              <div className="p-3.5 rounded-xl bg-black/50 border border-white/5 flex flex-col justify-between">
-                <span className="text-[9px] uppercase font-bold text-zinc-400 tracking-wider">Carteira Ativa Geral</span>
-                <strong className="text-xl sm:text-2xl font-black text-zinc-200 mt-1 block">
-                  {money(portfolioMonthlyEstimate.monthlySum)} <span className="text-xs text-zinc-500 font-normal">/mês</span>
+              <div className="p-4 rounded-xl bg-[#07090e]/70 border border-white/[0.07]">
+                <span className="text-xs text-zinc-400 block">Carteira Ativa Geral</span>
+                <strong className="text-xl font-bold text-zinc-100 mt-1 block tabular-figure">
+                  {money(portfolioMonthlyEstimate.monthlySum)}
+                  <span className="text-xs text-zinc-400 font-normal">/mês</span>
                 </strong>
-                <span className="text-[9px] text-zinc-400 mt-1 block">
-                  {portfolioMonthlyEstimate.activeContractsCount} contratos ativos no sistema
-                </span>
-                <span className="text-[8px] font-black text-green-neon uppercase tracking-widest mt-1">
-                  Base recorrente contínua
+                <span className="text-[11px] text-zinc-400 mt-1 block">
+                  {portfolioMonthlyEstimate.activeContractsCount} contratos ativos
                 </span>
               </div>
             </div>
 
-            {/* Ação de Fechamento */}
-            <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between pt-2 border-t border-amber-500/20">
-              <div className="flex items-center gap-2">
-                <span className="text-[10px] uppercase font-bold text-zinc-400 tracking-wider shrink-0">Etiqueta do Ciclo:</span>
-                <input 
+            <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between pt-2 border-t border-white/[0.08]">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                <span className="text-xs font-medium text-zinc-300 shrink-0">Etiqueta do Ciclo:</span>
+                <input
                   type="text"
                   placeholder="Ex: Maio de 2026"
                   defaultValue={`${MONTH_NAMES[selectedMonthIndex]} de ${selectedYear}`}
                   id="closingPeriodInput"
-                  className="h-11 px-4 bg-black/80 border border-zinc-700 rounded-xl outline-none text-xs font-bold text-white focus:border-gold min-w-[200px]"
+                  className="h-10 px-3.5 bg-[#07090e] border border-white/[0.1] rounded-xl outline-none text-xs font-medium text-white focus:border-gold min-w-[200px]"
                 />
               </div>
 
               <button
+                type="button"
                 onClick={() => {
                   const inputEl = document.getElementById('closingPeriodInput') as HTMLInputElement;
-                  const periodVal = inputEl?.value?.trim() || `${MONTH_NAMES[selectedMonthIndex]} de ${selectedYear}`;
+                  const periodVal =
+                    inputEl?.value?.trim() || `${MONTH_NAMES[selectedMonthIndex]} de ${selectedYear}`;
 
-                  const confirmMsg = `Confirma o Fechamento de Caixa para "${periodVal}"?\n\n` +
-                    `• Faturamento a Consolidar: ${money(cycleRealizedFaturamento)}\n` +
-                    `• Novos Contratos: ${cycleSalesCount} (${money(cycleSalesVolume)})\n\n` +
-                    `Configuração Nexus Private: O faturamento do mês no Dashboard será ZERADO imediatamente para o início do novo ciclo contábil.`;
-
-                  if (confirm(confirmMsg)) {
-                    onCloseRegister(periodVal, cycleRealizedFaturamento, cycleSalesVolume, cycleSalesCount);
-                    if (inputEl) inputEl.value = '';
-                    showToast('Fechamento de caixa concluído com sucesso! O faturamento do mês no Dashboard foi zerado.', 'success');
-                  }
+                  setConfirmDialog({
+                    title: `Fechar Caixa — ${periodVal}`,
+                    message: `Faturamento a consolidar: ${money(cycleRealizedFaturamento)} (${cycleSalesCount} contratos). O faturamento mensal no Painel será zerado para o novo ciclo.`,
+                    onConfirm: () => {
+                      onCloseRegister(periodVal, cycleRealizedFaturamento, cycleSalesVolume, cycleSalesCount);
+                      if (inputEl) inputEl.value = '';
+                      showToast(
+                        'Fechamento de caixa concluído! O faturamento do mês no Painel foi zerado.',
+                        'success'
+                      );
+                    },
+                  });
                 }}
-                className="h-11 px-6 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-black uppercase text-xs tracking-wider rounded-xl transition-all shadow-lg shadow-amber-500/20 active:scale-95 cursor-pointer flex items-center justify-center gap-2"
+                className="h-10 px-5 bg-gold hover:brightness-110 text-[#07090e] font-bold text-xs rounded-xl transition-all cursor-pointer flex items-center justify-center gap-2"
               >
-                <Layers size={16} />
-                <span>Fechar Caixa e Zerar Dashboard</span>
+                <Layers size={15} />
+                <span>Fechar Caixa e Zerar Painel</span>
               </button>
             </div>
           </div>
 
-          {/* Histórico de Fechamentos */}
-          <div className="glass-card border border-line-strong overflow-hidden rounded-2xl">
-            <div className="p-5 border-b border-line-strong flex justify-between items-center">
+          <div className="glass-card overflow-hidden">
+            <div className="p-5 border-b border-white/[0.08] flex justify-between items-center">
               <div>
-                <h3 className="text-base font-black uppercase text-white">Histórico de Fechamentos Anteriores</h3>
-                <p className="text-[10px] text-zinc-500 font-bold uppercase mt-0.5">Relatórios consolidados de períodos passados</p>
+                <h3 className="text-base font-bold text-white">Histórico de Fechamentos</h3>
+                <p className="text-xs text-zinc-400 mt-0.5">Relatórios consolidados de ciclos anteriores</p>
               </div>
-              <span className="px-3 py-1 rounded-lg bg-zinc-850 text-zinc-300 text-[10px] font-black uppercase">
-                {closings?.length || 0} Arquivados
+              <span className="px-2.5 py-1 rounded-lg bg-white/[0.04] border border-white/[0.08] text-zinc-300 text-xs font-semibold tabular-figure">
+                {closings?.length || 0} arquivados
               </span>
             </div>
 
             {!closings || closings.length === 0 ? (
-              <div className="p-12 text-center text-zinc-500 uppercase font-black text-xs">
+              <div className="p-10 text-center text-zinc-500 text-xs">
                 Nenhum encerramento de caixa arquivado até o momento.
               </div>
             ) : (
-              <div className="overflow-x-auto custom-scrollbar">
-                <table className="w-full text-left min-w-[700px]">
-                  <thead>
-                    <tr className="border-b border-line text-[10px] uppercase text-zinc-400 font-black bg-white/[0.02]">
-                      <th className="p-4 pl-6">Período Consolidado</th>
-                      <th className="p-4 text-center">Data do Fechamento</th>
-                      <th className="p-4 text-center">Novos Contratos</th>
-                      <th className="p-4 text-center">Capital Movimentado</th>
-                      <th className="p-4 text-right pr-6 text-green-neon">Faturamento Consolidado</th>
-                      {onDeleteClosing && (
-                        <th className="p-4 text-center w-24">Ações</th>
-                      )}
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-zinc-900">
-                    {closings
-                      .sort((a, b) => b.closedAt.localeCompare(a.closedAt))
-                      .map((c) => (
-                        <tr key={c.id} className="hover:bg-white/[0.01] transition-colors h-14">
-                          <td className="p-4 pl-6 font-black text-sm text-white uppercase">
-                            📁 {c.periodName}
-                          </td>
-                          <td className="p-4 text-xs text-zinc-400 font-bold text-center">
-                            {new Date(c.closedAt).toLocaleString('pt-BR')}
-                          </td>
-                          <td className="p-4 text-xs text-zinc-300 font-bold text-center">
-                            {c.salesCount} contrato(s)
-                          </td>
-                          <td className="p-4 text-xs text-zinc-200 font-bold text-center">
-                            {money(c.totalSales || 0)}
-                          </td>
-                          <td className="p-4 text-sm font-black text-green-neon text-right pr-6">
+              <>
+                <div className="md:hidden divide-y divide-white/[0.06]">
+                  {[...closings]
+                    .sort((a, b) => b.closedAt.localeCompare(a.closedAt))
+                    .map((c) => (
+                      <div key={c.id} className="p-4 flex flex-col gap-2">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="font-semibold text-sm text-white">{c.periodName}</span>
+                          <strong className="text-sm font-bold text-emerald-400 tabular-figure">
                             {money(c.profit || 0)}
-                          </td>
+                          </strong>
+                        </div>
+                        <div className="flex items-center justify-between text-xs text-zinc-400">
+                          <span>{new Date(c.closedAt).toLocaleDateString('pt-BR')} · {c.salesCount} contr.</span>
                           {onDeleteClosing && (
-                            <td className="p-4 text-center">
-                              <button
-                                onClick={() => {
-                                  if (confirm(`Deseja reabrir o caixa de "${c.periodName}"? O faturamento deste período será restabelecido no Dashboard.`)) {
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setConfirmDialog({
+                                  title: `Reabrir Caixa (${c.periodName})`,
+                                  message:
+                                    'O faturamento consolidado deste período será restaurado no Painel Principal. Deseja prosseguir?',
+                                  onConfirm: () => {
                                     onDeleteClosing(c.id);
                                     showToast('Fechamento cancelado! Caixa reaberto.', 'success');
-                                  }
-                                }}
-                                className="px-2.5 py-1 rounded-lg bg-zinc-850 hover:bg-red-500/20 text-zinc-400 hover:text-red-400 border border-zinc-750 hover:border-red-500/40 text-[10px] font-black uppercase tracking-wider transition-all inline-flex items-center gap-1.5 cursor-pointer active:scale-95"
-                                title="Reabrir este caixa e restaurar movimentação no Dashboard"
-                              >
-                                <RotateCcw size={12} />
-                                <span>Reabrir</span>
-                              </button>
-                            </td>
+                                  },
+                                })
+                              }
+                              className="px-2.5 py-1 rounded-lg bg-white/[0.04] border border-white/[0.08] text-zinc-300 hover:text-red-400 text-xs font-medium inline-flex items-center gap-1 cursor-pointer"
+                            >
+                              <RotateCcw size={12} /> Reabrir
+                            </button>
                           )}
-                        </tr>
-                      ))}
-                  </tbody>
-                </table>
-              </div>
+                        </div>
+                      </div>
+                    ))}
+                </div>
+
+                <div className="hidden md:block overflow-x-auto custom-scrollbar">
+                  <table className="w-full text-left min-w-[700px]">
+                    <thead>
+                      <tr className="border-b border-white/[0.08] text-xs text-zinc-400 font-semibold bg-white/[0.02]">
+                        <th className="p-4 pl-6">Período</th>
+                        <th className="p-4 text-center">Fechamento</th>
+                        <th className="p-4 text-center">Contratos</th>
+                        <th className="p-4 text-center">Volume</th>
+                        <th className="p-4 text-right pr-6 text-emerald-400">Faturamento</th>
+                        {onDeleteClosing && <th className="p-4 text-center w-24">Ações</th>}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-white/[0.05]">
+                      {[...closings]
+                        .sort((a, b) => b.closedAt.localeCompare(a.closedAt))
+                        .map((c) => (
+                          <tr key={c.id} className="hover:bg-white/[0.02] transition-colors h-14">
+                            <td className="p-4 pl-6 font-semibold text-sm text-white">{c.periodName}</td>
+                            <td className="p-4 text-xs text-zinc-400 text-center tabular-figure">
+                              {new Date(c.closedAt).toLocaleString('pt-BR')}
+                            </td>
+                            <td className="p-4 text-xs text-zinc-300 text-center tabular-figure">
+                              {c.salesCount} contrato(s)
+                            </td>
+                            <td className="p-4 text-xs text-zinc-200 text-center tabular-figure">
+                              {money(c.totalSales || 0)}
+                            </td>
+                            <td className="p-4 text-sm font-bold text-emerald-400 text-right pr-6 tabular-figure">
+                              {money(c.profit || 0)}
+                            </td>
+                            {onDeleteClosing && (
+                              <td className="p-4 text-center">
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setConfirmDialog({
+                                      title: `Reabrir Caixa (${c.periodName})`,
+                                      message:
+                                        'O faturamento consolidado deste período será restaurado no Painel Principal. Deseja prosseguir?',
+                                      onConfirm: () => {
+                                        onDeleteClosing(c.id);
+                                        showToast('Fechamento cancelado! Caixa reaberto.', 'success');
+                                      },
+                                    })
+                                  }
+                                  className="px-2.5 py-1 rounded-lg bg-white/[0.04] hover:bg-red-500/15 text-zinc-300 hover:text-red-400 border border-white/[0.08] hover:border-red-500/35 text-xs font-medium transition-colors inline-flex items-center gap-1.5 cursor-pointer"
+                                >
+                                  <RotateCcw size={12} />
+                                  <span>Reabrir</span>
+                                </button>
+                              </td>
+                            )}
+                          </tr>
+                        ))}
+                    </tbody>
+                  </table>
+                </div>
+              </>
             )}
+          </div>
+        </div>
+      )}
+
+      {confirmDialog && (
+        <div className="fixed inset-0 z-[310] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/80 backdrop-blur-md" onClick={() => setConfirmDialog(null)} />
+          <div className="relative w-full max-w-sm glass-card p-6 bg-[#0d111a] text-center">
+            <h3 className="text-base font-bold text-white mb-2">{confirmDialog.title}</h3>
+            <p className="text-xs text-zinc-400 mb-5 leading-relaxed">{confirmDialog.message}</p>
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => setConfirmDialog(null)}
+                className="h-10 rounded-xl bg-white/[0.05] border border-white/[0.08] text-xs font-semibold text-zinc-300 cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  confirmDialog.onConfirm();
+                  setConfirmDialog(null);
+                }}
+                className="h-10 rounded-xl bg-gold text-[#07090e] text-xs font-bold cursor-pointer"
+              >
+                Confirmar
+              </button>
+            </div>
           </div>
         </div>
       )}

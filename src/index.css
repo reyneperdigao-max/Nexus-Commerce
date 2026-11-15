@@ -2,11 +2,11 @@
 @import "tailwindcss";
 
 @theme {
-  --color-bg-main: #080a0f;
-  --color-card: #0e121b;
-  --color-card-2: #151a27;
-  --color-gold: #e5b84b;
-  --color-gold-soft: rgba(229, 184, 75, 0.12);
+  --color-bg-main: #07090e;
+  --color-card: #0d111a;
+  --color-card-2: #131824;
+  --color-gold: #f3ba2f;
+  --color-gold-soft: rgba(243, 186, 47, 0.12);
   --color-green-neon: #10b981;
   --color-green-soft: rgba(16, 185, 129, 0.12);
   --color-blue-soft: rgba(59, 130, 246, 0.12);
@@ -24,6 +24,7 @@
   --color-zinc-600: #52525b;
   --color-zinc-700: #3f3f46;
   --color-zinc-800: #27272a;
+  --color-zinc-850: #1f1f23;
   --color-zinc-900: #18181b;
   --color-zinc-950: #09090b;
 
@@ -51,12 +52,17 @@
 }
 
 @layer base {
+  html {
+    overflow-x: clip;
+  }
+
   body {
-    @apply bg-[#080a0f] text-zinc-100 font-sans antialiased selection:bg-gold/25 selection:text-gold;
+    @apply bg-[#07090e] text-zinc-100 font-sans antialiased selection:bg-gold/25 selection:text-gold;
     background-image:
-      radial-gradient(ellipse 80% 45% at 50% -10%, rgba(229, 184, 75, 0.055) 0%, rgba(8, 10, 15, 0) 70%),
-      radial-gradient(ellipse 60% 40% at 85% 15%, rgba(59, 130, 246, 0.03) 0%, rgba(8, 10, 15, 0) 65%);
+      radial-gradient(ellipse 80% 45% at 50% -10%, rgba(243, 186, 47, 0.06) 0%, rgba(7, 9, 14, 0) 70%),
+      radial-gradient(ellipse 55% 40% at 88% 12%, rgba(59, 130, 246, 0.035) 0%, rgba(7, 9, 14, 0) 65%);
     background-attachment: fixed;
+    overflow-x: clip;
     text-rendering: optimizeLegibility;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
@@ -69,7 +75,7 @@
 
   /* Prevent automatic mobile safari/chrome browser zoom during typing */
   @media screen and (max-width: 768px) {
-    input, select, textarea, button select, input[type="text"], input[type="number"] {
+    input, select, textarea {
       font-size: 16px !important;
     }
   }
@@ -79,21 +85,29 @@
   }
 
   button:focus-visible, a:focus-visible {
-    outline: 2px solid rgba(229, 184, 75, 0.55);
+    outline: 2px solid rgba(243, 186, 47, 0.55);
     outline-offset: 2px;
   }
 }
 
 @layer components {
   .glass-card {
-    @apply bg-[#0e121b]/92 backdrop-blur-xl border border-white/[0.08] rounded-2xl overflow-hidden;
+    @apply bg-[#0d111a]/95 backdrop-blur-xl border border-white/[0.08] rounded-2xl overflow-hidden;
     box-shadow:
       inset 0 1px 0 0 rgba(255, 255, 255, 0.045),
-      0 12px 32px -12px rgba(0, 0, 0, 0.65);
+      0 14px 36px -14px rgba(0, 0, 0, 0.7);
+  }
+
+  .fintech-input {
+    @apply h-11 bg-[#07090e]/90 border border-white/[0.1] rounded-xl px-4 text-sm font-medium text-zinc-100 placeholder:text-zinc-500 transition-colors focus:border-gold/70 focus:bg-[#090c13];
+  }
+
+  .fintech-select {
+    @apply h-11 bg-[#07090e]/90 border border-white/[0.1] rounded-xl px-3.5 text-sm font-medium text-zinc-100 transition-colors focus:border-gold/70 cursor-pointer;
   }
 
   .gold-glow {
-    box-shadow: 0 0 28px rgba(229, 184, 75, 0.14);
+    box-shadow: 0 0 28px rgba(243, 186, 47, 0.16);
   }
 
   .pill {
@@ -102,6 +116,10 @@
 
   .tabular-figure {
     font-variant-numeric: tabular-nums;
+  }
+
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
   }
 
   .custom-scrollbar::-webkit-scrollbar {
@@ -123,7 +141,7 @@
 }
 
 .animate-view-enter {
-  animation: view-enter 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation: view-enter 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -109,7 +109,8 @@
         "language": { "type": "string", "maxLength": 16 },
         "theme": { "type": "string", "enum": ["dark", "light"], "maxLength": 16 },
         "whatsappTemplate": { "type": "string", "maxLength": 4000 },
-        "currentOperator": { "type": "string", "maxLength": 32 }
+        "currentOperator": { "type": "string", "maxLength": 32 },
+        "capitalSyncV2": { "type": "boolean" }
       }
     },
     "MigrationStatus": {

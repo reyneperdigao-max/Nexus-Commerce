@@ -64,6 +64,7 @@ function buildDefaultSettings(user: User | null): Settings {
     theme: 'dark',
     whatsappTemplate: DEFAULT_WHATSAPP_TEMPLATE,
     currentOperator: 'operator1',
+    capitalSyncV2: true,
     op1Name: displayName,
     op1Role: isOwner ? 'Diretor Comercial' : 'Administrador',
     op1Function: isOwner ? 'Vendas & Negócios' : 'Gestão Comercial',
@@ -237,6 +238,7 @@ function sanitizeSettingsForFirestore(raw: any): Settings {
     theme: raw?.theme === 'light' ? 'light' : 'dark',
     whatsappTemplate: raw?.whatsappTemplate !== undefined ? String(raw.whatsappTemplate).slice(0, 4000) : undefined,
     currentOperator: raw?.currentOperator === 'operator2' ? 'operator2' : 'operator1',
+    capitalSyncV2: typeof raw?.capitalSyncV2 === 'boolean' ? raw.capitalSyncV2 : undefined,
     op1Name: raw?.op1Name !== undefined ? String(raw.op1Name).slice(0, 200) : undefined,
     op1Role: raw?.op1Role !== undefined ? String(raw.op1Role).slice(0, 120) : undefined,
     op1Function: raw?.op1Function !== undefined ? String(raw.op1Function).slice(0, 120) : undefined,
@@ -553,9 +555,13 @@ export function useNexusState(user: User | null) {
 
       saleMap.forEach((sale, id) => {
         if (!existingUserSaleIds.has(id)) {
+          const cleanMigratedSale =
+            effectiveMigratedSettings.capitalSyncV2 === true
+              ? sale
+              : { ...sale, costPrice: 0, profit: 0 };
           batchOps.push({
             ref: doc(db, 'users', targetUid, 'sales', id),
-            data: sale,
+            data: cleanMigratedSale,
           });
         }
         const saleInsts = (instBySaleId.get(id) || []).sort((a, b) => a.number - b.number);
@@ -699,6 +705,44 @@ export function useNexusState(user: User | null) {
 
     let loadedProducts = false;
     let loadedSales = false;
+    let settingsChecked = false;
+    let settingsHasV2 = false;
+    let latestSalesDocs: Sale[] = [];
+    let latestRawSettings: Partial<Settings> = {};
+    let v2ResetTriggered = false;
+
+    const maybeRunCapitalResetV2 = async () => {
+      if (v2ResetTriggered || !settingsChecked || !loadedSales || settingsHasV2) return;
+      v2ResetTriggered = true;
+      try {
+        const salesNeedingZero = latestSalesDocs.filter(
+          (s) => (Number(s.costPrice) || 0) !== 0 || (Number(s.profit) || 0) !== 0
+        );
+        if (salesNeedingZero.length > 0) {
+          const CHUNK = 350;
+          for (let i = 0; i < salesNeedingZero.length; i += CHUNK) {
+            const batch = writeBatch(db);
+            salesNeedingZero.slice(i, i + CHUNK).forEach((s) => {
+              batch.update(doc(db, 'users', uid, 'sales', s.id), {
+                costPrice: 0,
+                profit: 0,
+              });
+            });
+            await batch.commit();
+          }
+          const zeroedLocal = latestSalesDocs.map((s) => ({ ...s, costPrice: 0, profit: 0 }));
+          setSales(zeroedLocal);
+          saveUserCached(uid, 'sales', zeroedLocal);
+        }
+
+        const nextSettings = mergeSettingsWithDefaults({ ...latestRawSettings, capitalSyncV2: true }, user);
+        await setDoc(doc(db, 'users', uid, 'settings', 'config'), sanitizeSettingsForFirestore(nextSettings));
+        setSettings(nextSettings);
+        saveUserCached(uid, 'settings', nextSettings);
+      } catch (err) {
+        console.warn('Capital V2 baseline reset notice:', err);
+      }
+    };
 
     const checkFinished = () => {
       if (loadedProducts && loadedSales) {
@@ -733,10 +777,12 @@ export function useNexusState(user: User | null) {
       collection(db, 'users', uid, 'sales'),
       (snapshot) => {
         const data = snapshot.docs.map((d) => ({ ...d.data(), id: d.id } as Sale));
+        latestSalesDocs = data;
         setSales(data);
         saveUserCached(uid, 'sales', data);
         loadedSales = true;
         checkFinished();
+        maybeRunCapitalResetV2();
       },
       (err) => {
         console.warn('Snapshot notice [user sales]:', err?.code || err);
@@ -783,10 +829,17 @@ export function useNexusState(user: User | null) {
       (docSnapshot) => {
         if (docSnapshot.exists()) {
           const rawSettings = docSnapshot.data() as Settings;
+          latestRawSettings = rawSettings;
+          settingsHasV2 = rawSettings?.capitalSyncV2 === true;
           const merged = mergeSettingsWithDefaults(rawSettings, user);
           setSettings(merged);
           saveUserCached(uid, 'settings', merged);
+        } else {
+          latestRawSettings = {};
+          settingsHasV2 = false;
         }
+        settingsChecked = true;
+        maybeRunCapitalResetV2();
       },
       (err) => {
         console.warn('Snapshot notice [user settings]:', err?.code || err);
@@ -1006,8 +1059,11 @@ export function useNexusState(user: User | null) {
         installmentValue = data.installments > 0 ? remainingToFinance / data.installments : 0;
       }
 
-      const costForProfit = data.costPrice !== undefined ? data.costPrice : product.cost || 0;
-      const profit = finalTotal - costForProfit;
+      const costForProfit =
+        data.costPrice !== undefined && Number.isFinite(Number(data.costPrice))
+          ? Math.max(0, Number(data.costPrice))
+          : 0;
+      const profit = costForProfit > 0 ? Number((finalTotal - costForProfit).toFixed(2)) : 0;
 
       const defaultSeller =
         settings.userName && settings.userName.toLowerCase() !== 'nexus commerce'
@@ -1518,11 +1574,11 @@ export function useNexusState(user: User | null) {
 
     const costForProfit =
       data.costPrice !== undefined && Number.isFinite(data.costPrice)
-        ? data.costPrice
+        ? Math.max(0, data.costPrice)
         : sale.costPrice !== undefined
-        ? sale.costPrice
-        : product?.cost || 0;
-    const profit = finalTotal - costForProfit;
+          ? Math.max(0, sale.costPrice)
+          : 0;
+    const profit = costForProfit > 0 ? Number((finalTotal - costForProfit).toFixed(2)) : 0;
 
     const defaultSeller =
       settings.userName && settings.userName.toLowerCase() !== 'nexus commerce'
@@ -1932,6 +1988,59 @@ export function useNexusState(user: User | null) {
     }
   };
 
+  const updateSaleCostPrice = async (saleId: string, costPrice: number): Promise<boolean> => {
+    if (!uid) return false;
+    const cleanId = (saleId || '').trim();
+    if (!cleanId) return false;
+
+    const sale = sales.find(
+      (s) => s.id === cleanId || s.id === saleId || String(s.id).trim() === cleanId
+    );
+    if (!sale) return false;
+
+    const safeCost =
+      Number.isFinite(Number(costPrice)) && Number(costPrice) > 0
+        ? Number(Number(costPrice).toFixed(2))
+        : 0;
+
+    let newProfit = 0;
+    if (safeCost > 0) {
+      if (sale.isInterestOnly) {
+        const saleInsts = installments.filter(
+          (i) => i.saleId === cleanId || i.saleId === saleId || String(i.saleId).trim() === cleanId
+        );
+        const interestTotal = saleInsts.reduce((acc, i) => acc + (Number(i.value) || 0), 0);
+        newProfit = Number(((Number(sale.total) || 0) + interestTotal - safeCost).toFixed(2));
+      } else {
+        newProfit = Number(((Number(sale.total) || 0) - safeCost).toFixed(2));
+      }
+    }
+
+    const updatedSales = sales.map((s) =>
+      s.id === cleanId || s.id === saleId || String(s.id).trim() === cleanId
+        ? { ...s, costPrice: safeCost, profit: newProfit }
+        : s
+    );
+    setSales(updatedSales);
+    saveUserCached(uid, 'sales', updatedSales);
+
+    try {
+      await updateDoc(doc(db, 'users', uid, 'sales', cleanId), {
+        costPrice: safeCost,
+        profit: newProfit,
+      });
+      return true;
+    } catch (err: any) {
+      console.error('Erro ao atualizar valor pago no aparelho:', err);
+      if (err?.code !== 'unavailable') {
+        handleFirestoreError(err, OperationType.UPDATE, `users/${uid}/sales/${cleanId}`);
+        return false;
+      }
+      return true;
+    }
+  };
+
+
   return {
     products,
     sales,
@@ -1946,6 +2055,7 @@ export function useNexusState(user: User | null) {
     amortizeSale,
     advanceInstallments,
     updateSaleFull,
+    updateSaleCostPrice,
     updateProduct,
     setInstallments,
     deleteSale,
