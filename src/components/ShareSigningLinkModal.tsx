@@ -103,7 +103,8 @@ export const ShareSigningLinkModal: React.FC<ShareSigningLinkModalProps> = ({
               <span className="text-[10px] text-slate-500 font-bold uppercase block">Comprador</span>
               <strong className="text-sm font-bold text-white uppercase">{sale.client}</strong>
               <span className="text-[10px] text-slate-400 block mt-0.5">
-                {sale.productName} • {money(sale.total)}
+                {sale.productName}
+                {sale.productImei ? ` • IMEI ${sale.productImei}` : ''} • {money(sale.total)}
               </span>
             </div>
 

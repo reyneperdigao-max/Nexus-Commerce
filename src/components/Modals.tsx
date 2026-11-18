@@ -432,7 +432,13 @@ export function AppModals(props: AppModalsProps) {
       {/* Modal: Visualização & Impressão de Contrato */}
       {selectedSaleForContract &&
         (() => {
-          const activeContractSale = sales.find((s) => s.id === selectedSaleForContract.id) || selectedSaleForContract;
+          const baseContractSale = sales.find((s) => s.id === selectedSaleForContract.id) || selectedSaleForContract;
+          const linkedProductImei = (products.find((p) => p.id === baseContractSale.productId)?.imei || '').trim();
+          const resolvedContractImei = (baseContractSale.productImei || linkedProductImei || '').trim();
+          const activeContractSale =
+            baseContractSale.productImei || !resolvedContractImei
+              ? baseContractSale
+              : { ...baseContractSale, productImei: resolvedContractImei };
           const isContractSigned = !!(activeContractSale.isSigned || activeContractSale.signature?.signed);
           const contractSigImg = activeContractSale.signatureImage || activeContractSale.signature?.signatureImage;
           const contractHash = activeContractSale.signature?.signatureHash || activeContractSale.signatureHash;
@@ -672,7 +678,7 @@ export function AppModals(props: AppModalsProps) {
                                 {activeContractSale.clientCpf || 'Registrado em Sistema'}
                               </strong>
                             </div>
-                            <div className="sm:col-span-2">
+                            <div className={resolvedContractImei ? '' : 'sm:col-span-2'}>
                               <span className="text-slate-400 font-bold block text-[8.5px] uppercase tracking-wider">
                                 Produto / Bem Alienado
                               </span>
@@ -680,6 +686,16 @@ export function AppModals(props: AppModalsProps) {
                                 {(activeContractSale.productName || 'Produto Comercial').toUpperCase()}
                               </strong>
                             </div>
+                            {resolvedContractImei && (
+                              <div>
+                                <span className="text-slate-400 font-bold block text-[8.5px] uppercase tracking-wider">
+                                  IMEI do Aparelho
+                                </span>
+                                <strong className="text-slate-900 font-mono tracking-wide">
+                                  {resolvedContractImei}
+                                </strong>
+                              </div>
+                            )}
                             <div>
                               <span className="text-slate-400 font-bold block text-[8.5px] uppercase tracking-wider">
                                 Valor Total da Operação
@@ -744,7 +760,10 @@ export function AppModals(props: AppModalsProps) {
                             <p className="text-justify">
                               O presente contrato tem por objeto a venda com reserva de domínio (nos termos do art. 521 e
                               seguintes do Código Civil) do bem:{' '}
-                              <strong>{(activeContractSale.productName || 'PRODUTO REGISTRADO').toUpperCase()}</strong>,
+                              <strong>
+                                {(activeContractSale.productName || 'PRODUTO REGISTRADO').toUpperCase()}
+                                {resolvedContractImei ? ` (IMEI: ${resolvedContractImei})` : ''}
+                              </strong>,
                               entregue em perfeitas condições de uso, conferido e aceito pelo Comprador. A propriedade
                               resolúvel do bem permanece com o VENDEDOR até a liquidação integral de todas as parcelas
                               pactuadas neste instrumento.

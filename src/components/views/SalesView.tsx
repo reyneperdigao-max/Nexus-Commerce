@@ -1,4 +1,4 @@
-import { Fragment } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 import { motion } from 'motion/react';
 import {
   DollarSign,
@@ -117,6 +117,21 @@ export function SalesView({
   onShareSaleTableWhatsApp,
   onShowToast,
 }: SalesViewProps) {
+  const [saleFormImei, setSaleFormImei] = useState('');
+
+  useEffect(() => {
+    if (!showSaleForm) return;
+    if (saleToEdit) {
+      const linkedImei = products.find((p) => p.id === saleToEdit.productId)?.imei || '';
+      setSaleFormImei(saleToEdit.productImei || linkedImei || '');
+    } else if (saleFormSelectedProductId) {
+      const prod = products.find((p) => p.id === saleFormSelectedProductId);
+      setSaleFormImei(prod?.imei || '');
+    } else {
+      setSaleFormImei('');
+    }
+  }, [showSaleForm, saleToEdit, saleFormSelectedProductId, products]);
+
   const activeCount = sales.filter((s) => {
     const sInsts = installments.filter((i) => i.saleId === s.id);
     return !(sInsts.length > 0 && sInsts.every((i) => i.status === 'Pago'));
@@ -248,6 +263,7 @@ export function SalesView({
               isInterestOnly: isInterestOnlyForm,
               interestRate: parsedInterestRate,
               costPrice: parsedCost,
+              productImei: (f.productImei?.value !== undefined ? f.productImei.value : saleFormImei).trim().slice(0, 64),
             };
 
             if (saleToEdit) {
@@ -296,6 +312,9 @@ export function SalesView({
                   if (prod) {
                     setSaleFormSalePrice(prod.sale);
                     if (prod.cost !== undefined) setSaleFormCostPrice(prod.cost);
+                    setSaleFormImei(prod.imei || '');
+                  } else {
+                    setSaleFormImei('');
                   }
                 }}
                 className="fintech-select"
@@ -324,6 +343,22 @@ export function SalesView({
                 defaultValue={currentSeller}
                 placeholder="Nome do operador / vendedor"
                 className="fintech-input text-gold font-semibold"
+              />
+            </div>
+
+            <div className="flex flex-col gap-1.5 md:col-span-2">
+              <div className="flex items-center justify-between gap-2">
+                <label className="text-xs font-medium text-zinc-400">IMEI do Aparelho (Identificação no Contrato)</label>
+                <span className="text-[11px] text-zinc-500">Preenchido automaticamente do estoque quando cadastrado</span>
+              </div>
+              <input
+                name="productImei"
+                type="text"
+                maxLength={64}
+                value={saleFormImei}
+                onChange={(e) => setSaleFormImei(e.target.value)}
+                placeholder="Ex: 356789012345678 (Opcional)"
+                className="fintech-input font-mono tracking-wide tabular-figure"
               />
             </div>
           </div>

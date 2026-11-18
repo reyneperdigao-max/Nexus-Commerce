@@ -52,6 +52,7 @@ export interface Sale {
   id: string;
   productId: string;
   productName: string;
+  productImei?: string;
   client: string;
   clientPhone: string;
   clientCpf?: string;

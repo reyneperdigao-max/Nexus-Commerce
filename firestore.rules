@@ -98,7 +98,7 @@ service cloud.firestore {
           'installmentsCount', 'installmentValue', 'date', 'status', 'createdAt'
         ])
         && data.keys().hasOnly([
-          'id', 'productId', 'productName', 'client', 'clientPhone', 'clientCpf',
+          'id', 'productId', 'productName', 'productImei', 'client', 'clientPhone', 'clientCpf',
           'clientAddress', 'total', 'downPayment', 'profit', 'installmentsCount',
           'installmentValue', 'date', 'status', 'createdAt', 'isInterestOnly',
           'interestRate', 'costPrice', 'sellerName', 'isSigned', 'signatureImage',
@@ -107,6 +107,7 @@ service cloud.firestore {
         && optStr(data, 'id', 128)
         && data.productId is string && data.productId.size() <= 128
         && data.productName is string && data.productName.size() <= 200
+        && optStr(data, 'productImei', 64)
         && data.client is string && data.client.size() <= 200
         && optStr(data, 'clientPhone', 40)
         && optStr(data, 'clientCpf', 40)
@@ -233,7 +234,7 @@ service cloud.firestore {
           'installmentsCount', 'installmentValue', 'date', 'status', 'createdAt'
         ])
         && data.keys().hasOnly([
-          'saleId', 'ownerUid', 'productName', 'client', 'clientPhone', 'clientCpf',
+          'saleId', 'ownerUid', 'productName', 'productImei', 'client', 'clientPhone', 'clientCpf',
           'clientAddress', 'total', 'downPayment', 'installmentsCount',
           'installmentValue', 'date', 'firstDueDate', 'dueDay', 'status', 'createdAt',
           'isInterestOnly', 'interestRate', 'sellerName', 'companyName',
@@ -244,6 +245,7 @@ service cloud.firestore {
         && isValidId(data.saleId)
         && isValidId(data.ownerUid)
         && data.productName is string && data.productName.size() <= 200
+        && optStr(data, 'productImei', 64)
         && data.client is string && data.client.size() <= 200
         && optStr(data, 'clientPhone', 40)
         && optStr(data, 'clientCpf', 40)

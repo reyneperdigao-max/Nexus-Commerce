@@ -160,13 +160,25 @@ export function createContractPDFDoc(
 
   // Row 3
   y += 7.8;
+  const contractImei = (sale.productImei || '').trim();
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(100, 116, 139);
   doc.text('Produto / Bem:', left + 4, y);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(15, 23, 42);
-  const prod = (sale.productName || 'PRODUTO REGISTRADO').toUpperCase().substring(0, 75);
+  const prod = (sale.productName || 'PRODUTO REGISTRADO')
+    .toUpperCase()
+    .substring(0, contractImei ? 42 : 75);
   doc.text(prod, left + 30, y);
+
+  if (contractImei) {
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(100, 116, 139);
+    doc.text('IMEI:', left + 106, y);
+    doc.setFont('courier', 'bold');
+    doc.setTextColor(15, 23, 42);
+    doc.text(contractImei.substring(0, 32), left + 128, y);
+  }
 
   // Row 4
   y += 7.8;
@@ -212,6 +224,7 @@ export function createContractPDFDoc(
   y = boxTop + boxHeight + 6;
 
   const productUpper = (sale.productName || 'PRODUTO REGISTRADO').toUpperCase();
+  const productWithImei = contractImei ? `${productUpper} (IMEI: ${contractImei})` : productUpper;
 
   const clauses = [
     {
@@ -220,7 +233,7 @@ export function createContractPDFDoc(
     },
     {
       title: 'CLÁUSULA 2ª – DO OBJETO E RESERVA DE DOMÍNIO',
-      body: `O presente contrato tem por objeto a venda com reserva de domínio (nos termos do art. 521 e seguintes do Código Civil) do bem: ${productUpper}, entregue em perfeitas condições de uso, conferido e aceito pelo Comprador. A propriedade resolúvel do bem permanece com o VENDEDOR até a liquidação integral de todas as parcelas pactuadas neste instrumento.`
+      body: `O presente contrato tem por objeto a venda com reserva de domínio (nos termos do art. 521 e seguintes do Código Civil) do bem: ${productWithImei}, entregue em perfeitas condições de uso, conferido e aceito pelo Comprador. A propriedade resolúvel do bem permanece com o VENDEDOR até a liquidação integral de todas as parcelas pactuadas neste instrumento.`
     },
     {
       title: 'CLÁUSULA 3ª – DO PREÇO, CONDIÇÕES E AMORTIZAÇÃO',
@@ -672,6 +685,7 @@ export function buildContractHTML(sale: Sale, settings: Settings, installments?:
   const installmentVal = sale.installmentValue || 0;
   const isInterest = !!sale.isInterestOnly;
   const interestRate = sale.interestRate || 0;
+  const contractImei = (sale.productImei || '').trim();
 
   const modalidadeBadge = isInterest 
     ? `<span style="display: inline-block; background-color: #fef3c7; color: #92400e; padding: 3px 8px; border-radius: 4px; font-weight: 800; font-size: 9.5px;">JUROS MENSAIS (${interestRate}% A.M.)</span>`
@@ -722,7 +736,12 @@ export function buildContractHTML(sale: Sale, settings: Settings, installments?:
             </tr>
             <tr>
               <td style="padding: 2.5px 0; color: #64748b;"><strong>Produto / Bem:</strong></td>
-              <td style="padding: 2.5px 0; color: #0f172a; font-weight: 700;" colspan="3">${(sale.productName || 'BEM OU SERVIÇO REGISTRADO').toUpperCase()}</td>
+              ${contractImei
+                ? `<td style="padding: 2.5px 0; color: #0f172a; font-weight: 700;">${(sale.productName || 'BEM OU SERVIÇO REGISTRADO').toUpperCase()}</td>
+                   <td style="padding: 2.5px 0; color: #64748b;"><strong>IMEI:</strong></td>
+                   <td style="padding: 2.5px 0; color: #0f172a; font-weight: 700; font-family: monospace;">${contractImei}</td>`
+                : `<td style="padding: 2.5px 0; color: #0f172a; font-weight: 700;" colspan="3">${(sale.productName || 'BEM OU SERVIÇO REGISTRADO').toUpperCase()}</td>`
+              }
             </tr>
             <tr>
               <td style="padding: 2.5px 0; color: #64748b;"><strong>Valor Total:</strong></td>
@@ -758,7 +777,7 @@ export function buildContractHTML(sale: Sale, settings: Settings, installments?:
               Cláusula 2ª – Do Objeto e Reserva de Domínio
             </strong>
             <p style="margin: 2px 0 0 0; text-align: justify;">
-              O presente contrato tem por objeto a venda com reserva de domínio (nos termos do art. 521 e seguintes do Código Civil) do bem: <strong>${(sale.productName || 'PRODUTO REGISTRADO').toUpperCase()}</strong>, entregue em perfeitas condições de uso, conferido e aceito pelo Comprador. A propriedade resolúvel do bem permanece com o VENDEDOR até a liquidação integral de todas as parcelas pactuadas neste instrumento.
+              O presente contrato tem por objeto a venda com reserva de domínio (nos termos do art. 521 e seguintes do Código Civil) do bem: <strong>${(sale.productName || 'PRODUTO REGISTRADO').toUpperCase()}${contractImei ? ` (IMEI: ${contractImei})` : ''}</strong>, entregue em perfeitas condições de uso, conferido e aceito pelo Comprador. A propriedade resolúvel do bem permanece com o VENDEDOR até a liquidação integral de todas as parcelas pactuadas neste instrumento.
             </p>
           </div>
 

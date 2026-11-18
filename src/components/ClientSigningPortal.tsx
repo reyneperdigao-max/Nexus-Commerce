@@ -90,6 +90,7 @@ export const ClientSigningPortal: React.FC<ClientSigningPortalProps> = ({
       id: resolvedSaleId,
       productId: '',
       productName: data.productName || 'Produto Comercial',
+      productImei: data.productImei ? String(data.productImei).trim() : undefined,
       client: data.client || 'Cliente',
       clientPhone: data.clientPhone || '',
       clientCpf: data.clientCpf || '',
@@ -487,7 +488,7 @@ export const ClientSigningPortal: React.FC<ClientSigningPortalProps> = ({
                 <span className="text-slate-700">{sale.clientAddress || 'Conforme cadastro no sistema'}</span>
               </div>
 
-              <div className="sm:col-span-2 pt-2 border-t border-slate-200">
+              <div className={`${sale.productImei ? '' : 'sm:col-span-2'} pt-2 border-t border-slate-200`}>
                 <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">
                   Ativo / Bem Comercial Alienado
                 </span>
@@ -495,6 +496,16 @@ export const ClientSigningPortal: React.FC<ClientSigningPortalProps> = ({
                   {(sale.productName || 'PRODUTO REGISTRADO').toUpperCase()}
                 </strong>
               </div>
+              {sale.productImei && (
+                <div className="pt-2 border-t border-slate-200">
+                  <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">
+                    IMEI do Aparelho
+                  </span>
+                  <strong className="text-slate-900 text-xs font-mono tracking-wide">
+                    {sale.productImei}
+                  </strong>
+                </div>
+              )}
 
               <div className="pt-2 border-t border-slate-200">
                 <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">
@@ -540,7 +551,7 @@ export const ClientSigningPortal: React.FC<ClientSigningPortalProps> = ({
                 Cláusula 2ª – Do Objeto e Reserva de Domínio
               </strong>
               <p className="text-justify leading-relaxed">
-                O presente contrato tem por objeto a venda com reserva de domínio (nos termos do art. 521 e seguintes do Código Civil) do bem: <strong>{(sale.productName || 'PRODUTO REGISTRADO').toUpperCase()}</strong>, entregue em perfeitas condições de uso, conferido e aceito pelo Comprador. A propriedade resolúvel do bem permanece com o VENDEDOR até a liquidação integral de todas as parcelas pactuadas neste instrumento.
+                O presente contrato tem por objeto a venda com reserva de domínio (nos termos do art. 521 e seguintes do Código Civil) do bem: <strong>{(sale.productName || 'PRODUTO REGISTRADO').toUpperCase()}{sale.productImei ? ` (IMEI: ${sale.productImei})` : ''}</strong>, entregue em perfeitas condições de uso, conferido e aceito pelo Comprador. A propriedade resolúvel do bem permanece com o VENDEDOR até a liquidação integral de todas as parcelas pactuadas neste instrumento.
               </p>
             </div>
 

@@ -152,10 +152,15 @@ function sanitizeSignatureAudit(sig: any): SignatureAudit | undefined {
 
 function sanitizeSaleForFirestore(raw: any, id: string): Sale {
   const status: 'Ativa' | 'Liquidada' = raw?.status === 'Liquidada' ? 'Liquidada' : 'Ativa';
+  const cleanImei =
+    typeof raw?.productImei === 'string' && raw.productImei.trim()
+      ? raw.productImei.trim().slice(0, 64)
+      : undefined;
   return cleanData({
     id,
     productId: String(raw?.productId || '').slice(0, 128),
     productName: String(raw?.productName || 'Produto Comercial').slice(0, 200),
+    productImei: cleanImei,
     client: String(raw?.client || 'Cliente').slice(0, 200),
     clientPhone: String(raw?.clientPhone || '').slice(0, 40),
     clientCpf: raw?.clientCpf !== undefined ? String(raw.clientCpf).slice(0, 40) : undefined,
@@ -274,6 +279,10 @@ function buildPublicContractPayload(
     saleId: sale.id,
     ownerUid,
     productName: String(sale.productName || 'Produto Comercial').slice(0, 200),
+    productImei:
+      typeof sale.productImei === 'string' && sale.productImei.trim()
+        ? sale.productImei.trim().slice(0, 64)
+        : undefined,
     client: String(sale.client || 'Cliente').slice(0, 200),
     clientPhone: sale.clientPhone ? String(sale.clientPhone).slice(0, 40) : undefined,
     clientCpf: sale.clientCpf ? String(sale.clientCpf).slice(0, 40) : undefined,
@@ -935,12 +944,15 @@ export function useNexusState(user: User | null) {
             const firstInst = installments
               .filter((i) => i.saleId === sale.id)
               .sort((a, b) => a.number - b.number)[0];
-            await setDoc(pubRef, buildPublicContractPayload(sale, uid, settings, firstInst?.dueDate));
+            const fallbackImei = products.find((p) => p.id === sale.productId)?.imei;
+            const enrichedSale =
+              sale.productImei || !fallbackImei ? sale : { ...sale, productImei: fallbackImei };
+            await setDoc(pubRef, buildPublicContractPayload(enrichedSale, uid, settings, firstInst?.dueDate));
           }
         } catch {}
       }
     })();
-  }, [uid, sales, installments, settings]);
+  }, [uid, sales, installments, products, settings]);
 
   const saveSettings = async (newSettings: Settings) => {
     if (!uid) return;
@@ -1034,6 +1046,7 @@ export function useNexusState(user: User | null) {
     interestRate?: number;
     costPrice?: number;
     sellerName?: string;
+    productImei?: string;
   }): Promise<boolean> => {
     if (!uid) return false;
     try {
@@ -1081,11 +1094,13 @@ export function useNexusState(user: User | null) {
 
       const actualSaleDate = data.saleDate || getLocalDateString();
       const saleId = crypto.randomUUID();
+      const resolvedProductImei = (data.productImei || product.imei || '').trim().slice(0, 64);
       const newSale = sanitizeSaleForFirestore(
         {
           id: saleId,
           productId: product.id,
           productName: product.name,
+          productImei: resolvedProductImei || undefined,
           client: (data.client || '').trim(),
           clientPhone: (data.clientPhone || '').trim(),
           clientCpf: (data.clientCpf || '').trim(),
@@ -1522,6 +1537,7 @@ export function useNexusState(user: User | null) {
       interestRate?: number;
       costPrice?: number;
       sellerName?: string;
+      productImei?: string;
     },
     fallbackSale?: Partial<Sale>
   ): Promise<boolean> => {
@@ -1594,6 +1610,13 @@ export function useNexusState(user: User | null) {
           settings.userName ||
           'Operador';
 
+    const resolvedProductImei =
+      data.productImei !== undefined
+        ? String(data.productImei).trim().slice(0, 64)
+        : oldProductId !== newProductId
+          ? (product?.imei || '').trim().slice(0, 64)
+          : (sale.productImei || product?.imei || '').trim().slice(0, 64);
+
     const updatedSaleDate = data.saleDate || sale.date || getLocalDateString();
     const updatedSaleFields: Partial<Sale> = {
       client: (data.client || '').trim(),
@@ -1611,10 +1634,14 @@ export function useNexusState(user: User | null) {
       costPrice: costForProfit,
       productId: newProductId,
       productName: productName,
+      productImei: resolvedProductImei || undefined,
       sellerName: data.sellerName || sale.sellerName || defaultSeller,
     };
 
     const fullUpdatedSale = sanitizeSaleForFirestore({ ...sale, ...updatedSaleFields }, cleanId);
+    if (!resolvedProductImei) {
+      delete fullUpdatedSale.productImei;
+    }
 
     setSales((prev) => {
       const exists = prev.some((s) => s.id === cleanId || s.id === id);

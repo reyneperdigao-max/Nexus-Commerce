@@ -69,6 +69,7 @@ export default function App() {
     closeMonthlyRegister,
     deleteClosing,
     saveDigitalSignature,
+    syncPublicContract,
     isInitialLoading,
     migrationState,
     retryLegacyMigration,
@@ -772,14 +773,29 @@ export default function App() {
     }
   };
 
+  const resolveSaleWithImei = (sale: Sale): Sale => {
+    if (sale.productImei && sale.productImei.trim()) return sale;
+    const stockImei = (products.find((p) => p.id === sale.productId)?.imei || '').trim();
+    return stockImei ? { ...sale, productImei: stockImei } : sale;
+  };
+
+  const handleOpenShareSignModal = (sale: Sale) => {
+    const enrichedSale = resolveSaleWithImei(sale);
+    setShareSignModalSale(enrichedSale);
+    if (enrichedSale.productImei && enrichedSale.productImei !== sale.productImei) {
+      void syncPublicContract(enrichedSale);
+    }
+  };
+
   const [isContractGenerating, setIsContractGenerating] = useState(false);
 
   const handleDownloadContract = async (saleToDownload?: Sale) => {
-    const targetSale = saleToDownload || selectedSaleForContract;
-    if (!targetSale) {
+    const rawTarget = saleToDownload || selectedSaleForContract;
+    if (!rawTarget) {
       showToast('Erro: Contrato não selecionado.', 'error');
       return;
     }
+    const targetSale = resolveSaleWithImei(rawTarget);
 
     setIsContractGenerating(true);
     showToast('Gerando PDF do contrato...');
@@ -801,23 +817,26 @@ export default function App() {
   };
 
   const handlePrintContract = (saleToPrint?: Sale) => {
-    const targetSale = saleToPrint || selectedSaleForContract;
-    if (!targetSale) return;
+    const rawTarget = saleToPrint || selectedSaleForContract;
+    if (!rawTarget) return;
+    const targetSale = resolveSaleWithImei(rawTarget);
     fallbackPrintContract(targetSale, settings, installments);
     showToast('Abrindo diálogo de impressão...');
   };
 
   const handleShareContract = async (saleToShare?: Sale) => {
-    const targetSale = saleToShare || selectedSaleForContract;
-    if (!targetSale) return;
+    const rawTarget = saleToShare || selectedSaleForContract;
+    if (!rawTarget) return;
+    const targetSale = resolveSaleWithImei(rawTarget);
     showToast('Preparando contrato para envio...');
     const ok = await shareContractFile(targetSale, settings, installments);
     showToast(ok ? 'Contrato compartilhado com sucesso!' : 'Download do contrato iniciado.');
   };
 
   const handleCopyContractText = (saleToCopy?: Sale) => {
-    const targetSale = saleToCopy || selectedSaleForContract;
-    if (!targetSale) return;
+    const rawTarget = saleToCopy || selectedSaleForContract;
+    if (!rawTarget) return;
+    const targetSale = resolveSaleWithImei(rawTarget);
     const company = (settings.companyName || 'NEXUS COMMERCE').toUpperCase();
     const sellerName = getSystemSellerName(settings, targetSale);
     const cleanId = (targetSale.id || '').substring(0, 8).toUpperCase();
@@ -838,6 +857,7 @@ export default function App() {
     const modalidadeDesc = isInterest
       ? `${targetSale.installmentsCount || 1} parcelas de juros mensais de ${money(targetSale.installmentValue)} (${targetSale.interestRate || 0}% a.m.)`
       : `${targetSale.installmentsCount || 1} parcelas fixas de ${money(targetSale.installmentValue)}`;
+    const contractImei = (targetSale.productImei || '').trim();
 
     const text = `📋 CONTRATO DE COMPRA E VENDA (Nº CT-${cleanId})
 Emissão: ${dateFormatted} • ${company}
@@ -849,7 +869,7 @@ Emissão: ${dateFormatted} • ${company}
 • Comprador(a): ${targetSale.client.toUpperCase()}
 • CPF/Doc: ${targetSale.clientCpf || 'Registrado em Sistema'}
 • Telefone: ${targetSale.clientPhone || 'N/A'}${targetSale.clientAddress ? `\n• Endereço: ${targetSale.clientAddress}` : ''}
-• Produto/Serviço: ${(targetSale.productName || 'Produto Registrado').toUpperCase()}
+• Produto/Serviço: ${(targetSale.productName || 'Produto Registrado').toUpperCase()}${contractImei ? `\n• IMEI do Aparelho: ${contractImei}` : ''}
 • Valor Total: ${money(targetSale.total)}${targetSale.downPayment ? ` (Entrada: ${money(targetSale.downPayment)})` : ''}
 • Plano de Pagamento: ${modalidadeDesc}
 • Vencimento Recorrente: Todo dia ${dueDay} de cada mês
@@ -857,7 +877,7 @@ Emissão: ${dateFormatted} • ${company}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ⚖️ CLÁUSULAS E CONDIÇÕES PRINCIPAIS
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-1. OBJETO E RESERVA DE DOMÍNIO: Venda com reserva de domínio (art. 521 e seguintes do Código Civil) do bem ${(targetSale.productName || 'Produto Registrado').toUpperCase()}, entregue em perfeitas condições de uso, permanecendo a propriedade resolúvel com o VENDEDOR até a quitação integral de todas as parcelas.
+1. OBJETO E RESERVA DE DOMÍNIO: Venda com reserva de domínio (art. 521 e seguintes do Código Civil) do bem ${(targetSale.productName || 'Produto Registrado').toUpperCase()}${contractImei ? ` (IMEI: ${contractImei})` : ''}, entregue em perfeitas condições de uso, permanecendo a propriedade resolúvel com o VENDEDOR até a quitação integral de todas as parcelas.
 2. PAGAMENTO: O Comprador se compromete a efetuar os pagamentos nas datas estipuladas.
 3. ANTECIPAÇÃO: É facultado ao Comprador amortizar ou quitar parcelas a qualquer momento com abatimento proporcional.
 4. TOLERÂNCIA, ENCARGOS E RESTRIÇÃO POR ATRASO: EVENTUAL ATRASO NA QUITAÇÃO DE PARCELAS ACARRETARÁ MULTA MORATÓRIA DE 2% SOBRE O VALOR VENCIDO, ACRESCIDA DE JUROS DE MORA DE 1% AO MÊS (PRO RATA DIE). APÓS 3 DIAS CORRIDOS DE ATRASO, O VENDEDOR FICA AUTORIZADO A APLICAR RESTRIÇÃO PARCIAL DE FUNCIONALIDADES DO APARELHO COM CONTATO NA TELA. APÓS 5 DIAS CORRIDOS, FICA AUTORIZADO O BLOQUEIO TOTAL DO APARELHO ATÉ REGULARIZAÇÃO, COM DESBLOQUEIO EM ATÉ 24H APÓS PAGAMENTO INTEGRAL. Proibida tentativa de remoção, formatação clandestina ou burla do sistema de segurança, sob pena de vencimento antecipado do saldo devedor e medidas legais cabíveis.
@@ -1041,7 +1061,8 @@ Autenticação: ${targetSale.id.toUpperCase()}`;
     if (isFullyPaid) return false;
 
     const matchesSearch =
-      !searchTerm || [s.client, s.productName, s.status].some((v) => (v || '').toLowerCase().includes(searchLower));
+      !searchTerm ||
+      [s.client, s.productName, s.productImei, s.status].some((v) => (v || '').toLowerCase().includes(searchLower));
 
     if (filterStatus === 'Atrasados') {
       const hasOverdue = sInsts.some((i) => {
@@ -1413,7 +1434,7 @@ Autenticação: ${targetSale.id.toUpperCase()}`;
                     setAmortizationAmount('');
                     setSelectedInstallmentForPayment(pendingInst);
                   }}
-                  onOpenShareSignModal={(sale) => setShareSignModalSale(sale)}
+                  onOpenShareSignModal={handleOpenShareSignModal}
                   onOpenAuditModal={(sale) => setAuditModalSale(sale)}
                   onViewContract={(sale) => setSelectedSaleForContract(sale)}
                   onDownloadContract={handleDownloadContract}
@@ -1481,7 +1502,7 @@ Autenticação: ${targetSale.id.toUpperCase()}`;
                     setAmortizationAmount('');
                     setSelectedInstallmentForPayment(pendingInst);
                   }}
-                  onOpenShareSignModal={(sale) => setShareSignModalSale(sale)}
+                  onOpenShareSignModal={handleOpenShareSignModal}
                   onOpenAuditModal={(sale) => setAuditModalSale(sale)}
                   onViewContract={(sale) => setSelectedSaleForContract(sale)}
                   onDownloadContract={handleDownloadContract}
@@ -1632,7 +1653,7 @@ Autenticação: ${targetSale.id.toUpperCase()}`;
           setShowAdvanceSalePicker={setShowAdvanceSalePicker}
           onOpenAdvanceModal={openAdvanceModal}
           shareSignModalSale={shareSignModalSale}
-          setShareSignModalSale={setShareSignModalSale}
+          setShareSignModalSale={(sale) => (sale ? handleOpenShareSignModal(sale) : setShareSignModalSale(null))}
           auditModalSale={auditModalSale}
           setAuditModalSale={setAuditModalSale}
           onSignOnDevice={(saleToSign) => setClientSigningSaleId(saleToSign.id)}
