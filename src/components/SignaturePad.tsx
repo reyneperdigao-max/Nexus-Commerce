@@ -40,7 +40,7 @@ export const SignaturePad: React.FC<SignaturePadProps> = ({ onSignatureChange, d
       return;
     }
 
-    const dpr = window.devicePixelRatio || 1;
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
     const targetHeight = 180;
 
     let snapshotUrl: string | null = null;

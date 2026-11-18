@@ -55,13 +55,13 @@ service cloud.firestore {
           'signatureHash', 'acceptedTerms', 'authMethod'
         ])
         && optBool(sig, 'signed')
-        && optStr(sig, 'signatureImage', 750000)
+        && optStr(sig, 'signatureImage', 900000)
         && optStr(sig, 'signedAt', 64)
         && optStr(sig, 'signedAtFormatted', 80)
         && optStr(sig, 'signerName', 200)
         && optStr(sig, 'signerCpf', 40)
         && optStr(sig, 'signerIp', 128)
-        && optStr(sig, 'signerUserAgent', 512)
+        && optStr(sig, 'signerUserAgent', 1024)
         && optStr(sig, 'signatureHash', 128)
         && optBool(sig, 'acceptedTerms')
         && optStr(sig, 'authMethod', 300);
@@ -125,10 +125,10 @@ service cloud.firestore {
         && optNum(data, 'costPrice')
         && optStr(data, 'sellerName', 200)
         && optBool(data, 'isSigned')
-        && optStr(data, 'signatureImage', 750000)
+        && optStr(data, 'signatureImage', 900000)
         && optStr(data, 'signedAt', 64)
         && optStr(data, 'signerIp', 128)
-        && optStr(data, 'signerUserAgent', 512)
+        && optStr(data, 'signerUserAgent', 1024)
         && optStr(data, 'signatureHash', 128)
         && (!('signature' in data) || isValidSignatureAudit(data.signature));
     }
@@ -267,12 +267,25 @@ service cloud.firestore {
         && optStr(data, 'companyPhone', 60)
         && optStr(data, 'companyAddress', 400)
         && optBool(data, 'isSigned')
-        && optStr(data, 'signatureImage', 750000)
+        && optStr(data, 'signatureImage', 900000)
         && optStr(data, 'signedAt', 64)
         && optStr(data, 'signerIp', 128)
-        && optStr(data, 'signerUserAgent', 512)
+        && optStr(data, 'signerUserAgent', 1024)
         && optStr(data, 'signatureHash', 128)
         && (!('signature' in data) || isValidSignatureAudit(data.signature))
+        && optStr(data, 'updatedAt', 64);
+    }
+
+    function isValidPublicContractSignatureUpdate(data) {
+      return data.isSigned is bool && data.isSigned == true
+        && ('signature' in data)
+        && isValidSignatureAudit(data.signature)
+        && data.signature.signed == true
+        && optStr(data, 'signatureImage', 900000)
+        && optStr(data, 'signedAt', 64)
+        && optStr(data, 'signerIp', 128)
+        && optStr(data, 'signerUserAgent', 1024)
+        && optStr(data, 'signatureHash', 128)
         && optStr(data, 'updatedAt', 64);
     }
 
@@ -365,23 +378,27 @@ service cloud.firestore {
         && incoming().saleId == saleId
         && incoming().ownerUid == request.auth.uid
         && isValidPublicContract(incoming());
-      allow update: if isValidPublicContract(incoming())
-        && incoming().saleId == existing().saleId
-        && incoming().ownerUid == existing().ownerUid
-        && incoming().createdAt == existing().createdAt
-        && (
-          (isSignedIn() && existing().ownerUid == request.auth.uid) ||
-          (
-            (!('isSigned' in existing()) || existing().isSigned == false)
-            && incoming().diff(existing()).affectedKeys().hasOnly([
-              'signature', 'isSigned', 'signatureImage', 'signedAt',
-              'signerIp', 'signerUserAgent', 'signatureHash', 'updatedAt'
-            ])
-            && incoming().isSigned == true
-            && incoming().signature is map
-            && incoming().signature.signed == true
-          )
-        );
+      allow update: if isValidId(saleId) && (
+        (
+          isSignedIn()
+          && existing().ownerUid == request.auth.uid
+          && isValidPublicContract(incoming())
+          && incoming().saleId == existing().saleId
+          && incoming().ownerUid == existing().ownerUid
+          && incoming().createdAt == existing().createdAt
+        ) ||
+        (
+          isValidPublicContractSignatureUpdate(incoming())
+          && incoming().saleId == existing().saleId
+          && incoming().ownerUid == existing().ownerUid
+          && incoming().createdAt == existing().createdAt
+          && (!('isSigned' in existing()) || existing().isSigned == false || existing().isSigned == null)
+          && incoming().diff(existing()).affectedKeys().hasOnly([
+            'signature', 'isSigned', 'signatureImage', 'signedAt',
+            'signerIp', 'signerUserAgent', 'signatureHash', 'updatedAt'
+          ])
+        )
+      );
       allow delete: if isSignedIn() && existing().ownerUid == request.auth.uid;
     }
   }

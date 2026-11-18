@@ -135,7 +135,7 @@ function sanitizeSignatureAudit(sig: any): SignatureAudit | undefined {
   return cleanData({
     signed: Boolean(sig.signed),
     signatureImage:
-      typeof sig.signatureImage === 'string' && sig.signatureImage.length <= 750000
+      typeof sig.signatureImage === 'string' && sig.signatureImage.length <= 900000
         ? sig.signatureImage
         : undefined,
     signedAt: sig.signedAt ? String(sig.signedAt).slice(0, 64) : undefined,
@@ -143,7 +143,7 @@ function sanitizeSignatureAudit(sig: any): SignatureAudit | undefined {
     signerName: sig.signerName ? String(sig.signerName).slice(0, 200) : undefined,
     signerCpf: sig.signerCpf ? String(sig.signerCpf).slice(0, 40) : undefined,
     signerIp: sig.signerIp ? String(sig.signerIp).slice(0, 128) : undefined,
-    signerUserAgent: sig.signerUserAgent ? String(sig.signerUserAgent).slice(0, 512) : undefined,
+    signerUserAgent: sig.signerUserAgent ? String(sig.signerUserAgent).slice(0, 1024) : undefined,
     signatureHash: sig.signatureHash ? String(sig.signatureHash).slice(0, 128) : undefined,
     acceptedTerms: typeof sig.acceptedTerms === 'boolean' ? sig.acceptedTerms : undefined,
     authMethod: sig.authMethod ? String(sig.authMethod).slice(0, 300) : undefined,
@@ -1949,14 +1949,15 @@ export function useNexusState(user: User | null) {
       const cleanId = (saleId || '').trim();
       if (!cleanId) return false;
 
+      const sanitizedAudit = sanitizeSignatureAudit(audit);
       const signatureUpdates = cleanData({
-        signature: sanitizeSignatureAudit(audit),
+        signature: sanitizedAudit,
         isSigned: true,
-        signatureImage: audit.signatureImage,
-        signedAt: audit.signedAt,
-        signerIp: audit.signerIp,
-        signerUserAgent: audit.signerUserAgent,
-        signatureHash: audit.signatureHash,
+        signatureImage: sanitizedAudit?.signatureImage,
+        signedAt: sanitizedAudit?.signedAt,
+        signerIp: sanitizedAudit?.signerIp,
+        signerUserAgent: sanitizedAudit?.signerUserAgent,
+        signatureHash: sanitizedAudit?.signatureHash,
       });
 
       const isOwnedByCurrentUser = Boolean(uid && sales.some((s) => s.id === cleanId || s.id === saleId));
