@@ -1030,7 +1030,9 @@ Autenticação: ${targetSale.id.toUpperCase()}`;
   const searchLower = (searchTerm || '').toLowerCase();
 
   const filteredProducts = products.filter(
-    (p) => !searchTerm || [p.name, p.category, p.status].some((v) => (v || '').toLowerCase().includes(searchLower))
+    (p) =>
+      !searchTerm ||
+      [p.name, p.category, p.status, p.imei].some((v) => (v || '').toLowerCase().includes(searchLower))
   );
 
   const filteredSales = sales.filter((s) => {

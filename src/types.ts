@@ -9,6 +9,7 @@ export interface Product {
   cost: number;
   sale: number;
   category: string;
+  imei?: string;
   status: 'Disponivel' | 'Vendido';
   photo?: string;
   createdAt: string;

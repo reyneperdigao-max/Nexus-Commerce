@@ -243,7 +243,22 @@ export function StockView({
                     </div>
                     <div className="min-w-0">
                       <h4 className="text-sm font-semibold text-white truncate">{p.name}</h4>
-                      <span className="text-xs text-zinc-400">{p.category}</span>
+                      <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
+                        <span className="text-xs text-zinc-400">{p.category}</span>
+                        {p.imei ? (
+                          <span className="text-[11px] font-mono text-zinc-300 bg-white/[0.04] border border-white/[0.08] px-1.5 py-0.5 rounded-md truncate max-w-[180px] tabular-figure">
+                            IMEI: {p.imei}
+                          </span>
+                        ) : p.category === 'Celular' ? (
+                          <button
+                            type="button"
+                            onClick={() => onEditProduct(p)}
+                            className="text-[11px] text-gold/90 hover:text-gold underline decoration-gold/40 underline-offset-2 cursor-pointer"
+                          >
+                            + Informar IMEI
+                          </button>
+                        ) : null}
+                      </div>
                     </div>
                   </div>
 
@@ -407,19 +422,46 @@ export function StockView({
                               <Camera size={13} className="text-gold" />
                             </button>
                           </div>
-                          <input
-                            type="text"
-                            defaultValue={p.name}
-                            onBlur={(e) => {
-                              const newName = e.target.value.trim();
-                              if (newName && newName !== p.name) {
-                                onUpdateProduct(p.id, { name: newName });
-                                onShowToast(`Nome atualizado para "${newName}"`);
-                              }
-                            }}
-                            className="bg-transparent border border-transparent hover:border-white/[0.1] focus:border-gold focus:bg-[#07090e] text-sm font-semibold text-white py-1.5 px-2.5 rounded-lg w-full max-w-[260px] transition-colors outline-none"
-                            placeholder="Nome do Produto"
-                          />
+                          <div className="flex flex-col min-w-0 w-full max-w-[270px]">
+                            <input
+                              key={`${p.id}-name-${p.name}`}
+                              type="text"
+                              defaultValue={p.name}
+                              onBlur={(e) => {
+                                const newName = e.target.value.trim();
+                                if (newName && newName !== p.name) {
+                                  onUpdateProduct(p.id, { name: newName });
+                                  onShowToast(`Nome atualizado para "${newName}"`);
+                                }
+                              }}
+                              className="bg-transparent border border-transparent hover:border-white/[0.1] focus:border-gold focus:bg-[#07090e] text-sm font-semibold text-white py-1 px-2 rounded-lg w-full transition-colors outline-none"
+                              placeholder="Nome do Produto"
+                            />
+                            {(p.category === 'Celular' || Boolean(p.imei)) && (
+                              <div className="flex items-center gap-1.5 px-2 mt-0.5">
+                                <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500 shrink-0">
+                                  IMEI
+                                </span>
+                                <input
+                                  key={`${p.id}-imei-${p.imei || ''}`}
+                                  type="text"
+                                  maxLength={64}
+                                  defaultValue={p.imei || ''}
+                                  onBlur={(e) => {
+                                    const newImei = e.target.value.trim().slice(0, 64);
+                                    if (newImei !== (p.imei || '')) {
+                                      onUpdateProduct(p.id, { imei: newImei });
+                                      onShowToast(
+                                        newImei ? `IMEI de "${p.name}" atualizado.` : `IMEI de "${p.name}" removido.`
+                                      );
+                                    }
+                                  }}
+                                  className="bg-transparent border border-transparent hover:border-white/[0.1] focus:border-gold focus:bg-[#07090e] text-[11px] font-mono text-zinc-300 py-0.5 px-1.5 rounded-md w-full transition-colors outline-none tabular-figure"
+                                  placeholder="Preencher IMEI..."
+                                />
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </td>
 

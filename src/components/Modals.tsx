@@ -257,6 +257,7 @@ export function AppModals(props: AppModalsProps) {
             </div>
 
             <form
+              key={productToEdit?.id || 'new-product'}
               className="space-y-4"
               onSubmit={(e) => {
                 e.preventDefault();
@@ -265,12 +266,14 @@ export function AppModals(props: AppModalsProps) {
                 const handleSuccess = (photoUrl?: string) => {
                   const qtyVal = Number(f.quantity.value);
                   const newStatus = qtyVal > 0 ? 'Disponivel' : 'Vendido';
+                  const imeiVal = (f.imei?.value || '').trim().slice(0, 64);
                   if (productToEdit) {
                     onUpdateProduct(productToEdit.id, {
                       name: f.name.value,
                       cost: Number(f.cost.value),
                       sale: Number(f.sale.value),
                       category: f.category.value,
+                      imei: imeiVal,
                       quantity: qtyVal,
                       status: newStatus as any,
                       photo: photoUrl || previewPhoto || productToEdit.photo || undefined,
@@ -282,6 +285,7 @@ export function AppModals(props: AppModalsProps) {
                       cost: Number(f.cost.value),
                       sale: Number(f.sale.value),
                       category: f.category.value,
+                      imei: imeiVal || undefined,
                       quantity: qtyVal,
                       status: newStatus as any,
                       photo: photoUrl,
@@ -347,6 +351,21 @@ export function AppModals(props: AppModalsProps) {
                     />
                   </div>
                 </div>
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <div className="flex items-center justify-between gap-2">
+                  <label className="text-xs font-medium text-zinc-300">IMEI do Aparelho</label>
+                  <span className="text-[11px] text-zinc-500">Opcional • Identificação do celular</span>
+                </div>
+                <input
+                  name="imei"
+                  type="text"
+                  maxLength={64}
+                  defaultValue={productToEdit?.imei || ''}
+                  placeholder="Ex: 356789012345678"
+                  className="fintech-input font-mono tracking-wide tabular-figure"
+                />
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">

@@ -308,7 +308,9 @@ export function SalesView({
                 )}
                 {products.map((p) => (
                   <option key={p.id} value={p.id}>
-                    {p.name} ({money(p.sale)}) {p.status !== 'Disponivel' && p.id !== saleToEdit?.productId ? `— [${p.status}]` : ''}
+                    {p.name}
+                    {p.imei ? ` • IMEI ${p.imei}` : ''} ({money(p.sale)}){' '}
+                    {p.status !== 'Disponivel' && p.id !== saleToEdit?.productId ? `— [${p.status}]` : ''}
                   </option>
                 ))}
               </select>

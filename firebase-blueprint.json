@@ -21,6 +21,7 @@
         "id": { "type": "string", "maxLength": 128 },
         "name": { "type": "string", "maxLength": 200 },
         "category": { "type": "string", "maxLength": 120 },
+        "imei": { "type": "string", "maxLength": 64 },
         "photo": { "type": "string", "maxLength": 750000 },
         "cost": { "type": "number" },
         "sale": { "type": "number" },

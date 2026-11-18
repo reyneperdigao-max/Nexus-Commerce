@@ -79,10 +79,11 @@ service cloud.firestore {
 
     function isValidProduct(data) {
       return data.keys().hasAll(['name', 'category', 'cost', 'sale', 'status', 'createdAt'])
-        && data.keys().hasOnly(['id', 'name', 'category', 'photo', 'cost', 'sale', 'quantity', 'status', 'createdAt'])
+        && data.keys().hasOnly(['id', 'name', 'category', 'imei', 'photo', 'cost', 'sale', 'quantity', 'status', 'createdAt'])
         && optStr(data, 'id', 128)
         && data.name is string && data.name.size() > 0 && data.name.size() <= 200
         && data.category is string && data.category.size() <= 120
+        && optStr(data, 'imei', 64)
         && optStr(data, 'photo', 750000)
         && data.cost is number
         && data.sale is number

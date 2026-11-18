@@ -115,10 +115,12 @@ const loadLegacyLocalCached = <T>(key: string, fallback: T): T => {
 
 function sanitizeProductForFirestore(raw: any, id: string): Product {
   const status: 'Disponivel' | 'Vendido' = raw?.status === 'Vendido' ? 'Vendido' : 'Disponivel';
+  const cleanImei = typeof raw?.imei === 'string' && raw.imei.trim() ? raw.imei.trim().slice(0, 64) : undefined;
   return cleanData({
     id,
     name: String(raw?.name || 'Produto').slice(0, 200),
     category: String(raw?.category || 'Geral').slice(0, 120),
+    imei: cleanImei,
     photo: typeof raw?.photo === 'string' && raw.photo.length <= 750000 ? raw.photo : undefined,
     cost: Number.isFinite(Number(raw?.cost)) ? Number(raw.cost) : 0,
     sale: Number.isFinite(Number(raw?.sale)) ? Number(raw.sale) : 0,
@@ -1005,7 +1007,12 @@ export function useNexusState(user: User | null) {
   const updateProduct = async (id: string, updates: Partial<Product>) => {
     if (!uid) return;
     try {
-      await updateDoc(doc(db, 'users', uid, 'products', id), cleanData(updates));
+      const sanitizedUpdates: Partial<Product> = { ...updates };
+      if ('imei' in sanitizedUpdates) {
+        sanitizedUpdates.imei =
+          typeof sanitizedUpdates.imei === 'string' ? sanitizedUpdates.imei.trim().slice(0, 64) : '';
+      }
+      await updateDoc(doc(db, 'users', uid, 'products', id), cleanData(sanitizedUpdates));
     } catch (err) {
       handleFirestoreError(err, OperationType.UPDATE, `users/${uid}/products/${id}`);
     }
