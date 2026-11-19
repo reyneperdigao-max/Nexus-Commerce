@@ -36,13 +36,12 @@ import {
   Download,
   ShieldCheck,
   ArrowUpRight,
-  X,
-  Briefcase
+  X
 } from 'lucide-react';
 import {
   computeOpenCycleMetrics,
+  computeOpenInstallmentsPortfolioSummary,
   resolveClosingSummary,
-  computeCapitalYieldMetrics,
   CycleFinancialMetrics,
   ResolvedClosingSummary
 } from '../lib/closingUtils';
@@ -339,32 +338,20 @@ export function MonthlyInstallmentsReport({
     };
   }, [monthInstallments]);
 
-  // 2. ESTIMATIVA MENSAL TOTAL DA CARTEIRA DE VENDAS ATIVAS (EXCLUINDO QUITADAS)
+  // 2. ESTIMATIVA MENSAL TOTAL E LUCRO DO SALDO EM ABERTO DA CARTEIRA ATIVA
+  const openPortfolioSummary = useMemo(() => {
+    return computeOpenInstallmentsPortfolioSummary(sales, installments);
+  }, [sales, installments]);
+
   const portfolioMonthlyEstimate = useMemo(() => {
-    // Apenas vendas/contratos ativos que não foram quitados
-    const activeContracts = sales.filter(s => !fullyPaidSaleIds.has(s.id));
-
-    // Soma o valor de parcela mensal de todos os contratos ativos
-    const monthlySum = activeContracts.reduce((acc, sale) => {
-      const val = Number(sale.installmentValue) || 0;
-      return acc + val;
-    }, 0);
-
-    // Total geral a receber na carteira (todas as parcelas pendentes futuras somadas de contratos ativos)
-    const totalRemainingReceivables = activeInstallments
-      .filter(i => i.status === 'Pendente')
-      .reduce((acc, i) => acc + (Number(i.value) || 0), 0);
-
     return {
-      monthlySum,
-      activeContractsCount: activeContracts.length,
-      totalRemainingReceivables
+      monthlySum: openPortfolioSummary.monthlyInstallmentsEstimate,
+      activeContractsCount: openPortfolioSummary.activeContractsCount,
+      totalRemainingReceivables: openPortfolioSummary.totalOpenReceivables,
+      totalRemainingCapital: openPortfolioSummary.totalOpenCapital,
+      totalRemainingProfit: openPortfolioSummary.totalOpenProfit,
     };
-  }, [sales, fullyPaidSaleIds, activeInstallments]);
-
-  const capitalYield = useMemo(() => {
-    return computeCapitalYieldMetrics(sales, installments, selectedMonth);
-  }, [sales, installments, selectedMonth]);
+  }, [openPortfolioSummary]);
 
   // Filtered installments based on search and status filter
   const filteredMonthInstallments = useMemo(() => {
@@ -740,133 +727,95 @@ export function MonthlyInstallmentsReport({
                 </p>
               </div>
 
-              <div className="border-t border-sky-500/15 pt-2.5 flex items-center justify-between text-xs text-zinc-400">
-                <span>Saldo Futuro:</span>
-                <span className="text-white font-semibold tabular-figure">
-                  {money(portfolioMonthlyEstimate.totalRemainingReceivables)}
-                </span>
+              <div className="border-t border-sky-500/15 pt-2.5 flex flex-col gap-1 text-xs text-zinc-400">
+                <div className="flex items-center justify-between">
+                  <span>Saldo Futuro:</span>
+                  <span className="text-white font-semibold tabular-figure">
+                    {money(portfolioMonthlyEstimate.totalRemainingReceivables)}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span>Lucro em Aberto:</span>
+                  <span className="text-emerald-400 font-bold tabular-figure">
+                    {money(portfolioMonthlyEstimate.totalRemainingProfit)}
+                  </span>
+                </div>
               </div>
             </div>
           </div>
 
-          {/* PAINEL EXECUTIVO: LUCRO QUE O CAPITAL INVESTIDO ESTÁ GERANDO */}
-          <div className="glass-card p-5 sm:p-6 border border-gold/25 bg-[#0d111a]/95 flex flex-col gap-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3.5 border-b border-white/[0.07]">
+          {/* PAINEL EXECUTIVO: LUCRO TOTAL DE TODO SALDO EM ABERTO DE PARCELAS */}
+          <div className="glass-card p-5 sm:p-6 border border-emerald-500/25 bg-[#0d111a]/95 rounded-2xl flex flex-col gap-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-white/[0.07]">
               <div>
                 <span className="text-[10px] font-bold uppercase tracking-widest text-gold block">
-                  Rentabilidade da Carteira
+                  Projeção Global da Carteira
                 </span>
-                <h3 className="text-base sm:text-lg font-bold text-white mt-0.5 flex items-center gap-2">
-                  <Briefcase size={16} className="text-gold shrink-0" />
-                  <span>Lucro Gerado pelo Capital Investido</span>
+                <h3 className="text-base sm:text-lg font-bold text-white tracking-tight">
+                  Lucro Total do Saldo em Aberto de Parcelas
                 </h3>
-                <p className="text-xs text-zinc-400 mt-0.5">
-                  Separação entre capital aplicado em giro e o lucro líquido gerado nas operações ativas e no mês
-                </p>
               </div>
-
-              <div className="px-3.5 py-2 rounded-xl bg-emerald-500/10 border border-emerald-500/30 shrink-0 self-start sm:self-center">
-                <span className="text-[10px] uppercase tracking-wider text-emerald-300/80 block">
-                  Rendimento Mensal
-                </span>
-                <strong className="text-sm font-bold text-emerald-400 tabular-figure block">
-                  +{capitalYield.monthlyRoiPct.toFixed(1)}% a.m. sobre o capital
-                </strong>
-              </div>
+              <span className="px-3 py-1 rounded-lg bg-[#07090e] border border-white/[0.08] text-xs font-semibold text-zinc-300 tabular-figure self-start sm:self-center">
+                {openPortfolioSummary.openInstallmentsCount}{' '}
+                {openPortfolioSummary.openInstallmentsCount === 1 ? 'parcela em aberto' : 'parcelas em aberto'} ·{' '}
+                {openPortfolioSummary.activeContractsCount}{' '}
+                {openPortfolioSummary.activeContractsCount === 1 ? 'contrato ativo' : 'contratos ativos'}
+              </span>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3.5">
-              {/* 1. Capital Investido Ativo */}
-              <div className="p-4 rounded-xl bg-[#07090e] border border-white/[0.08] flex flex-col justify-between gap-2">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
+              <div className="p-4 rounded-xl bg-[#07090e] border border-gold/25 flex flex-col justify-between gap-1.5">
                 <span className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400">
-                  Capital Investido Ativo
+                  Saldo Total em Aberto
                 </span>
-                <strong className="text-xl font-bold text-white tabular-figure">
-                  {money(capitalYield.activeRemainingInvested)}
+                <strong className="text-xl sm:text-2xl font-bold text-gold tabular-figure">
+                  {money(openPortfolioSummary.totalOpenReceivables)}
                 </strong>
-                <span className="text-[11px] text-zinc-400 tabular-figure pt-1.5 border-t border-white/[0.06] block">
-                  {capitalYield.activeCostedCount}{' '}
-                  {capitalYield.activeCostedCount === 1 ? 'operação em aberto' : 'operações em aberto'} · Aplicado:{' '}
-                  {money(capitalYield.totalInvestedAllTime)}
+                <span className="text-[11px] text-zinc-400">
+                  Soma de todas as parcelas pendentes (a vencer + atrasadas)
                 </span>
               </div>
 
-              {/* 2. Lucro Mensal Gerado pelo Capital */}
-              <div className="p-4 rounded-xl bg-[#07090e] border border-emerald-500/30 flex flex-col justify-between gap-2">
-                <span className="text-[11px] font-semibold uppercase tracking-wider text-emerald-300/90">
-                  Lucro Mensal Gerado
-                </span>
-                <strong className="text-xl font-bold text-emerald-400 tabular-figure">
-                  {money(capitalYield.activeMonthlyProfit)}
-                  <span className="text-xs font-medium text-emerald-400/80">/mês</span>
-                </strong>
-                <span className="text-[11px] text-emerald-300/80 tabular-figure pt-1.5 border-t border-white/[0.06] block">
-                  Retorno de {capitalYield.monthlyRoiPct.toFixed(1)}% a.m. sobre o capital ativo
-                </span>
-              </div>
-
-              {/* 3. Lucro no Mês Selecionado */}
-              <div className="p-4 rounded-xl bg-[#07090e] border border-gold/30 flex flex-col justify-between gap-2">
-                <span className="text-[11px] font-semibold uppercase tracking-wider text-gold/90">
-                  Lucro em {MONTH_NAMES[selectedMonthIndex]}
-                </span>
-                <strong className="text-xl font-bold text-gold tabular-figure">
-                  {money(capitalYield.monthExpectedProfit)}
-                </strong>
-                <span className="text-[11px] text-zinc-400 tabular-figure pt-1.5 border-t border-white/[0.06] block">
-                  Realizado: {money(capitalYield.monthRealizedProfit)} · Capital:{' '}
-                  {money(capitalYield.monthExpectedCapital)}
-                </span>
-              </div>
-
-              {/* 4. Lucro Já Realizado & A Gerar */}
-              <div className="p-4 rounded-xl bg-[#07090e] border border-white/[0.08] flex flex-col justify-between gap-2">
+              <div className="p-4 rounded-xl bg-[#07090e] border border-white/[0.08] flex flex-col justify-between gap-1.5">
                 <span className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400">
-                  Lucro Total Já Realizado
+                  Capital a Amortizar (Custo)
                 </span>
-                <strong className="text-xl font-bold text-emerald-400 tabular-figure">
-                  {money(capitalYield.totalRealizedProfitAllTime)}
+                <strong className="text-xl sm:text-2xl font-bold text-zinc-100 tabular-figure">
+                  {money(openPortfolioSummary.totalOpenCapital)}
                 </strong>
-                <span className="text-[11px] text-zinc-400 tabular-figure pt-1.5 border-t border-white/[0.06] block">
-                  A gerar nas futuras: +{money(capitalYield.pendingPortfolioProfit)}
+                <span className="text-[11px] text-zinc-400 tabular-figure">
+                  {openPortfolioSummary.openCapitalSharePct.toFixed(1)}% do saldo em aberto corresponde a custo
                 </span>
               </div>
-            </div>
 
-            {/* Decomposição Visual das Parcelas do Mês Selecionado: Capital vs Lucro */}
-            {monthStats.totalExpected > 0 && (
-              <div className="p-3.5 rounded-xl bg-[#07090e]/90 border border-white/[0.06] flex flex-col gap-2">
-                <div className="flex flex-wrap items-center justify-between gap-2 text-[11px]">
-                  <span className="font-semibold text-zinc-300">
-                    Composição de {MONTH_NAMES[selectedMonthIndex]} ({money(monthStats.totalExpected)} previstos)
+              <div className="p-4 rounded-xl bg-emerald-500/[0.06] border border-emerald-500/35 flex flex-col justify-between gap-1.5">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[11px] font-semibold uppercase tracking-wider text-emerald-300">
+                    Lucro Total em Aberto
                   </span>
-                  <div className="flex flex-wrap items-center gap-4 tabular-figure">
-                    <span className="inline-flex items-center gap-1.5 text-zinc-300">
-                      <span className="w-2 h-2 rounded-full bg-zinc-400" />
-                      Retorno de Capital: {money(capitalYield.monthExpectedCapital)} (
-                      {((capitalYield.monthExpectedCapital / monthStats.totalExpected) * 100).toFixed(1)}%)
-                    </span>
-                    <span className="inline-flex items-center gap-1.5 text-emerald-400 font-semibold">
-                      <span className="w-2 h-2 rounded-full bg-emerald-400" />
-                      Lucro Gerado: {money(capitalYield.monthExpectedProfit)} (
-                      {((capitalYield.monthExpectedProfit / monthStats.totalExpected) * 100).toFixed(1)}%)
-                    </span>
-                  </div>
+                  <span className="px-2 py-0.5 rounded bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-[10px] font-bold tabular-figure">
+                    {openPortfolioSummary.openProfitMarginPct.toFixed(1)}% margem
+                  </span>
                 </div>
-                <div className="w-full h-2.5 rounded-full bg-white/[0.05] overflow-hidden flex">
-                  <div
-                    className="h-full bg-zinc-400/75 transition-all duration-500"
-                    style={{
-                      width: `${Math.min(100, (capitalYield.monthExpectedCapital / monthStats.totalExpected) * 100)}%`,
-                    }}
-                  />
-                  <div
-                    className="h-full bg-emerald-500 transition-all duration-500"
-                    style={{
-                      width: `${Math.min(100, (capitalYield.monthExpectedProfit / monthStats.totalExpected) * 100)}%`,
-                    }}
-                  />
-                </div>
+                <strong className="text-xl sm:text-2xl font-bold text-emerald-400 tabular-figure">
+                  {money(openPortfolioSummary.totalOpenProfit)}
+                </strong>
+                <span className="text-[11px] text-emerald-300/80">
+                  Lucro líquido projetado ao receber todo o saldo em aberto
+                </span>
+              </div>
+            </div>
+
+            {openPortfolioSummary.totalOpenReceivables > 0 && (
+              <div className="w-full h-2 rounded-full bg-white/[0.05] overflow-hidden flex">
+                <div
+                  className="h-full bg-zinc-400/75 transition-all duration-500"
+                  style={{ width: `${Math.min(100, openPortfolioSummary.openCapitalSharePct)}%` }}
+                />
+                <div
+                  className="h-full bg-emerald-500 transition-all duration-500"
+                  style={{ width: `${Math.min(100, openPortfolioSummary.openProfitMarginPct)}%` }}
+                />
               </div>
             )}
           </div>
@@ -2167,6 +2116,43 @@ export function MonthlyInstallmentsReport({
             </div>
           </div>
 
+          {/* Posição Consolidada de Todo Saldo em Aberto */}
+          <div className="grid grid-cols-3 gap-3">
+            <div className="p-3 border border-amber-300 bg-amber-50/40 rounded-xl text-center">
+              <span className="text-[8px] text-amber-900 font-bold uppercase tracking-widest block mb-1">
+                Saldo Total em Aberto
+              </span>
+              <strong className="text-base font-black text-amber-900">
+                {money(openPortfolioSummary.totalOpenReceivables)}
+              </strong>
+              <span className="text-[8px] text-zinc-500 block mt-0.5">
+                {openPortfolioSummary.openInstallmentsCount} parcelas pendentes
+              </span>
+            </div>
+            <div className="p-3 border border-zinc-200 bg-zinc-50 rounded-xl text-center">
+              <span className="text-[8px] text-zinc-600 font-bold uppercase tracking-widest block mb-1">
+                Capital a Recuperar
+              </span>
+              <strong className="text-base font-black text-zinc-800">
+                {money(openPortfolioSummary.totalOpenCapital)}
+              </strong>
+              <span className="text-[8px] text-zinc-500 block mt-0.5">
+                {openPortfolioSummary.openCapitalSharePct.toFixed(1)}% do saldo aberto
+              </span>
+            </div>
+            <div className="p-3 border border-emerald-400 bg-emerald-50/60 rounded-xl text-center">
+              <span className="text-[8px] text-emerald-900 font-bold uppercase tracking-widest block mb-1">
+                Lucro Total em Aberto
+              </span>
+              <strong className="text-base font-black text-emerald-700">
+                {money(openPortfolioSummary.totalOpenProfit)}
+              </strong>
+              <span className="text-[8px] text-emerald-700 font-bold block mt-0.5">
+                Margem {openPortfolioSummary.openProfitMarginPct.toFixed(1)}%
+              </span>
+            </div>
+          </div>
+
           {/* Resumo do Mês Selecionado */}
           <div className="grid grid-cols-4 gap-3">
             <div className="p-3.5 border border-amber-300 bg-amber-50/50 rounded-xl text-center">
@@ -2188,38 +2174,6 @@ export function MonthlyInstallmentsReport({
               <span className="text-[8px] text-red-900 font-bold uppercase tracking-widest block mb-1">Em Atraso</span>
               <strong className="text-base font-black text-red-700">{money(monthStats.totalOverdue)}</strong>
               <span className="text-[8px] text-red-700 font-bold block mt-0.5">{monthStats.countOverdue} atrasadas</span>
-            </div>
-          </div>
-
-          {/* Lucro Gerado pelo Capital Investido */}
-          <div className="p-4 rounded-xl border border-emerald-300 bg-emerald-50/40 flex flex-col gap-2.5">
-            <div className="flex justify-between items-center border-b border-emerald-200 pb-1.5">
-              <span className="text-[10px] font-black uppercase text-emerald-900 tracking-wider">
-                Lucro Gerado pelo Capital Investido
-              </span>
-              <span className="text-[9px] font-bold text-emerald-800">
-                Rendimento Mensal: +{capitalYield.monthlyRoiPct.toFixed(1)}% a.m.
-              </span>
-            </div>
-            <div className="grid grid-cols-4 gap-3 text-center">
-              <div>
-                <span className="text-[8px] text-zinc-500 font-bold uppercase block">Capital Ativo</span>
-                <strong className="text-sm font-black text-zinc-900">{money(capitalYield.activeRemainingInvested)}</strong>
-              </div>
-              <div>
-                <span className="text-[8px] text-emerald-800 font-bold uppercase block">Lucro Mensal Gerado</span>
-                <strong className="text-sm font-black text-emerald-700">{money(capitalYield.activeMonthlyProfit)}/mês</strong>
-              </div>
-              <div>
-                <span className="text-[8px] text-amber-900 font-bold uppercase block">
-                  Lucro em {MONTH_NAMES[selectedMonthIndex]}
-                </span>
-                <strong className="text-sm font-black text-amber-800">{money(capitalYield.monthExpectedProfit)}</strong>
-              </div>
-              <div>
-                <span className="text-[8px] text-zinc-600 font-bold uppercase block">Lucro Futuro Carteira</span>
-                <strong className="text-sm font-black text-emerald-800">+{money(capitalYield.pendingPortfolioProfit)}</strong>
-              </div>
             </div>
           </div>
 

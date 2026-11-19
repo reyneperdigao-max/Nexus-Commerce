@@ -403,67 +403,32 @@ export function resolveClosingSummary(
   };
 }
 
-export interface CapitalYieldReportMetrics {
-  activeRemainingInvested: number;
-  activeOriginalInvested: number;
-  activeCostedCount: number;
-  totalInvestedAllTime: number;
-  activeMonthlyProfit: number;
-  activeCostedMonthlyProfit: number;
-  monthlyRoiPct: number;
-  pendingPortfolioProfit: number;
-  pendingPortfolioCapital: number;
-  totalRealizedProfitAllTime: number;
-  overallRoiPct: number;
-  monthExpectedProfit: number;
-  monthRealizedProfit: number;
-  monthPendingProfit: number;
-  monthExpectedCapital: number;
-  monthRealizedCapital: number;
-}
-
-function getInstallmentCapitalAndProfit(
-  inst: Installment,
-  sale: Sale | undefined,
-  installmentsBySaleId: Map<string, Installment[]>
-): { capital: number; profit: number } {
-  const val = Math.max(0, Number(inst.value) || 0);
-  if (val <= 0) return { capital: 0, profit: 0 };
-  if (!sale) return { capital: 0, profit: val };
-
-  const sInsts = installmentsBySaleId.get(sale.id) || [];
-  const ratios = getSalePaymentCapitalRatio(sale, sInsts);
-  if (!ratios.hasCost) {
-    return { capital: 0, profit: val };
-  }
-
-  if (sale.isInterestOnly) {
-    const isAmortization = (inst.productName || '').includes('(Amortização de Principal)');
-    if (isAmortization) {
-      const cap = Math.min(val, val * ratios.interestPrincipalRatio);
-      return { capital: cap, profit: Math.max(0, val - cap) };
-    }
-    return { capital: 0, profit: val };
-  }
-
-  const baseVal = Math.max(0, Number(inst.originalValue ?? inst.value) || val);
-  const cap = Math.min(val, baseVal * ratios.standardRatio);
-  return { capital: cap, profit: Math.max(0, val - cap) };
+export interface OpenInstallmentsPortfolioSummary {
+  totalOpenReceivables: number;
+  totalOpenCapital: number;
+  totalOpenProfit: number;
+  openProfitMarginPct: number;
+  openCapitalSharePct: number;
+  openInstallmentsCount: number;
+  activeContractsCount: number;
+  monthlyInstallmentsEstimate: number;
 }
 
 /**
- * Computes how much profit the invested capital is generating across the active portfolio,
- * historical realized cashflows, and the currently selected report month.
+ * Computes the complete financial breakdown of all open/pending installments across active contracts:
+ * - totalOpenReceivables: total gross balance of pending installments
+ * - totalOpenCapital: remaining unrecovered cost embedded in standard open installments
+ * - totalOpenProfit: net profit embedded in all open installments (including 100% of interest-only pending installments)
  */
-export function computeCapitalYieldMetrics(
+export function computeOpenInstallmentsPortfolioSummary(
   sales: Sale[],
-  installments: Installment[],
-  selectedMonthKey: string
-): CapitalYieldReportMetrics {
+  installments: Installment[]
+): OpenInstallmentsPortfolioSummary {
   const validSaleIds = new Set(sales.map((s) => s.id));
   const salesById = new Map(sales.map((s) => [s.id, s]));
-  const validInstallments = installments.filter((i) => !i.saleId || validSaleIds.has(i.saleId));
-  const installmentsBySaleId = buildSaleInstallmentMap(validInstallments);
+  const installmentsBySaleId = buildSaleInstallmentMap(
+    installments.filter((i) => !i.saleId || validSaleIds.has(i.saleId))
+  );
 
   const fullyPaidSaleIds = new Set<string>();
   sales.forEach((s) => {
@@ -473,137 +438,60 @@ export function computeCapitalYieldMetrics(
     if (isFullyPaid) fullyPaidSaleIds.add(s.id);
   });
 
-  let activeRemainingInvested = 0;
-  let activeOriginalInvested = 0;
-  let activeCostedCount = 0;
-  let totalInvestedAllTime = 0;
-  let activeMonthlyProfit = 0;
-  let activeCostedMonthlyProfit = 0;
-
-  sales.forEach((s) => {
-    const sInsts = installmentsBySaleId.get(s.id) || [];
-    const cost = Math.max(0, Number(s.costPrice) || 0);
-    const isActive = !fullyPaidSaleIds.has(s.id);
-
-    if (cost > 0) {
-      totalInvestedAllTime += cost;
-      const invSummary = calculateSaleInvestment(s, sInsts);
-      activeRemainingInvested += invSummary.remainingInvested;
-      if (isActive) {
-        activeOriginalInvested += cost;
-        if (!invSummary.isFullyPaid && invSummary.remainingInvested > 0) {
-          activeCostedCount += 1;
-        }
-      }
-    }
-
-    if (isActive) {
-      const monthlyVal = Math.max(0, Number(s.installmentValue) || 0);
-      const ratios = getSalePaymentCapitalRatio(s, sInsts);
-      const monthlyProfitPart = s.isInterestOnly
-        ? monthlyVal
-        : monthlyVal * (1 - (ratios.hasCost ? ratios.standardRatio : 0));
-
-      activeMonthlyProfit += monthlyProfitPart;
-      if (cost > 0) {
-        activeCostedMonthlyProfit += monthlyProfitPart;
-      }
-    }
-  });
-
-  let pendingPortfolioProfit = 0;
-  let pendingPortfolioCapital = 0;
-
-  validInstallments.forEach((inst) => {
-    if (inst.saleId && fullyPaidSaleIds.has(inst.saleId)) return;
-    if (inst.status !== 'Pendente') return;
-    const sale = salesById.get(inst.saleId);
-    const { capital, profit } = getInstallmentCapitalAndProfit(inst, sale, installmentsBySaleId);
-    pendingPortfolioProfit += profit;
-    pendingPortfolioCapital += capital;
-  });
-
-  // Total realized profit across all downPayments and paid installments
-  let totalRealizedRevenueAllTime = 0;
-  let totalRealizedCapitalAllTime = 0;
-
-  sales.forEach((s) => {
-    const dp = Math.max(0, Number(s.downPayment) || 0);
-    if (dp <= 0) return;
-    totalRealizedRevenueAllTime += dp;
-    const sInsts = installmentsBySaleId.get(s.id) || [];
-    const ratios = getSalePaymentCapitalRatio(s, sInsts);
-    if (ratios.hasCost) {
-      totalRealizedCapitalAllTime += dp * ratios.standardRatio;
-    }
-  });
-
-  validInstallments.forEach((inst) => {
-    if (inst.status !== 'Pago') return;
-    const val = Math.max(0, Number(inst.value) || 0);
-    totalRealizedRevenueAllTime += val;
-    const sale = salesById.get(inst.saleId);
-    const { capital } = getInstallmentCapitalAndProfit(inst, sale, installmentsBySaleId);
-    totalRealizedCapitalAllTime += capital;
-  });
-
-  const totalRealizedProfitAllTime = Math.max(
-    0,
-    totalRealizedRevenueAllTime - Math.min(totalRealizedRevenueAllTime, totalRealizedCapitalAllTime)
+  const activeContracts = sales.filter((s) => !fullyPaidSaleIds.has(s.id));
+  const monthlyInstallmentsEstimate = Number(
+    activeContracts.reduce((acc, s) => acc + (Number(s.installmentValue) || 0), 0).toFixed(2)
   );
 
-  // Selected month breakdown (active installments due in selectedMonthKey)
-  let monthExpectedProfit = 0;
-  let monthRealizedProfit = 0;
-  let monthExpectedCapital = 0;
-  let monthRealizedCapital = 0;
-
-  validInstallments.forEach((inst) => {
-    if (inst.saleId && fullyPaidSaleIds.has(inst.saleId)) return;
-    if (!inst.dueDate) return;
-    const parsed = parseDateSafe(inst.dueDate);
-    if (!parsed) return;
-    const key = `${parsed.year}-${String(parsed.month).padStart(2, '0')}`;
-    if (key !== selectedMonthKey) return;
-
-    const sale = salesById.get(inst.saleId);
-    const { capital, profit } = getInstallmentCapitalAndProfit(inst, sale, installmentsBySaleId);
-    monthExpectedProfit += profit;
-    monthExpectedCapital += capital;
-    if (inst.status === 'Pago') {
-      monthRealizedProfit += profit;
-      monthRealizedCapital += capital;
-    }
+  const pendingOpenInstallments = installments.filter((inst) => {
+    if (inst.status !== 'Pendente') return false;
+    if (inst.saleId && !validSaleIds.has(inst.saleId)) return false;
+    if (inst.saleId && fullyPaidSaleIds.has(inst.saleId)) return false;
+    return true;
   });
 
-  const roundedActiveRemaining = Number(activeRemainingInvested.toFixed(2));
-  const roundedActiveCostedMonthly = Number(activeCostedMonthlyProfit.toFixed(2));
-  const roundedTotalInvested = Number(totalInvestedAllTime.toFixed(2));
-  const roundedTotalRealizedProfit = Number(totalRealizedProfitAllTime.toFixed(2));
+  const pendingBySaleId = new Map<string, number>();
+  pendingOpenInstallments.forEach((inst) => {
+    const key = inst.saleId || '__unlinked__';
+    pendingBySaleId.set(key, (pendingBySaleId.get(key) || 0) + Math.max(0, Number(inst.value) || 0));
+  });
+
+  let totalOpenReceivables = 0;
+  let totalOpenCapital = 0;
+
+  pendingBySaleId.forEach((pendingSum, saleId) => {
+    totalOpenReceivables += pendingSum;
+    if (saleId === '__unlinked__') return;
+
+    const sale = salesById.get(saleId);
+    if (!sale) return;
+
+    if (sale.isInterestOnly) {
+      // Pending monthly interest installments represent pure interest yield (principal is separate)
+      return;
+    }
+
+    const allSaleInsts = installmentsBySaleId.get(sale.id) || [];
+    const inv = calculateSaleInvestment(sale, allSaleInsts);
+    totalOpenCapital += Math.min(pendingSum, inv.remainingInvested);
+  });
+
+  totalOpenReceivables = Number(totalOpenReceivables.toFixed(2));
+  totalOpenCapital = Number(Math.min(totalOpenReceivables, totalOpenCapital).toFixed(2));
+  const totalOpenProfit = Number(Math.max(0, totalOpenReceivables - totalOpenCapital).toFixed(2));
+  const openProfitMarginPct =
+    totalOpenReceivables > 0 ? (totalOpenProfit / totalOpenReceivables) * 100 : 0;
+  const openCapitalSharePct =
+    totalOpenReceivables > 0 ? (totalOpenCapital / totalOpenReceivables) * 100 : 0;
 
   return {
-    activeRemainingInvested: roundedActiveRemaining,
-    activeOriginalInvested: Number(activeOriginalInvested.toFixed(2)),
-    activeCostedCount,
-    totalInvestedAllTime: roundedTotalInvested,
-    activeMonthlyProfit: Number(activeMonthlyProfit.toFixed(2)),
-    activeCostedMonthlyProfit: roundedActiveCostedMonthly,
-    monthlyRoiPct:
-      roundedActiveRemaining > 0
-        ? (roundedActiveCostedMonthly / roundedActiveRemaining) * 100
-        : 0,
-    pendingPortfolioProfit: Number(pendingPortfolioProfit.toFixed(2)),
-    pendingPortfolioCapital: Number(pendingPortfolioCapital.toFixed(2)),
-    totalRealizedProfitAllTime: roundedTotalRealizedProfit,
-    overallRoiPct:
-      roundedTotalInvested > 0
-        ? (roundedTotalRealizedProfit / roundedTotalInvested) * 100
-        : 0,
-    monthExpectedProfit: Number(monthExpectedProfit.toFixed(2)),
-    monthRealizedProfit: Number(monthRealizedProfit.toFixed(2)),
-    monthPendingProfit: Number(Math.max(0, monthExpectedProfit - monthRealizedProfit).toFixed(2)),
-    monthExpectedCapital: Number(monthExpectedCapital.toFixed(2)),
-    monthRealizedCapital: Number(monthRealizedCapital.toFixed(2)),
+    totalOpenReceivables,
+    totalOpenCapital,
+    totalOpenProfit,
+    openProfitMarginPct,
+    openCapitalSharePct,
+    openInstallmentsCount: pendingOpenInstallments.length,
+    activeContractsCount: activeContracts.length,
+    monthlyInstallmentsEstimate,
   };
 }
-
