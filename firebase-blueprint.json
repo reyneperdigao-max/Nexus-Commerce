@@ -138,7 +138,15 @@
         "periodName": { "type": "string", "maxLength": 200 },
         "profit": { "type": "number" },
         "totalSales": { "type": "number" },
-        "salesCount": { "type": "number" }
+        "salesCount": { "type": "number" },
+        "revenue": { "type": "number" },
+        "capitalRecovery": { "type": "number" },
+        "netProfit": { "type": "number" },
+        "averageTicket": { "type": "number" },
+        "entriesTotal": { "type": "number" },
+        "installmentsTotal": { "type": "number" },
+        "pendingOverdueAmount": { "type": "number" },
+        "pendingOverdueCount": { "type": "number" }
       },
       "required": ["closedAt", "periodName", "profit", "totalSales", "salesCount"]
     },

@@ -1,6 +1,7 @@
 import { jsPDF } from 'jspdf';
 import { Sale, Settings, Installment } from '../types';
 import { formatLocalDateBR, extractDueDay } from './dateUtils';
+import { ResolvedClosingSummary } from './closingUtils';
 
 const money = (val: number) =>
   new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val || 0);
@@ -554,6 +555,318 @@ export async function downloadReceiptAsPDF(
   } catch (err: any) {
     console.error('Erro ao gerar recibo em PDF:', err);
     return { success: false, error: err?.message };
+  }
+}
+
+/**
+ * Builds a vector A4 PDF report for an archived Register Closing
+ */
+export function createClosingPDFDoc(
+  summary: ResolvedClosingSummary,
+  settings: Settings
+): jsPDF {
+  const doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
+  const companyName = (settings.companyName || 'NEXUS COMMERCE').toUpperCase();
+  const sellerName = getSystemSellerName(settings);
+  const closedAtDate = new Date(summary.closing.closedAt);
+  const closedAtFormatted = isNaN(closedAtDate.getTime())
+    ? formatLocalDateBR(summary.closing.closedAt)
+    : closedAtDate.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
+  const shortId = (summary.closing.id || '000000').substring(0, 8).toUpperCase();
+
+  const left = 14;
+  const right = 196;
+  const width = 182;
+  let y = 16;
+
+  // 1. Cabeçalho Institucional
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(11);
+  doc.setTextColor(180, 83, 9);
+  doc.text(companyName, left, y);
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(9.5);
+  doc.setTextColor(15, 23, 42);
+  doc.text(`REF: FC-${shortId}`, right, y, { align: 'right' });
+
+  y += 6.5;
+  doc.setFontSize(16);
+  doc.setTextColor(15, 23, 42);
+  doc.text('FECHAMENTO DE CAIXA CONSOLIDADO', left, y);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9);
+  doc.setTextColor(100, 116, 139);
+  doc.text(`Encerrado em: ${closedAtFormatted}`, right, y, { align: 'right' });
+
+  y += 5.5;
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(10);
+  doc.setTextColor(51, 65, 85);
+  doc.text(`Ciclo: ${summary.closing.periodName}`, left, y);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8.5);
+  doc.setTextColor(100, 116, 139);
+  doc.text(`Responsável: ${sellerName}`, right, y, { align: 'right' });
+
+  y += 4;
+  doc.setDrawColor(15, 23, 42);
+  doc.setLineWidth(0.7);
+  doc.line(left, y, right, y);
+
+  // 2. Cards Executivos (4 colunas)
+  y += 5;
+  const gap = 3;
+  const cardW = (width - gap * 3) / 4;
+  const cardH = 22;
+
+  const cards = [
+    {
+      label: 'FATURAMENTO REALIZADO',
+      value: money(summary.faturamento),
+      sub: 'Entradas + Parcelas',
+      border: [245, 158, 11] as [number, number, number],
+      bg: [255, 251, 235] as [number, number, number],
+      valColor: [180, 83, 9] as [number, number, number],
+    },
+    {
+      label: 'RETORNO DE CAPITAL',
+      value: money(summary.capitalRecovery),
+      sub: `${summary.capitalSharePct.toFixed(1)}% amortização custo`,
+      border: [148, 163, 184] as [number, number, number],
+      bg: [248, 250, 252] as [number, number, number],
+      valColor: [15, 23, 42] as [number, number, number],
+    },
+    {
+      label: 'LUCRO LÍQUIDO REALIZADO',
+      value: money(summary.netProfit),
+      sub: `Margem ${summary.profitMarginPct.toFixed(1)}%`,
+      border: [16, 185, 129] as [number, number, number],
+      bg: [236, 253, 245] as [number, number, number],
+      valColor: [4, 120, 87] as [number, number, number],
+    },
+    {
+      label: 'TICKET MÉDIO',
+      value: money(summary.averageTicket),
+      sub: `${summary.salesCount} contrato(s)`,
+      border: [203, 213, 225] as [number, number, number],
+      bg: [248, 250, 252] as [number, number, number],
+      valColor: [15, 23, 42] as [number, number, number],
+    },
+  ];
+
+  cards.forEach((c, idx) => {
+    const cx = left + idx * (cardW + gap);
+    doc.setFillColor(c.bg[0], c.bg[1], c.bg[2]);
+    doc.setDrawColor(c.border[0], c.border[1], c.border[2]);
+    doc.setLineWidth(0.35);
+    doc.roundedRect(cx, y, cardW, cardH, 2, 2, 'FD');
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(6.8);
+    doc.setTextColor(71, 85, 105);
+    doc.text(c.label, cx + 3, y + 5.5);
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(11);
+    doc.setTextColor(c.valColor[0], c.valColor[1], c.valColor[2]);
+    doc.text(c.value, cx + 3, y + 13);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7);
+    doc.setTextColor(100, 116, 139);
+    doc.text(c.sub, cx + 3, y + 18.5);
+  });
+
+  y += cardH + 6;
+
+  // 3. Quadro de Composição do Ciclo
+  doc.setFillColor(248, 250, 252);
+  doc.setDrawColor(203, 213, 225);
+  doc.setLineWidth(0.3);
+  const compH = summary.pendingOverdueCount > 0 ? 27 : 21;
+  doc.roundedRect(left, y, width, compH, 2, 2, 'FD');
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8.5);
+  doc.setTextColor(15, 23, 42);
+  doc.text('COMPOSIÇÃO DO CAIXA E OPERAÇÕES DO CICLO', left + 4, y + 5.5);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8.5);
+  doc.setTextColor(51, 65, 85);
+  doc.text(`Entradas de Novos Contratos: ${money(summary.entriesTotal)}`, left + 4, y + 11.5);
+  doc.text(`Parcelas Quitadas no Ciclo: ${money(summary.installmentsTotal)}`, left + 95, y + 11.5);
+
+  doc.text(`Contratos Registrados: ${summary.salesCount} (${money(summary.salesVolume)} em volume total)`, left + 4, y + 17);
+  doc.text(
+    `Origem dos Dados: ${summary.isLegacySnapshot ? 'Histórico Consolidado' : 'Auditoria Completa'}`,
+    left + 95,
+    y + 17
+  );
+
+  if (summary.pendingOverdueCount > 0) {
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(185, 28, 28);
+    doc.text(
+      `Pendências em Atraso no Encerramento: ${summary.pendingOverdueCount} parcela(s) somando ${money(summary.pendingOverdueAmount)}`,
+      left + 4,
+      y + 23
+    );
+  }
+
+  y += compH + 7;
+
+  // 4. Contratos do Ciclo (se houver)
+  if (summary.cycleSales.length > 0 && y < 235) {
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9);
+    doc.setTextColor(15, 23, 42);
+    doc.text(`CONTRATOS CELEBRADOS NO CICLO (${summary.cycleSales.length})`, left, y);
+    y += 3.5;
+
+    doc.setFillColor(15, 23, 42);
+    doc.rect(left, y, width, 6.5, 'F');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(7.5);
+    doc.setTextColor(255, 255, 255);
+    doc.text('CLIENTE', left + 3, y + 4.4);
+    doc.text('PRODUTO', left + 56, y + 4.4);
+    doc.text('DATA', left + 118, y + 4.4);
+    doc.text('ENTRADA', left + 150, y + 4.4, { align: 'right' });
+    doc.text('VALOR TOTAL', right - 3, y + 4.4, { align: 'right' });
+    y += 6.5;
+
+    const maxSalesRows = Math.min(summary.cycleSales.length, 10);
+    for (let i = 0; i < maxSalesRows; i++) {
+      const s = summary.cycleSales[i];
+      if (i % 2 === 1) {
+        doc.setFillColor(248, 250, 252);
+        doc.rect(left, y, width, 6, 'F');
+      }
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7.8);
+      doc.setTextColor(15, 23, 42);
+      doc.text((s.client || 'CLIENTE').slice(0, 26), left + 3, y + 4.2);
+      doc.setTextColor(71, 85, 105);
+      doc.text((s.productName || 'Aparelho').slice(0, 30), left + 56, y + 4.2);
+      doc.text(formatLocalDateBR(s.date || s.createdAt), left + 118, y + 4.2);
+      doc.text(money(Number(s.downPayment) || 0), left + 150, y + 4.2, { align: 'right' });
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(15, 23, 42);
+      doc.text(money(Number(s.total) || 0), right - 3, y + 4.2, { align: 'right' });
+      y += 6;
+    }
+
+    if (summary.cycleSales.length > maxSalesRows) {
+      doc.setFont('helvetica', 'italic');
+      doc.setFontSize(7);
+      doc.setTextColor(100, 116, 139);
+      doc.text(`* Exibindo ${maxSalesRows} de ${summary.cycleSales.length} contratos do ciclo.`, left, y + 3.5);
+      y += 5;
+    } else {
+      y += 4;
+    }
+  }
+
+  // 5. Parcelas Quitadas no Ciclo (se houver espaço na página)
+  if (summary.cyclePaidInstallments.length > 0 && y < 245) {
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9);
+    doc.setTextColor(15, 23, 42);
+    doc.text(`PARCELAS RECEBIDAS NO CICLO (${summary.cyclePaidInstallments.length})`, left, y);
+    y += 3.5;
+
+    doc.setFillColor(15, 23, 42);
+    doc.rect(left, y, width, 6.5, 'F');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(7.5);
+    doc.setTextColor(255, 255, 255);
+    doc.text('CLIENTE', left + 3, y + 4.4);
+    doc.text('PRODUTO', left + 56, y + 4.4);
+    doc.text('PARCELA', left + 116, y + 4.4);
+    doc.text('PAGAMENTO', left + 146, y + 4.4);
+    doc.text('RECEBIDO', right - 3, y + 4.4, { align: 'right' });
+    y += 6.5;
+
+    const remainingSpaceRows = Math.max(3, Math.floor((272 - y) / 6));
+    const maxInstRows = Math.min(summary.cyclePaidInstallments.length, remainingSpaceRows);
+
+    for (let i = 0; i < maxInstRows; i++) {
+      const inst = summary.cyclePaidInstallments[i];
+      if (i % 2 === 1) {
+        doc.setFillColor(248, 250, 252);
+        doc.rect(left, y, width, 6, 'F');
+      }
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7.8);
+      doc.setTextColor(15, 23, 42);
+      doc.text((inst.client || 'CLIENTE').slice(0, 26), left + 3, y + 4.2);
+      doc.setTextColor(71, 85, 105);
+      doc.text((inst.productName || 'Parcela').slice(0, 28), left + 56, y + 4.2);
+      doc.text(`${inst.number}/${inst.total}`, left + 116, y + 4.2);
+      doc.text(formatLocalDateBR(inst.paidAt || inst.dueDate), left + 146, y + 4.2);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(4, 120, 87);
+      doc.text(money(Number(inst.value) || 0), right - 3, y + 4.2, { align: 'right' });
+      y += 6;
+    }
+
+    if (summary.cyclePaidInstallments.length > maxInstRows) {
+      doc.setFont('helvetica', 'italic');
+      doc.setFontSize(7);
+      doc.setTextColor(100, 116, 139);
+      doc.text(
+        `* Exibindo ${maxInstRows} de ${summary.cyclePaidInstallments.length} recebimentos do ciclo.`,
+        left,
+        y + 3.5
+      );
+    }
+  }
+
+  // 6. Rodapé
+  doc.setDrawColor(226, 232, 240);
+  doc.setLineWidth(0.3);
+  doc.line(left, 280, right, 280);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7.5);
+  doc.setTextColor(148, 163, 184);
+  doc.text(`FECHAMENTO ARQUIVADO — ${companyName}`, left, 285);
+  doc.text(
+    `Emissão do PDF: ${new Date().toLocaleString('pt-BR')} • REF: FC-${shortId}`,
+    right,
+    285,
+    { align: 'right' }
+  );
+
+  return doc;
+}
+
+/**
+ * Downloads a specific archived Closing summary as a clean vector A4 PDF
+ */
+export async function downloadClosingAsPDF(
+  summary: ResolvedClosingSummary,
+  settings: Settings
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const cleanPeriod = (summary.closing.periodName || 'FECHAMENTO')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-zA-Z0-9]+/g, '_')
+      .replace(/^_|_$/g, '')
+      .toUpperCase();
+    const shortId = (summary.closing.id || '').substring(0, 6).toUpperCase();
+    const filename = `FECHAMENTO_${cleanPeriod}_${shortId}.pdf`;
+
+    const doc = createClosingPDFDoc(summary, settings);
+    doc.save(filename);
+    return { success: true };
+  } catch (err: any) {
+    console.error('Erro ao gerar PDF do fechamento:', err);
+    return { success: false, error: err?.message || 'Falha ao gerar PDF' };
   }
 }
 

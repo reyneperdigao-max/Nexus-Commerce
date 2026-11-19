@@ -32,8 +32,30 @@ import {
   Wallet,
   RotateCcw,
   Check,
-  Trash2
+  Eye,
+  Download,
+  ShieldCheck,
+  ArrowUpRight,
+  X
 } from 'lucide-react';
+import {
+  computeOpenCycleMetrics,
+  resolveClosingSummary,
+  CycleFinancialMetrics,
+  ResolvedClosingSummary
+} from '../lib/closingUtils';
+import { downloadClosingAsPDF } from '../lib/pdfGenerator';
+
+interface ClosingExtrasPayload {
+  revenue?: number;
+  capitalRecovery?: number;
+  netProfit?: number;
+  averageTicket?: number;
+  entriesTotal?: number;
+  installmentsTotal?: number;
+  pendingOverdueAmount?: number;
+  pendingOverdueCount?: number;
+}
 
 interface MonthlyInstallmentsReportProps {
   sales: Sale[];
@@ -45,7 +67,13 @@ interface MonthlyInstallmentsReportProps {
   onPayInstallment: (installment: Installment) => void;
   onViewReceipt: (installment: Installment) => void;
   onDownloadPDF: () => void;
-  onCloseRegister: (periodName: string, profit: number, revenue: number, count: number) => void;
+  onCloseRegister: (
+    periodName: string,
+    profit: number,
+    revenue: number,
+    count: number,
+    extras?: ClosingExtrasPayload
+  ) => void;
   onDeleteClosing?: (closingId: string) => void;
   initialTab?: 'installments' | 'closings';
   onTabChange?: (tab: 'installments' | 'closings') => void;
@@ -134,6 +162,14 @@ export function MonthlyInstallmentsReport({
   const [activeTab, setActiveTab] = useState<'installments' | 'closings'>(initialTab || 'installments');
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'paid' | 'overdue'>('all');
   const [searchTerm, setSearchTerm] = useState('');
+  const [closingPeriodName, setClosingPeriodName] = useState<string>(
+    `${MONTH_NAMES[currentMonthNum - 1]} de ${currentYear}`
+  );
+  const [closeConfirmPreview, setCloseConfirmPreview] = useState<
+    (CycleFinancialMetrics & { periodVal: string; timestampIso: string }) | null
+  >(null);
+  const [detailClosingSummary, setDetailClosingSummary] = useState<ResolvedClosingSummary | null>(null);
+  const [downloadingClosingId, setDownloadingClosingId] = useState<string | null>(null);
   const [confirmDialog, setConfirmDialog] = useState<{
     title: string;
     message: string;
@@ -157,37 +193,27 @@ export function MonthlyInstallmentsReport({
     return closings.reduce((latest, c) => c.closedAt > latest ? c.closedAt : latest, '');
   }, [closings]);
 
-  const isAfterLastClosing = (dateStr?: string) => {
-    if (!lastClosingDate) return true;
-    if (!dateStr) return false;
-    const itemTime = new Date(dateStr).getTime();
-    const closingTime = new Date(lastClosingDate).getTime();
-    if (isNaN(itemTime) || isNaN(closingTime)) return false;
-    return itemTime > closingTime;
+  const openCycle = useMemo(() => {
+    return computeOpenCycleMetrics(sales, installments, lastClosingDate);
+  }, [sales, installments, lastClosingDate]);
+
+  const resolvedClosings = useMemo(() => {
+    if (!closings || closings.length === 0) return [];
+    return [...closings]
+      .sort((a, b) => b.closedAt.localeCompare(a.closedAt))
+      .map((c) => resolveClosingSummary(c, closings, sales, installments));
+  }, [closings, sales, installments]);
+
+  const handleDownloadSpecificClosingPDF = async (summary: ResolvedClosingSummary) => {
+    setDownloadingClosingId(summary.closing.id);
+    const res = await downloadClosingAsPDF(summary, settings);
+    setDownloadingClosingId(null);
+    if (res.success) {
+      showToast(`PDF de "${summary.closing.periodName}" gerado com sucesso!`, 'success');
+    } else {
+      showToast('Não foi possível gerar o PDF do fechamento.', 'error');
+    }
   };
-
-  const isCurrentMonthNow = (dateStr?: string) => {
-    if (!dateStr) return false;
-    const date = new Date(dateStr);
-    const curr = new Date();
-    return date.getFullYear() === curr.getFullYear() && date.getMonth() === curr.getMonth();
-  };
-
-  const cycleDownPayments = useMemo(() => {
-    return sales
-      .filter(s => isCurrentMonthNow(s.createdAt || s.date) && isAfterLastClosing(s.createdAt || s.date))
-      .reduce((acc, s) => acc + (s.downPayment || 0), 0);
-  }, [sales, lastClosingDate]);
-
-  const cyclePaidInstallments = useMemo(() => {
-    return installments
-      .filter(i => i.status === 'Pago' && isCurrentMonthNow(i.paidAt || i.dueDate) && isAfterLastClosing(i.paidAt || i.dueDate))
-      .reduce((acc, i) => acc + (i.value || 0), 0);
-  }, [installments, lastClosingDate]);
-
-  const cycleRealizedFaturamento = cycleDownPayments + cyclePaidInstallments;
-  const cycleSalesVolume = activeSales.reduce((acc, s) => acc + (Number(s.total) || 0), 0);
-  const cycleSalesCount = activeSales.length;
 
   // Parse Year and Month from selectedMonth (YYYY-MM)
   const [selectedYear, selectedMonthIndex] = useMemo(() => {
@@ -1175,96 +1201,242 @@ export function MonthlyInstallmentsReport({
       {/* ========================================================================= */}
       {activeTab === 'closings' && (
         <div className="flex flex-col gap-6">
-          <div className="glass-card p-5 sm:p-6 border-amber-500/25 bg-amber-500/[0.03] flex flex-col gap-5">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          {/* Painel Principal: Resumo Financeiro Completo do Ciclo */}
+          <div className="glass-card p-5 sm:p-6 border border-gold/25 bg-[#0d111a]/95 flex flex-col gap-5">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-white/[0.07]">
               <div className="flex flex-col gap-1">
-                <h3 className="text-base sm:text-lg font-bold text-amber-200">
-                  Consolidar e Fechar Caixa Mensal
+                <span className="text-[10px] font-bold uppercase tracking-widest text-gold">
+                  Consolidação de Caixa · Ciclo Atual
+                </span>
+                <h3 className="text-lg sm:text-xl font-bold text-white tracking-tight">
+                  Resumo Financeiro Completo do Ciclo
                 </h3>
-                <p className="text-xs text-zinc-300 max-w-2xl leading-relaxed">
-                  Ao consolidar o fechamento, o faturamento realizado no ciclo (
-                  <strong className="text-gold tabular-figure">{money(cycleRealizedFaturamento)}</strong>) será
-                  arquivado e o <strong className="text-white">faturamento do mês no Painel será zerado</strong> para
-                  início do novo ciclo.
+                <p className="text-xs text-zinc-400 max-w-2xl leading-relaxed">
+                  Analise a separação entre retorno do capital investido e lucro líquido realizado antes de encerrar.
+                  Ao fechar o caixa, os resultados são arquivados e o faturamento mensal do Painel é zerado para o novo ciclo.
                 </p>
               </div>
 
-              <div className="px-3.5 py-2 rounded-xl bg-[#07090e] border border-amber-500/25 shrink-0">
-                <span className="text-[11px] text-zinc-400 block">Status do Caixa</span>
-                <span className="text-xs font-semibold text-amber-300 block mt-0.5">
-                  {lastClosingDate
-                    ? `Último Fechamento: ${new Date(lastClosingDate).toLocaleDateString('pt-BR')}`
-                    : 'Ciclo Inicial Aberto'}
+              <div className="px-4 py-2.5 rounded-xl bg-[#07090e] border border-gold/25 shrink-0 flex items-center gap-3">
+                <div className="w-8 h-8 rounded-lg bg-gold/10 border border-gold/30 text-gold flex items-center justify-center shrink-0">
+                  <Clock size={15} />
+                </div>
+                <div>
+                  <span className="text-[10px] uppercase tracking-wider text-zinc-400 block">Status do Caixa</span>
+                  <span className="text-xs font-semibold text-gold block mt-0.5 tabular-figure">
+                    {lastClosingDate
+                      ? `Último Fechamento: ${new Date(lastClosingDate).toLocaleDateString('pt-BR')}`
+                      : 'Ciclo Inicial Aberto'}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* 4 Cards Executivos: Faturamento, Retorno de Capital, Lucro Realizado e Ticket Médio */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3.5">
+              {/* 1. Faturamento Total */}
+              <div className="p-4 rounded-xl bg-[#07090e] border border-gold/30 flex flex-col justify-between gap-2">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400">
+                    Faturamento Total
+                  </span>
+                  <div className="w-7 h-7 rounded-lg bg-gold/10 border border-gold/25 text-gold flex items-center justify-center shrink-0">
+                    <DollarSign size={14} />
+                  </div>
+                </div>
+                <strong className="text-xl sm:text-2xl font-bold text-gold tabular-figure">
+                  {money(openCycle.faturamentoTotal)}
+                </strong>
+                <div className="text-[11px] text-zinc-400 tabular-figure pt-1.5 border-t border-white/[0.06] flex items-center justify-between gap-2">
+                  <span>Entradas: {money(openCycle.entriesTotal)}</span>
+                  <span>Parcelas: {money(openCycle.installmentsTotal)}</span>
+                </div>
+              </div>
+
+              {/* 2. Retorno de Capital (Amortização de Custo) */}
+              <div className="p-4 rounded-xl bg-[#07090e] border border-white/[0.08] flex flex-col justify-between gap-2">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400">
+                    Retorno de Capital
+                  </span>
+                  <div className="w-7 h-7 rounded-lg bg-white/[0.05] border border-white/[0.1] text-zinc-300 flex items-center justify-center shrink-0">
+                    <Wallet size={14} />
+                  </div>
+                </div>
+                <strong className="text-xl sm:text-2xl font-bold text-zinc-100 tabular-figure">
+                  {money(openCycle.capitalRecovery)}
+                </strong>
+                <span className="text-[11px] text-zinc-400 tabular-figure pt-1.5 border-t border-white/[0.06] block">
+                  Amortização de custo · {openCycle.capitalSharePct.toFixed(1)}% do caixa
+                </span>
+              </div>
+
+              {/* 3. Lucro Líquido Realizado no Ciclo */}
+              <div className="p-4 rounded-xl bg-[#07090e] border border-emerald-500/30 flex flex-col justify-between gap-2">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[11px] font-semibold uppercase tracking-wider text-emerald-300/90">
+                    Lucro Líquido Realizado
+                  </span>
+                  <div className="w-7 h-7 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 flex items-center justify-center shrink-0">
+                    <TrendingUp size={14} />
+                  </div>
+                </div>
+                <strong className="text-xl sm:text-2xl font-bold text-emerald-400 tabular-figure">
+                  {money(openCycle.netProfit)}
+                </strong>
+                <span className="text-[11px] text-emerald-300/80 tabular-figure pt-1.5 border-t border-white/[0.06] block">
+                  Margem realizada: {openCycle.profitMarginPct.toFixed(1)}% sobre o caixa
+                </span>
+              </div>
+
+              {/* 4. Ticket Médio das Vendas */}
+              <div className="p-4 rounded-xl bg-[#07090e] border border-white/[0.08] flex flex-col justify-between gap-2">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400">
+                    Ticket Médio do Período
+                  </span>
+                  <div className="w-7 h-7 rounded-lg bg-gold/10 border border-gold/25 text-gold flex items-center justify-center shrink-0">
+                    <Receipt size={14} />
+                  </div>
+                </div>
+                <strong className="text-xl sm:text-2xl font-bold text-white tabular-figure">
+                  {money(openCycle.averageTicket)}
+                </strong>
+                <span className="text-[11px] text-zinc-400 tabular-figure pt-1.5 border-t border-white/[0.06] block">
+                  {openCycle.salesCount} {openCycle.salesCount === 1 ? 'venda' : 'vendas'} · Vol. {money(openCycle.salesVolume)}
                 </span>
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 border-t border-white/[0.08]">
-              <div className="p-4 rounded-xl bg-[#07090e]/70 border border-white/[0.07]">
-                <span className="text-xs text-zinc-400 block">Faturamento do Ciclo Aberto</span>
-                <strong className="text-xl font-bold text-gold mt-1 block tabular-figure">
-                  {money(cycleRealizedFaturamento)}
-                </strong>
-                <span className="text-[11px] text-zinc-400 mt-1 block tabular-figure">
-                  Entradas: {money(cycleDownPayments)} · Parcelas: {money(cyclePaidInstallments)}
+            {/* Barra de Composição Proporcional (Retorno de Capital vs Lucro Líquido) */}
+            <div className="p-3.5 rounded-xl bg-[#07090e]/90 border border-white/[0.06] flex flex-col gap-2">
+              <div className="flex flex-wrap items-center justify-between gap-2 text-[11px]">
+                <span className="font-semibold text-zinc-300">
+                  Decomposição do Faturamento Realizado ({money(openCycle.faturamentoTotal)})
                 </span>
+                <div className="flex items-center gap-4 tabular-figure">
+                  <span className="inline-flex items-center gap-1.5 text-zinc-300">
+                    <span className="w-2 h-2 rounded-full bg-zinc-400" />
+                    Capital: {openCycle.capitalSharePct.toFixed(1)}%
+                  </span>
+                  <span className="inline-flex items-center gap-1.5 text-emerald-400 font-semibold">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400" />
+                    Lucro Líquido: {openCycle.profitMarginPct.toFixed(1)}%
+                  </span>
+                </div>
               </div>
-
-              <div className="p-4 rounded-xl bg-[#07090e]/70 border border-white/[0.07]">
-                <span className="text-xs text-zinc-400 block">Novos Contratos no Ciclo</span>
-                <strong className="text-xl font-bold text-white mt-1 block tabular-figure">
-                  {cycleSalesCount} {cycleSalesCount === 1 ? 'venda' : 'vendas'}
-                </strong>
-                <span className="text-[11px] text-zinc-400 mt-1 block tabular-figure">
-                  Volume: {money(cycleSalesVolume)}
-                </span>
-              </div>
-
-              <div className="p-4 rounded-xl bg-[#07090e]/70 border border-white/[0.07]">
-                <span className="text-xs text-zinc-400 block">Carteira Ativa Geral</span>
-                <strong className="text-xl font-bold text-zinc-100 mt-1 block tabular-figure">
-                  {money(portfolioMonthlyEstimate.monthlySum)}
-                  <span className="text-xs text-zinc-400 font-normal">/mês</span>
-                </strong>
-                <span className="text-[11px] text-zinc-400 mt-1 block">
-                  {portfolioMonthlyEstimate.activeContractsCount} contratos ativos
-                </span>
+              <div className="w-full h-2.5 rounded-full bg-white/[0.05] overflow-hidden flex">
+                {openCycle.faturamentoTotal > 0 ? (
+                  <>
+                    <div
+                      className="h-full bg-zinc-400/75 transition-all duration-500"
+                      style={{ width: `${Math.min(100, openCycle.capitalSharePct)}%` }}
+                    />
+                    <div
+                      className="h-full bg-emerald-500 transition-all duration-500"
+                      style={{ width: `${Math.min(100, openCycle.profitMarginPct)}%` }}
+                    />
+                  </>
+                ) : (
+                  <div className="h-full w-full bg-white/[0.04]" />
+                )}
               </div>
             </div>
 
-            <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between pt-2 border-t border-white/[0.08]">
-              <div className="flex flex-col sm:flex-row sm:items-center gap-2">
-                <span className="text-xs font-medium text-zinc-300 shrink-0">Etiqueta do Ciclo:</span>
+            {/* Card de Alerta: Pendências do Ciclo (Parcelas vencidas no mês em atraso) */}
+            {openCycle.pendingOverdueCount > 0 ? (
+              <div className="p-4 rounded-xl bg-red-500/[0.07] border border-red-500/35 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="flex items-start gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-red-500/15 border border-red-500/35 text-red-400 flex items-center justify-center shrink-0 mt-0.5">
+                    <AlertTriangle size={18} />
+                  </div>
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h4 className="text-sm font-bold text-red-200">
+                        Pendências do Ciclo — Parcelas Vencidas em Atraso no Mês
+                      </h4>
+                      <span className="px-2 py-0.5 rounded-md bg-red-500/20 border border-red-500/40 text-red-300 text-[10px] font-bold uppercase tabular-figure">
+                        {openCycle.pendingOverdueCount}{' '}
+                        {openCycle.pendingOverdueCount === 1 ? 'em atraso' : 'em atraso'}
+                      </span>
+                    </div>
+                    <p className="text-xs text-red-200/80 mt-1 leading-relaxed">
+                      Há{' '}
+                      <strong className="text-white tabular-figure">
+                        {openCycle.pendingOverdueCount}{' '}
+                        {openCycle.pendingOverdueCount === 1 ? 'parcela vencida' : 'parcelas vencidas'}
+                      </strong>{' '}
+                      neste mês somando{' '}
+                      <strong className="text-red-300 tabular-figure">
+                        {money(openCycle.pendingOverdueAmount)}
+                      </strong>{' '}
+                      que ainda não foram recebidas antes do fechamento.
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedMonth(initialMonthStr);
+                    setStatusFilter('overdue');
+                    handleTabChange('installments');
+                  }}
+                  className="h-9 px-4 rounded-xl bg-red-500/15 hover:bg-red-500/25 border border-red-500/40 text-red-200 text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer shrink-0"
+                >
+                  <span>Ver Parcelas em Atraso</span>
+                  <ArrowUpRight size={14} />
+                </button>
+              </div>
+            ) : (
+              <div className="p-4 rounded-xl bg-emerald-500/[0.05] border border-emerald-500/25 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 flex items-center justify-center shrink-0">
+                    <CheckCircle2 size={17} />
+                  </div>
+                  <div>
+                    <h4 className="text-xs sm:text-sm font-bold text-emerald-300">
+                      Pendências do Ciclo: Nenhuma Parcela em Atraso no Mês
+                    </h4>
+                    <p className="text-[11px] text-zinc-400 mt-0.5">
+                      Todas as parcelas vencidas dentro do mês vigente estão em dia até o momento.
+                    </p>
+                  </div>
+                </div>
+                <span className="text-xs font-bold text-emerald-400 tabular-figure shrink-0">
+                  {money(0)} em atraso
+                </span>
+              </div>
+            )}
+
+            {/* Barra de Etiqueta & Botão de Fechamento */}
+            <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between pt-3 border-t border-white/[0.08]">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-2.5">
+                <label htmlFor="closingPeriodInput" className="text-xs font-semibold text-zinc-300 shrink-0">
+                  Nome do Ciclo:
+                </label>
                 <input
-                  type="text"
-                  placeholder="Ex: Maio de 2026"
-                  defaultValue={`${MONTH_NAMES[selectedMonthIndex]} de ${selectedYear}`}
                   id="closingPeriodInput"
-                  className="h-10 px-3.5 bg-[#07090e] border border-white/[0.1] rounded-xl outline-none text-xs font-medium text-white focus:border-gold min-w-[200px]"
+                  type="text"
+                  value={closingPeriodName}
+                  onChange={(e) => setClosingPeriodName(e.target.value)}
+                  placeholder="Ex: Novembro de 2026"
+                  className="h-10 px-3.5 bg-[#07090e] border border-white/[0.12] rounded-xl outline-none text-xs font-medium text-white focus:border-gold min-w-[220px]"
                 />
               </div>
 
               <button
                 type="button"
                 onClick={() => {
-                  const inputEl = document.getElementById('closingPeriodInput') as HTMLInputElement;
                   const periodVal =
-                    inputEl?.value?.trim() || `${MONTH_NAMES[selectedMonthIndex]} de ${selectedYear}`;
-
-                  setConfirmDialog({
-                    title: `Fechar Caixa — ${periodVal}`,
-                    message: `Faturamento a consolidar: ${money(cycleRealizedFaturamento)} (${cycleSalesCount} contratos). O faturamento mensal no Painel será zerado para o novo ciclo.`,
-                    onConfirm: () => {
-                      onCloseRegister(periodVal, cycleRealizedFaturamento, cycleSalesVolume, cycleSalesCount);
-                      if (inputEl) inputEl.value = '';
-                      showToast(
-                        'Fechamento de caixa concluído! O faturamento do mês no Painel foi zerado.',
-                        'success'
-                      );
-                    },
+                    closingPeriodName.trim() || `${MONTH_NAMES[currentMonthNum - 1]} de ${currentYear}`;
+                  setCloseConfirmPreview({
+                    ...openCycle,
+                    periodVal,
+                    timestampIso: new Date().toISOString(),
                   });
                 }}
-                className="h-10 px-5 bg-gold hover:brightness-110 text-[#07090e] font-bold text-xs rounded-xl transition-all cursor-pointer flex items-center justify-center gap-2"
+                className="h-10 px-5 bg-gold hover:brightness-110 text-[#07090e] font-bold text-xs rounded-xl transition-all cursor-pointer flex items-center justify-center gap-2 shadow-[0_4px_16px_rgba(243,186,47,0.2)]"
               >
                 <Layers size={15} />
                 <span>Fechar Caixa e Zerar Painel</span>
@@ -1272,36 +1444,86 @@ export function MonthlyInstallmentsReport({
             </div>
           </div>
 
-          <div className="glass-card overflow-hidden">
-            <div className="p-5 border-b border-white/[0.08] flex justify-between items-center">
+          {/* Histórico de Ciclos Fechados (Arquivados) */}
+          <div className="glass-card overflow-hidden border border-white/[0.08]">
+            <div className="p-5 border-b border-white/[0.08] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
-                <h3 className="text-base font-bold text-white">Histórico de Fechamentos</h3>
-                <p className="text-xs text-zinc-400 mt-0.5">Relatórios consolidados de ciclos anteriores</p>
+                <span className="text-[10px] font-bold uppercase tracking-widest text-gold block">
+                  Arquivo Histórico Contábil
+                </span>
+                <h3 className="text-base font-bold text-white mt-0.5">
+                  Histórico de Ciclos Fechados
+                </h3>
+                <p className="text-xs text-zinc-400 mt-0.5">
+                  Todos os meses encerrados e consolidados, ordenados do fechamento mais recente ao mais antigo
+                </p>
               </div>
-              <span className="px-2.5 py-1 rounded-lg bg-white/[0.04] border border-white/[0.08] text-zinc-300 text-xs font-semibold tabular-figure">
-                {closings?.length || 0} arquivados
+              <span className="px-3 py-1.5 rounded-lg bg-[#07090e] border border-gold/25 text-gold text-xs font-bold tabular-figure self-start sm:self-center">
+                {resolvedClosings.length} {resolvedClosings.length === 1 ? 'ciclo arquivado' : 'ciclos arquivados'}
               </span>
             </div>
 
-            {!closings || closings.length === 0 ? (
-              <div className="p-10 text-center text-zinc-500 text-xs">
-                Nenhum encerramento de caixa arquivado até o momento.
+            {resolvedClosings.length === 0 ? (
+              <div className="p-12 text-center flex flex-col items-center justify-center gap-2">
+                <Layers size={28} className="text-zinc-600" />
+                <p className="text-zinc-400 text-xs font-medium">
+                  Nenhum encerramento de caixa arquivado até o momento.
+                </p>
               </div>
             ) : (
               <>
+                {/* Mobile View */}
                 <div className="md:hidden divide-y divide-white/[0.06]">
-                  {[...closings]
-                    .sort((a, b) => b.closedAt.localeCompare(a.closedAt))
-                    .map((c) => (
-                      <div key={c.id} className="p-4 flex flex-col gap-2">
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="font-semibold text-sm text-white">{c.periodName}</span>
-                          <strong className="text-sm font-bold text-emerald-400 tabular-figure">
-                            {money(c.profit || 0)}
-                          </strong>
+                  {resolvedClosings.map((item) => {
+                    const c = item.closing;
+                    return (
+                      <div key={c.id} className="p-4 flex flex-col gap-3">
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <span className="font-bold text-sm text-white block">{c.periodName}</span>
+                            <span className="text-[11px] text-zinc-400 tabular-figure block mt-0.5">
+                              Fechado em {new Date(c.closedAt).toLocaleDateString('pt-BR')} · {item.salesCount}{' '}
+                              {item.salesCount === 1 ? 'venda' : 'vendas'}
+                            </span>
+                          </div>
+                          <span className="px-2 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/25 text-emerald-400 text-[10px] font-bold">
+                            Arquivado
+                          </span>
                         </div>
-                        <div className="flex items-center justify-between text-xs text-zinc-400">
-                          <span>{new Date(c.closedAt).toLocaleDateString('pt-BR')} · {c.salesCount} contr.</span>
+
+                        <div className="grid grid-cols-2 gap-2.5 p-3 rounded-xl bg-[#07090e] border border-white/[0.06]">
+                          <div>
+                            <span className="text-[10px] text-zinc-400 block">Faturamento Realizado</span>
+                            <strong className="text-sm font-bold text-gold tabular-figure">
+                              {money(item.faturamento)}
+                            </strong>
+                          </div>
+                          <div>
+                            <span className="text-[10px] text-zinc-400 block">Lucro Realizado</span>
+                            <strong className="text-sm font-bold text-emerald-400 tabular-figure">
+                              {money(item.netProfit)}
+                            </strong>
+                          </div>
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setDetailClosingSummary(item)}
+                            className="flex-1 h-9 px-3 rounded-lg bg-white/[0.05] border border-white/[0.1] text-zinc-100 text-xs font-semibold inline-flex items-center justify-center gap-1.5 cursor-pointer"
+                          >
+                            <Eye size={13} className="text-gold" />
+                            <span>Detalhes</span>
+                          </button>
+                          <button
+                            type="button"
+                            disabled={downloadingClosingId === c.id}
+                            onClick={() => handleDownloadSpecificClosingPDF(item)}
+                            className="flex-1 h-9 px-3 rounded-lg bg-gold/15 border border-gold/35 text-gold text-xs font-bold inline-flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+                          >
+                            <Download size={13} />
+                            <span>{downloadingClosingId === c.id ? 'Gerando...' : 'PDF'}</span>
+                          </button>
                           {onDeleteClosing && (
                             <button
                               type="button"
@@ -1316,70 +1538,137 @@ export function MonthlyInstallmentsReport({
                                   },
                                 })
                               }
-                              className="px-2.5 py-1 rounded-lg bg-white/[0.04] border border-white/[0.08] text-zinc-300 hover:text-red-400 text-xs font-medium inline-flex items-center gap-1 cursor-pointer"
+                              className="h-9 px-3 rounded-lg bg-white/[0.04] border border-white/[0.08] text-zinc-300 hover:text-red-400 text-xs font-medium inline-flex items-center justify-center gap-1 cursor-pointer"
+                              title="Reabrir este fechamento"
                             >
-                              <RotateCcw size={12} /> Reabrir
+                              <RotateCcw size={13} />
                             </button>
                           )}
                         </div>
                       </div>
-                    ))}
+                    );
+                  })}
                 </div>
 
+                {/* Desktop Table View */}
                 <div className="hidden md:block overflow-x-auto custom-scrollbar">
-                  <table className="w-full text-left min-w-[700px]">
+                  <table className="w-full text-left min-w-[820px]">
                     <thead>
-                      <tr className="border-b border-white/[0.08] text-xs text-zinc-400 font-semibold bg-white/[0.02]">
-                        <th className="p-4 pl-6">Período</th>
-                        <th className="p-4 text-center">Fechamento</th>
-                        <th className="p-4 text-center">Contratos</th>
-                        <th className="p-4 text-center">Volume</th>
-                        <th className="p-4 text-right pr-6 text-emerald-400">Faturamento</th>
-                        {onDeleteClosing && <th className="p-4 text-center w-24">Ações</th>}
+                      <tr className="border-b border-white/[0.08] text-xs text-zinc-400 font-semibold bg-white/[0.02] h-12">
+                        <th className="p-4 pl-6">Ciclo</th>
+                        <th className="p-4 text-center">Data do Fechamento</th>
+                        <th className="p-4 text-center">Vendas / Ticket Médio</th>
+                        <th className="p-4 text-right text-gold">Faturamento Realizado</th>
+                        <th className="p-4 text-right text-emerald-400">Lucro Realizado</th>
+                        <th className="p-4 pr-6 text-right">Ações</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-white/[0.05]">
-                      {[...closings]
-                        .sort((a, b) => b.closedAt.localeCompare(a.closedAt))
-                        .map((c) => (
-                          <tr key={c.id} className="hover:bg-white/[0.02] transition-colors h-14">
-                            <td className="p-4 pl-6 font-semibold text-sm text-white">{c.periodName}</td>
-                            <td className="p-4 text-xs text-zinc-400 text-center tabular-figure">
-                              {new Date(c.closedAt).toLocaleString('pt-BR')}
+                      {resolvedClosings.map((item) => {
+                        const c = item.closing;
+                        return (
+                          <tr key={c.id} className="hover:bg-white/[0.02] transition-colors h-16">
+                            <td className="p-4 pl-6">
+                              <div className="flex items-center gap-2.5">
+                                <div className="w-8 h-8 rounded-lg bg-gold/10 border border-gold/25 text-gold flex items-center justify-center shrink-0">
+                                  <Layers size={14} />
+                                </div>
+                                <div>
+                                  <span className="font-bold text-sm text-white block">{c.periodName}</span>
+                                  <span className="text-[11px] text-zinc-400 tabular-figure block">
+                                    Capital amortizado: {money(item.capitalRecovery)}
+                                  </span>
+                                </div>
+                              </div>
                             </td>
+
                             <td className="p-4 text-xs text-zinc-300 text-center tabular-figure">
-                              {c.salesCount} contrato(s)
+                              <span className="font-medium block">
+                                {new Date(c.closedAt).toLocaleDateString('pt-BR')}
+                              </span>
+                              <span className="text-[11px] text-zinc-500">
+                                {new Date(c.closedAt).toLocaleTimeString('pt-BR', {
+                                  hour: '2-digit',
+                                  minute: '2-digit',
+                                })}
+                              </span>
                             </td>
-                            <td className="p-4 text-xs text-zinc-200 text-center tabular-figure">
-                              {money(c.totalSales || 0)}
+
+                            <td className="p-4 text-xs text-zinc-300 text-center tabular-figure">
+                              <span className="font-semibold text-white block">
+                                {item.salesCount} {item.salesCount === 1 ? 'venda' : 'vendas'}
+                              </span>
+                              <span className="text-[11px] text-zinc-400">
+                                Ticket: {money(item.averageTicket)}
+                              </span>
                             </td>
-                            <td className="p-4 text-sm font-bold text-emerald-400 text-right pr-6 tabular-figure">
-                              {money(c.profit || 0)}
+
+                            <td className="p-4 text-right tabular-figure">
+                              <strong className="text-sm font-bold text-gold block">
+                                {money(item.faturamento)}
+                              </strong>
+                              <span className="text-[10px] text-zinc-500 block">
+                                Entradas + Parcelas
+                              </span>
                             </td>
-                            {onDeleteClosing && (
-                              <td className="p-4 text-center">
+
+                            <td className="p-4 text-right tabular-figure">
+                              <strong className="text-sm font-bold text-emerald-400 block">
+                                {money(item.netProfit)}
+                              </strong>
+                              <span className="text-[10px] text-emerald-400/75 block">
+                                Margem {item.profitMarginPct.toFixed(1)}%
+                              </span>
+                            </td>
+
+                            <td className="p-4 pr-6 text-right">
+                              <div className="flex items-center justify-end gap-2">
                                 <button
                                   type="button"
-                                  onClick={() =>
-                                    setConfirmDialog({
-                                      title: `Reabrir Caixa (${c.periodName})`,
-                                      message:
-                                        'O faturamento consolidado deste período será restaurado no Painel Principal. Deseja prosseguir?',
-                                      onConfirm: () => {
-                                        onDeleteClosing(c.id);
-                                        showToast('Fechamento cancelado! Caixa reaberto.', 'success');
-                                      },
-                                    })
-                                  }
-                                  className="px-2.5 py-1 rounded-lg bg-white/[0.04] hover:bg-red-500/15 text-zinc-300 hover:text-red-400 border border-white/[0.08] hover:border-red-500/35 text-xs font-medium transition-colors inline-flex items-center gap-1.5 cursor-pointer"
+                                  onClick={() => setDetailClosingSummary(item)}
+                                  className="h-8 px-3 rounded-lg bg-white/[0.05] hover:bg-white/[0.1] border border-white/[0.1] text-zinc-200 text-xs font-semibold inline-flex items-center gap-1.5 transition-all cursor-pointer"
+                                  title="Visualizar detalhes deste fechamento"
                                 >
-                                  <RotateCcw size={12} />
-                                  <span>Reabrir</span>
+                                  <Eye size={13} className="text-gold" />
+                                  <span>Detalhes</span>
                                 </button>
-                              </td>
-                            )}
+
+                                <button
+                                  type="button"
+                                  disabled={downloadingClosingId === c.id}
+                                  onClick={() => handleDownloadSpecificClosingPDF(item)}
+                                  className="h-8 px-3 rounded-lg bg-gold/15 hover:bg-gold/25 border border-gold/35 text-gold text-xs font-bold inline-flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-50"
+                                  title="Gerar PDF deste fechamento"
+                                >
+                                  <Download size={13} />
+                                  <span>{downloadingClosingId === c.id ? 'Gerando...' : 'PDF'}</span>
+                                </button>
+
+                                {onDeleteClosing && (
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      setConfirmDialog({
+                                        title: `Reabrir Caixa (${c.periodName})`,
+                                        message:
+                                          'O faturamento consolidado deste período será restaurado no Painel Principal. Deseja prosseguir?',
+                                        onConfirm: () => {
+                                          onDeleteClosing(c.id);
+                                          showToast('Fechamento cancelado! Caixa reaberto.', 'success');
+                                        },
+                                      })
+                                    }
+                                    className="h-8 px-2.5 rounded-lg bg-white/[0.04] hover:bg-red-500/15 text-zinc-400 hover:text-red-400 border border-white/[0.08] hover:border-red-500/35 text-xs font-medium transition-colors inline-flex items-center gap-1 cursor-pointer"
+                                    title="Reabrir Caixa"
+                                  >
+                                    <RotateCcw size={13} />
+                                  </button>
+                                )}
+                              </div>
+                            </td>
                           </tr>
-                        ))}
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
@@ -1389,10 +1678,303 @@ export function MonthlyInstallmentsReport({
         </div>
       )}
 
+      {/* Modal de Confirmação Segura para Fechamento de Caixa */}
+      {closeConfirmPreview && (
+        <div className="fixed inset-0 z-[320] flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-black/80 backdrop-blur-md"
+            onClick={() => setCloseConfirmPreview(null)}
+          />
+          <div className="relative w-full max-w-md glass-card p-6 bg-[#0d111a] border border-gold/35 rounded-2xl shadow-2xl flex flex-col gap-5">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-gold/15 border border-gold/35 text-gold flex items-center justify-center shrink-0">
+                  <ShieldCheck size={20} />
+                </div>
+                <div>
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-gold block">
+                    Confirmação Segura
+                  </span>
+                  <h3 className="text-base font-bold text-white">
+                    Encerrar Ciclo e Arquivar Caixa
+                  </h3>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setCloseConfirmPreview(null)}
+                className="p-1.5 rounded-lg text-zinc-400 hover:text-white hover:bg-white/[0.06] transition-colors cursor-pointer"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="p-4 rounded-xl bg-[#07090e] border border-white/[0.08] flex flex-col gap-3">
+              <div className="flex items-center justify-between text-xs pb-2.5 border-b border-white/[0.06]">
+                <span className="text-zinc-400">Ciclo a Arquivar</span>
+                <strong className="text-white font-bold">{closeConfirmPreview.periodVal}</strong>
+              </div>
+
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-zinc-400">Data e Hora do Fechamento</span>
+                <strong className="text-zinc-200 tabular-figure">
+                  {new Date(closeConfirmPreview.timestampIso).toLocaleString('pt-BR', {
+                    dateStyle: 'short',
+                    timeStyle: 'short',
+                  })}
+                </strong>
+              </div>
+
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-zinc-400">Faturamento Realizado</span>
+                <strong className="text-gold text-sm font-bold tabular-figure">
+                  {money(closeConfirmPreview.faturamentoTotal)}
+                </strong>
+              </div>
+
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-zinc-400">Retorno de Capital (Custo)</span>
+                <strong className="text-zinc-200 font-semibold tabular-figure">
+                  {money(closeConfirmPreview.capitalRecovery)}
+                </strong>
+              </div>
+
+              <div className="flex items-center justify-between text-xs pt-2 border-t border-white/[0.06]">
+                <span className="text-emerald-300 font-semibold">Lucro Líquido Realizado</span>
+                <strong className="text-emerald-400 text-sm font-bold tabular-figure">
+                  {money(closeConfirmPreview.netProfit)}
+                </strong>
+              </div>
+
+              <div className="flex items-center justify-between text-[11px] text-zinc-400">
+                <span>Vendas & Ticket Médio</span>
+                <span className="tabular-figure">
+                  {closeConfirmPreview.salesCount}{' '}
+                  {closeConfirmPreview.salesCount === 1 ? 'venda' : 'vendas'} ·{' '}
+                  {money(closeConfirmPreview.averageTicket)}
+                </span>
+              </div>
+            </div>
+
+            {closeConfirmPreview.pendingOverdueCount > 0 && (
+              <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-start gap-2.5 text-xs text-amber-200">
+                <AlertTriangle size={15} className="text-amber-400 shrink-0 mt-0.5" />
+                <span>
+                  Atenção: existem{' '}
+                  <strong className="tabular-figure">
+                    {closeConfirmPreview.pendingOverdueCount} parcelas vencidas
+                  </strong>{' '}
+                  ({money(closeConfirmPreview.pendingOverdueAmount)}) em atraso no mês. Elas continuarão ativas
+                  na carteira de cobrança após o fechamento.
+                </span>
+              </div>
+            )}
+
+            <p className="text-[11px] text-zinc-400 leading-relaxed">
+              Nenhum contrato, cliente ou parcela será apagado. Apenas o indicador de faturamento do mês no
+              Painel Principal será zerado para o início do próximo ciclo.
+            </p>
+
+            <div className="grid grid-cols-2 gap-3 pt-1">
+              <button
+                type="button"
+                onClick={() => setCloseConfirmPreview(null)}
+                className="h-10 rounded-xl bg-white/[0.05] hover:bg-white/[0.09] border border-white/[0.1] text-xs font-semibold text-zinc-300 cursor-pointer transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const payload = closeConfirmPreview;
+                  onCloseRegister(
+                    payload.periodVal,
+                    payload.netProfit,
+                    payload.salesVolume,
+                    payload.salesCount,
+                    {
+                      revenue: payload.faturamentoTotal,
+                      capitalRecovery: payload.capitalRecovery,
+                      netProfit: payload.netProfit,
+                      averageTicket: payload.averageTicket,
+                      entriesTotal: payload.entriesTotal,
+                      installmentsTotal: payload.installmentsTotal,
+                      pendingOverdueAmount: payload.pendingOverdueAmount,
+                      pendingOverdueCount: payload.pendingOverdueCount,
+                    }
+                  );
+                  setCloseConfirmPreview(null);
+                  setClosingPeriodName(`${MONTH_NAMES[currentMonthNum - 1]} de ${currentYear}`);
+                  showToast(
+                    `Ciclo "${payload.periodVal}" fechado com sucesso! Painel zerado para o novo período.`,
+                    'success'
+                  );
+                }}
+                className="h-10 rounded-xl bg-gold hover:brightness-110 text-[#07090e] text-xs font-bold cursor-pointer transition-all"
+              >
+                Confirmar Fechamento
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Detalhes do Fechamento Arquivado */}
+      {detailClosingSummary && (
+        <div className="fixed inset-0 z-[320] flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-black/80 backdrop-blur-md"
+            onClick={() => setDetailClosingSummary(null)}
+          />
+          <div className="relative w-full max-w-2xl max-h-[90vh] overflow-y-auto custom-scrollbar glass-card p-6 bg-[#0d111a] border border-gold/30 rounded-2xl shadow-2xl flex flex-col gap-5">
+            <div className="flex items-start justify-between gap-3 pb-4 border-b border-white/[0.08]">
+              <div>
+                <span className="text-[10px] font-bold uppercase tracking-widest text-gold block">
+                  Demonstrativo de Fechamento Arquivado
+                </span>
+                <h3 className="text-lg font-bold text-white mt-0.5">
+                  {detailClosingSummary.closing.periodName}
+                </h3>
+                <p className="text-xs text-zinc-400 mt-0.5 tabular-figure">
+                  Encerrado em {new Date(detailClosingSummary.closing.closedAt).toLocaleString('pt-BR')} · REF:{' '}
+                  {detailClosingSummary.closing.id.substring(0, 8).toUpperCase()}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setDetailClosingSummary(null)}
+                className="p-2 rounded-lg text-zinc-400 hover:text-white hover:bg-white/[0.06] cursor-pointer"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div className="p-3.5 rounded-xl bg-[#07090e] border border-gold/25">
+                <span className="text-[10px] uppercase tracking-wider text-zinc-400 block">
+                  Faturamento Realizado
+                </span>
+                <strong className="text-base font-bold text-gold mt-1 block tabular-figure">
+                  {money(detailClosingSummary.faturamento)}
+                </strong>
+              </div>
+              <div className="p-3.5 rounded-xl bg-[#07090e] border border-white/[0.08]">
+                <span className="text-[10px] uppercase tracking-wider text-zinc-400 block">
+                  Retorno de Capital
+                </span>
+                <strong className="text-base font-bold text-zinc-100 mt-1 block tabular-figure">
+                  {money(detailClosingSummary.capitalRecovery)}
+                </strong>
+              </div>
+              <div className="p-3.5 rounded-xl bg-[#07090e] border border-emerald-500/25">
+                <span className="text-[10px] uppercase tracking-wider text-emerald-300/80 block">
+                  Lucro Realizado
+                </span>
+                <strong className="text-base font-bold text-emerald-400 mt-1 block tabular-figure">
+                  {money(detailClosingSummary.netProfit)}
+                </strong>
+              </div>
+              <div className="p-3.5 rounded-xl bg-[#07090e] border border-white/[0.08]">
+                <span className="text-[10px] uppercase tracking-wider text-zinc-400 block">
+                  Ticket Médio
+                </span>
+                <strong className="text-base font-bold text-white mt-1 block tabular-figure">
+                  {money(detailClosingSummary.averageTicket)}
+                </strong>
+              </div>
+            </div>
+
+            <div className="p-4 rounded-xl bg-[#07090e] border border-white/[0.07] grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+              <div>
+                <span className="text-zinc-400 block text-[11px]">Entradas Recebidas</span>
+                <strong className="text-white font-semibold tabular-figure">
+                  {money(detailClosingSummary.entriesTotal)}
+                </strong>
+              </div>
+              <div>
+                <span className="text-zinc-400 block text-[11px]">Parcelas Quitadas</span>
+                <strong className="text-white font-semibold tabular-figure">
+                  {money(detailClosingSummary.installmentsTotal)}
+                </strong>
+              </div>
+              <div>
+                <span className="text-zinc-400 block text-[11px]">Contratos / Volume</span>
+                <strong className="text-white font-semibold tabular-figure">
+                  {detailClosingSummary.salesCount} contr. · {money(detailClosingSummary.salesVolume)}
+                </strong>
+              </div>
+            </div>
+
+            {detailClosingSummary.pendingOverdueCount > 0 && (
+              <div className="p-3 rounded-xl bg-red-500/[0.07] border border-red-500/25 text-xs text-red-200 flex items-center justify-between gap-2">
+                <span>Pendências em atraso registradas no encerramento</span>
+                <strong className="tabular-figure text-red-300">
+                  {detailClosingSummary.pendingOverdueCount} parc. · {money(detailClosingSummary.pendingOverdueAmount)}
+                </strong>
+              </div>
+            )}
+
+            {detailClosingSummary.cyclePaidInstallments.length > 0 && (
+              <div className="flex flex-col gap-2">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-zinc-300">
+                  Recebimentos do Ciclo ({detailClosingSummary.cyclePaidInstallments.length})
+                </h4>
+                <div className="max-h-44 overflow-y-auto custom-scrollbar rounded-xl border border-white/[0.07] divide-y divide-white/[0.05] bg-[#07090e]">
+                  {detailClosingSummary.cyclePaidInstallments.map((inst) => (
+                    <div
+                      key={inst.id}
+                      className="px-3.5 py-2.5 flex items-center justify-between gap-3 text-xs"
+                    >
+                      <div className="min-w-0">
+                        <span className="font-semibold text-white block truncate">{inst.client}</span>
+                        <span className="text-[11px] text-zinc-400 block truncate">
+                          {inst.productName} · Parcela {inst.number}/{inst.total}
+                        </span>
+                      </div>
+                      <div className="text-right shrink-0 tabular-figure">
+                        <strong className="text-emerald-400 font-bold block">
+                          {money(Number(inst.value) || 0)}
+                        </strong>
+                        <span className="text-[10px] text-zinc-500">
+                          {formatDateBR(inst.paidAt || inst.dueDate)}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-end gap-2.5 pt-2 border-t border-white/[0.08]">
+              <button
+                type="button"
+                onClick={() => setDetailClosingSummary(null)}
+                className="h-10 px-4 rounded-xl bg-white/[0.05] border border-white/[0.1] text-xs font-semibold text-zinc-300 cursor-pointer"
+              >
+                Fechar
+              </button>
+              <button
+                type="button"
+                disabled={downloadingClosingId === detailClosingSummary.closing.id}
+                onClick={() => handleDownloadSpecificClosingPDF(detailClosingSummary)}
+                className="h-10 px-5 rounded-xl bg-gold hover:brightness-110 text-[#07090e] text-xs font-bold inline-flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+              >
+                <Download size={14} />
+                <span>
+                  {downloadingClosingId === detailClosingSummary.closing.id
+                    ? 'Gerando PDF...'
+                    : 'Gerar PDF do Fechamento'}
+                </span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {confirmDialog && (
-        <div className="fixed inset-0 z-[310] flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-[330] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/80 backdrop-blur-md" onClick={() => setConfirmDialog(null)} />
-          <div className="relative w-full max-w-sm glass-card p-6 bg-[#0d111a] text-center">
+          <div className="relative w-full max-w-sm glass-card p-6 bg-[#0d111a] border border-white/[0.1] text-center">
             <h3 className="text-base font-bold text-white mb-2">{confirmDialog.title}</h3>
             <p className="text-xs text-zinc-400 mb-5 leading-relaxed">{confirmDialog.message}</p>
             <div className="grid grid-cols-2 gap-3">

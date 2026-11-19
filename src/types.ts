@@ -124,5 +124,13 @@ export interface Closing {
   profit: number;
   totalSales: number;
   salesCount: number;
+  revenue?: number;
+  capitalRecovery?: number;
+  netProfit?: number;
+  averageTicket?: number;
+  entriesTotal?: number;
+  installmentsTotal?: number;
+  pendingOverdueAmount?: number;
+  pendingOverdueCount?: number;
 }
 

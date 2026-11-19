@@ -163,13 +163,25 @@ service cloud.firestore {
 
     function isValidClosing(data) {
       return data.keys().hasAll(['closedAt', 'periodName', 'profit', 'totalSales', 'salesCount'])
-        && data.keys().hasOnly(['id', 'closedAt', 'periodName', 'profit', 'totalSales', 'salesCount'])
+        && data.keys().hasOnly([
+          'id', 'closedAt', 'periodName', 'profit', 'totalSales', 'salesCount',
+          'revenue', 'capitalRecovery', 'netProfit', 'averageTicket',
+          'entriesTotal', 'installmentsTotal', 'pendingOverdueAmount', 'pendingOverdueCount'
+        ])
         && optStr(data, 'id', 128)
         && data.closedAt is string && data.closedAt.size() <= 64
         && data.periodName is string && data.periodName.size() <= 200
         && data.profit is number
         && data.totalSales is number
-        && data.salesCount is number;
+        && data.salesCount is number
+        && optNum(data, 'revenue')
+        && optNum(data, 'capitalRecovery')
+        && optNum(data, 'netProfit')
+        && optNum(data, 'averageTicket')
+        && optNum(data, 'entriesTotal')
+        && optNum(data, 'installmentsTotal')
+        && optNum(data, 'pendingOverdueAmount')
+        && optNum(data, 'pendingOverdueCount');
     }
 
     function isValidSettings(data) {

@@ -217,6 +217,11 @@ function sanitizeInstallmentForFirestore(raw: any, id: string): Installment {
 }
 
 function sanitizeClosingForFirestore(raw: any, id: string): Closing {
+  const optFinite = (val: any) =>
+    val !== undefined && val !== null && val !== '' && Number.isFinite(Number(val))
+      ? Number(val)
+      : undefined;
+
   return cleanData({
     id,
     closedAt: String(raw?.closedAt || new Date().toISOString()).slice(0, 64),
@@ -224,6 +229,14 @@ function sanitizeClosingForFirestore(raw: any, id: string): Closing {
     profit: Number.isFinite(Number(raw?.profit)) ? Number(raw.profit) : 0,
     totalSales: Number.isFinite(Number(raw?.totalSales)) ? Number(raw.totalSales) : 0,
     salesCount: Number.isFinite(Number(raw?.salesCount)) ? Number(raw.salesCount) : 0,
+    revenue: optFinite(raw?.revenue),
+    capitalRecovery: optFinite(raw?.capitalRecovery),
+    netProfit: optFinite(raw?.netProfit),
+    averageTicket: optFinite(raw?.averageTicket),
+    entriesTotal: optFinite(raw?.entriesTotal),
+    installmentsTotal: optFinite(raw?.installmentsTotal),
+    pendingOverdueAmount: optFinite(raw?.pendingOverdueAmount),
+    pendingOverdueCount: optFinite(raw?.pendingOverdueCount),
   });
 }
 
@@ -1930,7 +1943,17 @@ export function useNexusState(user: User | null) {
     periodName: string,
     profit: number,
     totalSales: number,
-    salesCount: number
+    salesCount: number,
+    extras?: {
+      revenue?: number;
+      capitalRecovery?: number;
+      netProfit?: number;
+      averageTicket?: number;
+      entriesTotal?: number;
+      installmentsTotal?: number;
+      pendingOverdueAmount?: number;
+      pendingOverdueCount?: number;
+    }
   ) => {
     if (!uid) return;
     const id = crypto.randomUUID();
@@ -1942,6 +1965,7 @@ export function useNexusState(user: User | null) {
         profit,
         totalSales,
         salesCount,
+        ...(extras || {}),
       },
       id
     );
