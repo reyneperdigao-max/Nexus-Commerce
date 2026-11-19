@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Sale, Settings, Installment } from '../types';
-import { ShieldCheck, X, Copy, Check, Download, Calendar, Globe, Monitor, Lock, FileCheck } from 'lucide-react';
+import { ShieldCheck, X, Copy, Check, Download, Calendar, Globe, Monitor, Lock, FileCheck, RotateCcw, AlertTriangle } from 'lucide-react';
 import { downloadContractAsPDF } from '../lib/pdfGenerator';
 import { formatAuditTimestampBR } from '../lib/signatureService';
 
@@ -9,13 +9,15 @@ interface SignatureAuditModalProps {
   settings: Settings;
   installments?: Installment[];
   onClose: () => void;
+  onResetSignature?: (sale: Sale) => void;
 }
 
 export const SignatureAuditModal: React.FC<SignatureAuditModalProps> = ({
   sale,
   settings,
   installments,
-  onClose
+  onClose,
+  onResetSignature
 }) => {
   const [copiedHash, setCopiedHash] = useState(false);
   const audit = sale.signature;
@@ -109,6 +111,16 @@ export const SignatureAuditModal: React.FC<SignatureAuditModalProps> = ({
                 CPF: {sale.clientCpf || 'Registrado em Sistema'}
               </span>
             </div>
+            {!sigImg && onResetSignature && (
+              <div className="mt-3 p-3 rounded-xl bg-amber-50 border border-amber-200 flex items-center justify-between gap-2">
+                <div className="flex items-start gap-2 text-amber-900">
+                  <AlertTriangle size={15} className="text-amber-600 shrink-0 mt-0.5" />
+                  <span className="text-[11px] font-semibold leading-snug">
+                    Traço da assinatura não encontrado. Libere o contrato para o cliente assinar novamente.
+                  </span>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Grade de Metadados Jurídicos */}
@@ -184,14 +196,28 @@ export const SignatureAuditModal: React.FC<SignatureAuditModalProps> = ({
         </div>
 
         {/* Footer com Ações */}
-        <div className="p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between gap-3">
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-4 py-2 rounded-xl text-slate-600 hover:bg-slate-200 font-bold text-xs uppercase tracking-wider transition-colors cursor-pointer"
-          >
-            Fechar
-          </button>
+        <div className="p-4 bg-slate-50 border-t border-slate-200 flex flex-wrap items-center justify-between gap-2.5">
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 rounded-xl text-slate-600 hover:bg-slate-200 font-bold text-xs uppercase tracking-wider transition-colors cursor-pointer"
+            >
+              Fechar
+            </button>
+
+            {onResetSignature && (
+              <button
+                type="button"
+                onClick={() => onResetSignature(sale)}
+                className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 font-bold text-xs uppercase tracking-wider transition-colors cursor-pointer"
+                title="Remover assinatura atual e liberar nova assinatura"
+              >
+                <RotateCcw size={13} />
+                <span>Refazer Assinatura</span>
+              </button>
+            )}
+          </div>
 
           <button
             type="button"

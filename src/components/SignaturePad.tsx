@@ -12,6 +12,8 @@ export const SignaturePad: React.FC<SignaturePadProps> = ({ onSignatureChange, d
   const isDrawingRef = useRef(false);
   const lastWidthRef = useRef(0);
   const hasSignatureRef = useRef(false);
+  const lastPointRef = useRef<{ x: number; y: number } | null>(null);
+  const strokeDistanceRef = useRef(0);
 
   const [hasSignature, setHasSignature] = useState(false);
   const [strokeCount, setStrokeCount] = useState(0);
@@ -96,6 +98,13 @@ export const SignaturePad: React.FC<SignaturePadProps> = ({ onSignatureChange, d
     };
   };
 
+  const clearCanvasPixels = (canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D) => {
+    ctx.save();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.restore();
+  };
+
   const startDrawing = (e: React.PointerEvent<HTMLCanvasElement>) => {
     if (disabled) return;
     const canvas = canvasRef.current;
@@ -116,11 +125,8 @@ export const SignaturePad: React.FC<SignaturePadProps> = ({ onSignatureChange, d
     ctx.beginPath();
     ctx.moveTo(x, y);
 
+    lastPointRef.current = { x, y };
     isDrawingRef.current = true;
-    hasSignatureRef.current = true;
-    if (!hasSignature) {
-      setHasSignature(true);
-    }
   };
 
   const draw = (e: React.PointerEvent<HTMLCanvasElement>) => {
@@ -131,15 +137,26 @@ export const SignaturePad: React.FC<SignaturePadProps> = ({ onSignatureChange, d
     if (!ctx) return;
 
     const { x, y } = getCoordinates(e);
+    if (lastPointRef.current) {
+      strokeDistanceRef.current += Math.hypot(x - lastPointRef.current.x, y - lastPointRef.current.y);
+    }
+    lastPointRef.current = { x, y };
+
     ctx.lineTo(x, y);
     ctx.stroke();
     ctx.beginPath();
     ctx.moveTo(x, y);
+
+    if (strokeDistanceRef.current >= 14 && !hasSignatureRef.current) {
+      hasSignatureRef.current = true;
+      setHasSignature(true);
+    }
   };
 
   const stopDrawing = (e?: React.PointerEvent<HTMLCanvasElement>) => {
     if (!isDrawingRef.current) return;
     isDrawingRef.current = false;
+    lastPointRef.current = null;
 
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -152,6 +169,15 @@ export const SignaturePad: React.FC<SignaturePadProps> = ({ onSignatureChange, d
       } catch {
         // Ignora
       }
+    }
+
+    if (!hasSignatureRef.current && strokeDistanceRef.current < 14) {
+      const ctx = canvas.getContext('2d');
+      if (ctx) clearCanvasPixels(canvas, ctx);
+      strokeDistanceRef.current = 0;
+      setHasSignature(false);
+      onSignatureChange(false, '');
+      return;
     }
 
     setStrokeCount(prev => prev + 1);
@@ -167,11 +193,10 @@ export const SignaturePad: React.FC<SignaturePadProps> = ({ onSignatureChange, d
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    ctx.save();
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.restore();
+    clearCanvasPixels(canvas, ctx);
 
+    strokeDistanceRef.current = 0;
+    lastPointRef.current = null;
     hasSignatureRef.current = false;
     setHasSignature(false);
     setStrokeCount(0);

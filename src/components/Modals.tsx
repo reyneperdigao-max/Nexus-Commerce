@@ -10,6 +10,7 @@ import {
   Pencil,
   Percent,
   Printer,
+  RotateCcw,
   Share2,
   ShieldCheck,
   SlidersHorizontal,
@@ -119,6 +120,7 @@ interface AppModalsProps {
   auditModalSale: Sale | null;
   setAuditModalSale: (s: Sale | null) => void;
   onSignOnDevice: (sale: Sale) => void;
+  onResetDigitalSignature: (saleId: string) => Promise<boolean>;
 
   // Confirm Modal & Toast
   confirmModal: {
@@ -209,10 +211,53 @@ export function AppModals(props: AppModalsProps) {
     auditModalSale,
     setAuditModalSale,
     onSignOnDevice,
+    onResetDigitalSignature,
     confirmModal,
     setConfirmModal,
     toast,
   } = props;
+
+  const stripSignatureLocal = (sale: Sale): Sale => ({
+    ...sale,
+    isSigned: false,
+    signature: undefined,
+    signatureImage: undefined,
+    signedAt: undefined,
+    signerIp: undefined,
+    signerUserAgent: undefined,
+    signatureHash: undefined,
+  });
+
+  const handleRequestResetSignature = (
+    saleToReset: Sale,
+    options?: { openShareAfter?: boolean }
+  ) => {
+    openConfirm(
+      'Refazer Assinatura do Contrato',
+      `Deseja remover a assinatura atual do contrato de ${saleToReset.client} e liberar o documento para que o cliente assine novamente?`,
+      async () => {
+        const ok = await onResetDigitalSignature(saleToReset.id);
+        if (!ok) {
+          showToast('Não foi possível liberar o contrato para nova assinatura.', 'error');
+          return;
+        }
+        const cleanSale = stripSignatureLocal(saleToReset);
+        if (selectedSaleForContract?.id === saleToReset.id) {
+          setSelectedSaleForContract(cleanSale);
+        }
+        if (shareSignModalSale?.id === saleToReset.id) {
+          setShareSignModalSale(cleanSale);
+        }
+        if (auditModalSale?.id === saleToReset.id) {
+          setAuditModalSale(null);
+          if (options?.openShareAfter) {
+            setShareSignModalSale(cleanSale);
+          }
+        }
+        showToast('Assinatura removida! O contrato foi liberado para nova assinatura.');
+      }
+    );
+  };
 
   return (
     <AnimatePresence>
@@ -506,14 +551,25 @@ export function AppModals(props: AppModalsProps) {
                     </button>
 
                     {isContractSigned && (
-                      <button
-                        onClick={() => setAuditModalSale(activeContractSale)}
-                        className="h-9 px-3 rounded-xl bg-emerald-600 text-white hover:bg-emerald-700 transition-all flex items-center gap-1.5 text-xs font-black uppercase tracking-wider shadow-sm active:scale-95 cursor-pointer"
-                        title="Ver Certificado e Auditoria Digital"
-                      >
-                        <ShieldCheck size={14} />
-                        <span className="hidden sm:inline">Auditoria</span>
-                      </button>
+                      <>
+                        <button
+                          onClick={() => setAuditModalSale(activeContractSale)}
+                          className="h-9 px-3 rounded-xl bg-emerald-600 text-white hover:bg-emerald-700 transition-all flex items-center gap-1.5 text-xs font-black uppercase tracking-wider shadow-sm active:scale-95 cursor-pointer"
+                          title="Ver Certificado e Auditoria Digital"
+                        >
+                          <ShieldCheck size={14} />
+                          <span className="hidden sm:inline">Auditoria</span>
+                        </button>
+
+                        <button
+                          onClick={() => handleRequestResetSignature(activeContractSale)}
+                          className="h-9 px-3 rounded-xl bg-amber-500/15 border border-amber-500/40 text-amber-800 hover:bg-amber-500 hover:text-black transition-all flex items-center gap-1.5 text-xs font-black uppercase tracking-wider shadow-sm active:scale-95 cursor-pointer"
+                          title="Remover assinatura atual e liberar para o cliente assinar novamente"
+                        >
+                          <RotateCcw size={14} />
+                          <span className="hidden sm:inline">Refazer Assinatura</span>
+                        </button>
+                      </>
                     )}
 
                     <button
@@ -1729,6 +1785,7 @@ export function AppModals(props: AppModalsProps) {
             setShareSignModalSale(null);
             setAuditModalSale(saleForAudit);
           }}
+          onResetSignature={(saleToReset) => handleRequestResetSignature(saleToReset)}
         />
       )}
 
@@ -1739,6 +1796,9 @@ export function AppModals(props: AppModalsProps) {
           settings={settings}
           installments={installments}
           onClose={() => setAuditModalSale(null)}
+          onResetSignature={(saleToReset) =>
+            handleRequestResetSignature(saleToReset, { openShareAfter: true })
+          }
         />
       )}
 

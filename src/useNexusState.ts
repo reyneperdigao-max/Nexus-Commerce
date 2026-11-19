@@ -20,6 +20,7 @@ import {
   setDoc,
   deleteDoc,
   updateDoc,
+  deleteField,
   writeBatch,
   query,
   where,
@@ -2023,6 +2024,90 @@ export function useNexusState(user: User | null) {
     }
   };
 
+  const resetDigitalSignature = async (saleId: string): Promise<boolean> => {
+    if (!uid) return false;
+    const cleanId = (saleId || '').trim();
+    if (!cleanId) return false;
+
+    const stripSignatureFromSale = (sale: Sale): Sale => {
+      const next: Sale = { ...sale, isSigned: false };
+      delete next.signature;
+      delete next.signatureImage;
+      delete next.signedAt;
+      delete next.signerIp;
+      delete next.signerUserAgent;
+      delete next.signatureHash;
+      return next;
+    };
+
+    try {
+      let matchedSale = sales.find(
+        (s) => s.id === cleanId || s.id === saleId || String(s.id).trim() === cleanId
+      );
+
+      if (!matchedSale) {
+        const snap = await getDoc(doc(db, 'users', uid, 'sales', cleanId));
+        if (snap.exists()) {
+          matchedSale = { id: snap.id, ...snap.data() } as Sale;
+        }
+      }
+
+      setSales((prev) =>
+        prev.map((s) =>
+          s.id === cleanId || s.id === saleId || String(s.id).trim() === cleanId
+            ? stripSignatureFromSale(s)
+            : s
+        )
+      );
+      const currentCached = loadUserCached<Sale[]>(uid, 'sales', []);
+      const updatedCache = currentCached.map((s) =>
+        s.id === cleanId || s.id === saleId || String(s.id).trim() === cleanId
+          ? stripSignatureFromSale(s)
+          : s
+      );
+      saveUserCached(uid, 'sales', updatedCache);
+
+      const batch = writeBatch(db);
+      batch.update(doc(db, 'users', uid, 'sales', cleanId), {
+        isSigned: false,
+        signature: deleteField(),
+        signatureImage: deleteField(),
+        signedAt: deleteField(),
+        signerIp: deleteField(),
+        signerUserAgent: deleteField(),
+        signatureHash: deleteField(),
+      });
+
+      if (matchedSale) {
+        const unsignedSale = stripSignatureFromSale(matchedSale);
+        const firstInst = installments
+          .filter((i) => i.saleId === cleanId || i.saleId === saleId)
+          .sort((a, b) => a.number - b.number)[0];
+        batch.set(
+          doc(db, 'publicContracts', cleanId),
+          buildPublicContractPayload(unsignedSale, uid, settings, firstInst?.dueDate)
+        );
+      }
+
+      const result = await Promise.race([
+        batch.commit().then(() => 'synced' as const),
+        new Promise<'queued'>((resolve) => setTimeout(() => resolve('queued'), 3500)),
+      ]);
+
+      if (result === 'queued') {
+        console.warn('Reset de assinatura enfileirado para sincronização offline.');
+      }
+      return true;
+    } catch (err: any) {
+      console.error('Erro ao refazer assinatura digital no Firestore:', err);
+      if (err?.code !== 'unavailable') {
+        handleFirestoreError(err, OperationType.UPDATE, `users/${uid}/sales/${cleanId}`);
+        return false;
+      }
+      return true;
+    }
+  };
+
   const updateSaleCostPrice = async (saleId: string, costPrice: number): Promise<boolean> => {
     if (!uid) return false;
     const cleanId = (saleId || '').trim();
@@ -2098,6 +2183,7 @@ export function useNexusState(user: User | null) {
     closeMonthlyRegister,
     deleteClosing,
     saveDigitalSignature,
+    resetDigitalSignature,
     syncPublicContract,
     isInitialLoading,
     migrationState,

@@ -116,6 +116,9 @@ export const ClientSigningPortal: React.FC<ClientSigningPortalProps> = ({
     };
 
     setRemoteSale(mappedSale);
+    if (!mappedSale.isSigned) {
+      setSignedAuditOverride(null);
+    }
     setRemoteSettings({
       ...settings,
       companyName: data.companyName || settings.companyName || 'Nexus Commerce',

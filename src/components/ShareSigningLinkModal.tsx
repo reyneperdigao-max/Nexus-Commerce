@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Sale, Settings } from '../types';
-import { X, Copy, Check, MessageCircle, PenTool, ShieldCheck, Link2, ExternalLink } from 'lucide-react';
+import { X, Copy, Check, MessageCircle, PenTool, ShieldCheck, Link2, ExternalLink, RotateCcw } from 'lucide-react';
 import { 
   getSigningLink, 
   getDevPreviewSigningLink, 
@@ -14,6 +14,7 @@ interface ShareSigningLinkModalProps {
   onClose: () => void;
   onSignOnDevice: (sale: Sale) => void;
   onViewAudit?: (sale: Sale) => void;
+  onResetSignature?: (sale: Sale) => void;
 }
 
 export const ShareSigningLinkModal: React.FC<ShareSigningLinkModalProps> = ({
@@ -21,7 +22,8 @@ export const ShareSigningLinkModal: React.FC<ShareSigningLinkModalProps> = ({
   settings,
   onClose,
   onSignOnDevice,
-  onViewAudit
+  onViewAudit,
+  onResetSignature
 }) => {
   const [copied, setCopied] = useState(false);
   const inDevPreview = isDevPreviewHost();
@@ -230,6 +232,17 @@ export const ShareSigningLinkModal: React.FC<ShareSigningLinkModalProps> = ({
               >
                 <ShieldCheck size={15} />
                 <span>Ver Certificado & Auditoria Jurídica</span>
+              </button>
+            )}
+
+            {isSigned && onResetSignature && (
+              <button
+                type="button"
+                onClick={() => onResetSignature(sale)}
+                className="w-full py-3 rounded-2xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition-colors cursor-pointer"
+              >
+                <RotateCcw size={15} />
+                <span>Refazer Assinatura (Liberar Novo Aceite)</span>
               </button>
             )}
           </div>

@@ -69,6 +69,7 @@ export default function App() {
     closeMonthlyRegister,
     deleteClosing,
     saveDigitalSignature,
+    resetDigitalSignature,
     syncPublicContract,
     isInitialLoading,
     migrationState,
@@ -1657,6 +1658,7 @@ Autenticação: ${targetSale.id.toUpperCase()}`;
           auditModalSale={auditModalSale}
           setAuditModalSale={setAuditModalSale}
           onSignOnDevice={(saleToSign) => setClientSigningSaleId(saleToSign.id)}
+          onResetDigitalSignature={resetDigitalSignature}
           confirmModal={confirmModal}
           setConfirmModal={setConfirmModal}
           toast={toast}
