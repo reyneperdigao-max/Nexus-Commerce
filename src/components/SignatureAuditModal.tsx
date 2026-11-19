@@ -109,6 +109,7 @@ export const SignatureAuditModal: React.FC<SignatureAuditModalProps> = ({
               </span>
               <span className="text-[9px] text-slate-500 font-semibold">
                 CPF: {sale.clientCpf || 'Registrado em Sistema'}
+                {sale.clientRg ? ` • RG: ${sale.clientRg}` : ''}
               </span>
             </div>
             {!sigImg && onResetSignature && (

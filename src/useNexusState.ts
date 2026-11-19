@@ -165,6 +165,10 @@ function sanitizeSaleForFirestore(raw: any, id: string): Sale {
     client: String(raw?.client || 'Cliente').slice(0, 200),
     clientPhone: String(raw?.clientPhone || '').slice(0, 40),
     clientCpf: raw?.clientCpf !== undefined ? String(raw.clientCpf).slice(0, 40) : undefined,
+    clientRg:
+      raw?.clientRg !== undefined && String(raw.clientRg).trim()
+        ? String(raw.clientRg).trim().slice(0, 40)
+        : undefined,
     clientAddress: raw?.clientAddress !== undefined ? String(raw.clientAddress).slice(0, 400) : undefined,
     total: Number.isFinite(Number(raw?.total)) ? Number(raw.total) : 0,
     downPayment: Number.isFinite(Number(raw?.downPayment)) ? Number(raw.downPayment) : 0,
@@ -287,6 +291,10 @@ function buildPublicContractPayload(
     client: String(sale.client || 'Cliente').slice(0, 200),
     clientPhone: sale.clientPhone ? String(sale.clientPhone).slice(0, 40) : undefined,
     clientCpf: sale.clientCpf ? String(sale.clientCpf).slice(0, 40) : undefined,
+    clientRg:
+      sale.clientRg && String(sale.clientRg).trim()
+        ? String(sale.clientRg).trim().slice(0, 40)
+        : undefined,
     clientAddress: sale.clientAddress ? String(sale.clientAddress).slice(0, 400) : undefined,
     total: Number.isFinite(Number(sale.total)) ? Number(sale.total) : 0,
     downPayment: Number.isFinite(Number(sale.downPayment)) ? Number(sale.downPayment) : 0,
@@ -1036,6 +1044,7 @@ export function useNexusState(user: User | null) {
     client: string;
     clientPhone: string;
     clientCpf: string;
+    clientRg?: string;
     clientAddress?: string;
     installments: number;
     saleDate?: string;
@@ -1105,6 +1114,7 @@ export function useNexusState(user: User | null) {
           client: (data.client || '').trim(),
           clientPhone: (data.clientPhone || '').trim(),
           clientCpf: (data.clientCpf || '').trim(),
+          clientRg: (data.clientRg || '').trim() || undefined,
           clientAddress: (data.clientAddress || '').trim(),
           total: finalTotal,
           downPayment: data.downPayment || 0,
@@ -1527,6 +1537,7 @@ export function useNexusState(user: User | null) {
       client: string;
       clientPhone: string;
       clientCpf: string;
+      clientRg?: string;
       clientAddress?: string;
       installments: number;
       saleDate?: string;
@@ -1619,10 +1630,12 @@ export function useNexusState(user: User | null) {
           : (sale.productImei || product?.imei || '').trim().slice(0, 64);
 
     const updatedSaleDate = data.saleDate || sale.date || getLocalDateString();
+    const cleanRg = (data.clientRg !== undefined ? data.clientRg : sale.clientRg || '').trim().slice(0, 40);
     const updatedSaleFields: Partial<Sale> = {
       client: (data.client || '').trim(),
       clientPhone: data.clientPhone || '',
       clientCpf: data.clientCpf || '',
+      clientRg: cleanRg || undefined,
       clientAddress: data.clientAddress || '',
       total: finalTotal,
       downPayment: downPayment,
@@ -1642,6 +1655,9 @@ export function useNexusState(user: User | null) {
     const fullUpdatedSale = sanitizeSaleForFirestore({ ...sale, ...updatedSaleFields }, cleanId);
     if (!resolvedProductImei) {
       delete fullUpdatedSale.productImei;
+    }
+    if (!cleanRg) {
+      delete fullUpdatedSale.clientRg;
     }
 
     setSales((prev) => {

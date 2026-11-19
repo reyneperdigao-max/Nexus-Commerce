@@ -56,6 +56,7 @@ export interface Sale {
   client: string;
   clientPhone: string;
   clientCpf?: string;
+  clientRg?: string;
   total: number;
   downPayment: number;
   profit: number;

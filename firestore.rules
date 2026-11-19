@@ -99,7 +99,7 @@ service cloud.firestore {
         ])
         && data.keys().hasOnly([
           'id', 'productId', 'productName', 'productImei', 'client', 'clientPhone', 'clientCpf',
-          'clientAddress', 'total', 'downPayment', 'profit', 'installmentsCount',
+          'clientRg', 'clientAddress', 'total', 'downPayment', 'profit', 'installmentsCount',
           'installmentValue', 'date', 'status', 'createdAt', 'isInterestOnly',
           'interestRate', 'costPrice', 'sellerName', 'isSigned', 'signatureImage',
           'signedAt', 'signerIp', 'signerUserAgent', 'signatureHash', 'signature'
@@ -111,6 +111,7 @@ service cloud.firestore {
         && data.client is string && data.client.size() <= 200
         && optStr(data, 'clientPhone', 40)
         && optStr(data, 'clientCpf', 40)
+        && optStr(data, 'clientRg', 40)
         && optStr(data, 'clientAddress', 400)
         && data.total is number
         && optNum(data, 'downPayment')
@@ -235,7 +236,7 @@ service cloud.firestore {
         ])
         && data.keys().hasOnly([
           'saleId', 'ownerUid', 'productName', 'productImei', 'client', 'clientPhone', 'clientCpf',
-          'clientAddress', 'total', 'downPayment', 'installmentsCount',
+          'clientRg', 'clientAddress', 'total', 'downPayment', 'installmentsCount',
           'installmentValue', 'date', 'firstDueDate', 'dueDay', 'status', 'createdAt',
           'isInterestOnly', 'interestRate', 'sellerName', 'companyName',
           'companyDocument', 'companyPhone', 'companyAddress', 'isSigned',
@@ -249,6 +250,7 @@ service cloud.firestore {
         && data.client is string && data.client.size() <= 200
         && optStr(data, 'clientPhone', 40)
         && optStr(data, 'clientCpf', 40)
+        && optStr(data, 'clientRg', 40)
         && optStr(data, 'clientAddress', 400)
         && data.total is number
         && optNum(data, 'downPayment')

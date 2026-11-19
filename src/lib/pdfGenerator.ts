@@ -134,12 +134,20 @@ export function createContractPDFDoc(
   doc.setTextColor(15, 23, 42);
   doc.text((sale.client || 'CLIENTE').toUpperCase(), left + 30, y);
 
+  const contractRg = (sale.clientRg || '').trim();
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(100, 116, 139);
-  doc.text('CPF / Doc:', left + 106, y);
+  doc.text(contractRg ? 'CPF / RG:' : 'CPF / Doc:', left + 106, y);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(15, 23, 42);
-  doc.text(sale.clientCpf || 'Registrado em Sistema', left + 128, y);
+  const cpfRgText = contractRg
+    ? `${sale.clientCpf || 'N/A'} • RG: ${contractRg}`.substring(0, 38)
+    : sale.clientCpf || 'Registrado em Sistema';
+  if (contractRg && cpfRgText.length > 26) {
+    doc.setFontSize(8.2);
+  }
+  doc.text(cpfRgText, left + 128, y);
+  doc.setFontSize(9.2);
 
   // Row 2
   y += 7.8;
@@ -229,7 +237,7 @@ export function createContractPDFDoc(
   const clauses = [
     {
       title: 'CLÁUSULA 1ª – DAS PARTES CONTRATANTES',
-      body: `Pelo presente instrumento, de um lado denominada(o) VENDEDOR(A): ${sellerName}; e de outro lado denominada(o) COMPRADOR(A): ${(sale.client || 'CLIENTE').toUpperCase()}, portador(a) do CPF/Doc nº ${sale.clientCpf || 'N/A'}, telefone ${sale.clientPhone || 'N/A'}${sale.clientAddress ? `, domiciliado(a) em ${sale.clientAddress}` : ''}, firmam o presente compromisso de compra e venda mercantil.`
+      body: `Pelo presente instrumento, de um lado denominada(o) VENDEDOR(A): ${sellerName}; e de outro lado denominada(o) COMPRADOR(A): ${(sale.client || 'CLIENTE').toUpperCase()}, portador(a) do CPF/Doc nº ${sale.clientCpf || 'N/A'}${contractRg ? `, RG nº ${contractRg}` : ''}, telefone ${sale.clientPhone || 'N/A'}${sale.clientAddress ? `, domiciliado(a) em ${sale.clientAddress}` : ''}, firmam o presente compromisso de compra e venda mercantil.`
     },
     {
       title: 'CLÁUSULA 2ª – DO OBJETO E RESERVA DE DOMÍNIO',
@@ -320,7 +328,7 @@ export function createContractPDFDoc(
   doc.setFontSize(7.8);
   doc.setTextColor(100, 116, 139);
   doc.text('VENDEDOR(A)', left + 44, y, { align: 'center' });
-  doc.text('COMPRADOR(A)', left + 138, y, { align: 'center' });
+  doc.text(contractRg ? `COMPRADOR(A) • RG: ${contractRg}`.substring(0, 38) : 'COMPRADOR(A)', left + 138, y, { align: 'center' });
 
   if (isSigned) {
     doc.setFont('helvetica', 'bold');
@@ -725,8 +733,8 @@ export function buildContractHTML(sale: Sale, settings: Settings, installments?:
             <tr>
               <td style="padding: 2.5px 0; color: #64748b; width: 22%;"><strong>Comprador(a):</strong></td>
               <td style="padding: 2.5px 0; color: #0f172a; font-weight: 700;">${(sale.client || 'CLIENTE').toUpperCase()}</td>
-              <td style="padding: 2.5px 0; color: #64748b; width: 20%;"><strong>CPF / Doc:</strong></td>
-              <td style="padding: 2.5px 0; color: #0f172a; font-weight: 700;">${sale.clientCpf || 'Registrado em Sistema'}</td>
+              <td style="padding: 2.5px 0; color: #64748b; width: 20%;"><strong>CPF${(sale.clientRg || '').trim() ? ' / RG' : ' / Doc'}:</strong></td>
+              <td style="padding: 2.5px 0; color: #0f172a; font-weight: 700;">${sale.clientCpf || 'Registrado em Sistema'}${(sale.clientRg || '').trim() ? ` • RG: ${(sale.clientRg || '').trim()}` : ''}</td>
             </tr>
             <tr>
               <td style="padding: 2.5px 0; color: #64748b;"><strong>Telefone:</strong></td>
@@ -768,7 +776,7 @@ export function buildContractHTML(sale: Sale, settings: Settings, installments?:
               Cláusula 1ª – Das Partes Contratantes
             </strong>
             <p style="margin: 2px 0 0 0; text-align: justify;">
-              Pelo presente instrumento, de um lado denominada(o) <strong>VENDEDOR(A)</strong>: <strong>${sellerName}</strong>; e de outro lado denominada(o) <strong>COMPRADOR(A)</strong>: <strong>${(sale.client || 'CLIENTE').toUpperCase()}</strong>, CPF/Doc nº <strong>${sale.clientCpf || 'N/A'}</strong>, tel <strong>${sale.clientPhone || 'N/A'}</strong>${sale.clientAddress ? `, residente em ${sale.clientAddress}` : ''}, firmam o presente compromisso de compra e venda mercantil.
+              Pelo presente instrumento, de um lado denominada(o) <strong>VENDEDOR(A)</strong>: <strong>${sellerName}</strong>; e de outro lado denominada(o) <strong>COMPRADOR(A)</strong>: <strong>${(sale.client || 'CLIENTE').toUpperCase()}</strong>, CPF/Doc nº <strong>${sale.clientCpf || 'N/A'}</strong>${(sale.clientRg || '').trim() ? `, RG nº <strong>${(sale.clientRg || '').trim()}</strong>` : ''}, tel <strong>${sale.clientPhone || 'N/A'}</strong>${sale.clientAddress ? `, residente em ${sale.clientAddress}` : ''}, firmam o presente compromisso de compra e venda mercantil.
             </p>
           </div>
 
@@ -841,7 +849,7 @@ export function buildContractHTML(sale: Sale, settings: Settings, installments?:
               </div>
               <div style="border-top: 1.2px solid #334155; margin-bottom: 4px;"></div>
               <strong style="font-size: 10px; text-transform: uppercase; color: #0f172a; display: block;">${(sale.client || 'CLIENTE').toUpperCase()}</strong>
-              <span style="font-size: 8px; color: #64748b; font-weight: 700; text-transform: uppercase;">Comprador(a)</span>
+              <span style="font-size: 8px; color: #64748b; font-weight: 700; text-transform: uppercase;">Comprador(a)${(sale.clientRg || '').trim() ? ` • RG: ${(sale.clientRg || '').trim()}` : ''}</span>
               ${(sale.isSigned || sale.signature?.signed) 
                 ? `<div style="font-size: 7.5px; font-weight: 800; color: #15803d; margin-top: 2px;">[ ASSINADO DIGITALMENTE ]</div>` 
                 : ''}

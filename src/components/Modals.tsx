@@ -728,10 +728,11 @@ export function AppModals(props: AppModalsProps) {
                             </div>
                             <div>
                               <span className="text-slate-400 font-bold block text-[8.5px] uppercase tracking-wider">
-                                CPF / Documento
+                                CPF{activeContractSale.clientRg ? ' / RG' : ' / Documento'}
                               </span>
                               <strong className="text-slate-900">
                                 {activeContractSale.clientCpf || 'Registrado em Sistema'}
+                                {activeContractSale.clientRg ? ` • RG: ${activeContractSale.clientRg}` : ''}
                               </strong>
                             </div>
                             <div className={resolvedContractImei ? '' : 'sm:col-span-2'}>
@@ -800,7 +801,13 @@ export function AppModals(props: AppModalsProps) {
                               Pelo presente instrumento, de um lado denominada(o) <strong>VENDEDOR(A)</strong>:{' '}
                               <strong>{sellerName}</strong>; e de outro lado denominada(o) <strong>COMPRADOR(A)</strong>
                               : <strong>{activeContractSale.client.toUpperCase()}</strong>, CPF nº{' '}
-                              <strong>{activeContractSale.clientCpf || 'N/A'}</strong>, telefone{' '}
+                              <strong>{activeContractSale.clientCpf || 'N/A'}</strong>
+                              {activeContractSale.clientRg ? (
+                                <>
+                                  , RG nº <strong>{activeContractSale.clientRg}</strong>
+                                </>
+                              ) : null}
+                              , telefone{' '}
                               <strong>{activeContractSale.clientPhone || 'N/A'}</strong>
                               {activeContractSale.clientAddress
                                 ? `, residente em ${activeContractSale.clientAddress}`
@@ -916,6 +923,7 @@ export function AppModals(props: AppModalsProps) {
                                 </strong>
                                 <span className="text-[7.5px] text-slate-400 font-bold uppercase tracking-widest">
                                   Comprador(a)
+                                  {activeContractSale.clientRg ? ` • RG: ${activeContractSale.clientRg}` : ''}
                                 </span>
                               </div>
                             </div>

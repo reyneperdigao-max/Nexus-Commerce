@@ -94,6 +94,7 @@ export const ClientSigningPortal: React.FC<ClientSigningPortalProps> = ({
       client: data.client || 'Cliente',
       clientPhone: data.clientPhone || '',
       clientCpf: data.clientCpf || '',
+      clientRg: data.clientRg ? String(data.clientRg).trim() : undefined,
       clientAddress: data.clientAddress || '',
       total: Number(data.total) || 0,
       downPayment: Number(data.downPayment) || 0,
@@ -473,9 +474,12 @@ export const ClientSigningPortal: React.FC<ClientSigningPortalProps> = ({
               </div>
               <div>
                 <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">
-                  CPF / Documento
+                  CPF{sale.clientRg ? ' / RG' : ' / Documento'}
                 </span>
-                <strong className="text-slate-900 text-xs">{sale.clientCpf || 'Registrado em Sistema'}</strong>
+                <strong className="text-slate-900 text-xs">
+                  {sale.clientCpf || 'Registrado em Sistema'}
+                  {sale.clientRg ? ` • RG: ${sale.clientRg}` : ''}
+                </strong>
               </div>
 
               <div>
@@ -545,7 +549,7 @@ export const ClientSigningPortal: React.FC<ClientSigningPortalProps> = ({
                 Cláusula 1ª – Das Partes Contratantes
               </strong>
               <p className="text-justify leading-relaxed">
-                Pelo presente instrumento, de um lado denominada(o) <strong>VENDEDOR(A)</strong>: <strong>{sellerName}</strong>; e de outro lado denominada(o) <strong>COMPRADOR(A)</strong>: <strong>{clientUpper}</strong>, CPF nº <strong>{sale.clientCpf || 'N/A'}</strong>, telefone <strong>{sale.clientPhone || 'N/A'}</strong>{sale.clientAddress ? `, domiciliado(a) em ${sale.clientAddress}` : ''}, firmam o presente compromisso de compra e venda mercantil.
+                Pelo presente instrumento, de um lado denominada(o) <strong>VENDEDOR(A)</strong>: <strong>{sellerName}</strong>; e de outro lado denominada(o) <strong>COMPRADOR(A)</strong>: <strong>{clientUpper}</strong>, CPF nº <strong>{sale.clientCpf || 'N/A'}</strong>{sale.clientRg ? <>, RG nº <strong>{sale.clientRg}</strong></> : null}, telefone <strong>{sale.clientPhone || 'N/A'}</strong>{sale.clientAddress ? `, domiciliado(a) em ${sale.clientAddress}` : ''}, firmam o presente compromisso de compra e venda mercantil.
               </p>
             </div>
 
@@ -637,6 +641,7 @@ export const ClientSigningPortal: React.FC<ClientSigningPortalProps> = ({
                 </strong>
                 <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider block">
                   Comprador(a) • CPF: {sale.clientCpf || 'Registrado'}
+                  {sale.clientRg ? ` • RG: ${sale.clientRg}` : ''}
                 </span>
               </div>
             </div>

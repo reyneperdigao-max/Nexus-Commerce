@@ -859,6 +859,7 @@ export default function App() {
       ? `${targetSale.installmentsCount || 1} parcelas de juros mensais de ${money(targetSale.installmentValue)} (${targetSale.interestRate || 0}% a.m.)`
       : `${targetSale.installmentsCount || 1} parcelas fixas de ${money(targetSale.installmentValue)}`;
     const contractImei = (targetSale.productImei || '').trim();
+    const contractRg = (targetSale.clientRg || '').trim();
 
     const text = `📋 CONTRATO DE COMPRA E VENDA (Nº CT-${cleanId})
 Emissão: ${dateFormatted} • ${company}
@@ -868,7 +869,7 @@ Emissão: ${dateFormatted} • ${company}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 • Vendedor(a): ${sellerName} (${company})
 • Comprador(a): ${targetSale.client.toUpperCase()}
-• CPF/Doc: ${targetSale.clientCpf || 'Registrado em Sistema'}
+• CPF/Doc: ${targetSale.clientCpf || 'Registrado em Sistema'}${contractRg ? `\n• RG: ${contractRg}` : ''}
 • Telefone: ${targetSale.clientPhone || 'N/A'}${targetSale.clientAddress ? `\n• Endereço: ${targetSale.clientAddress}` : ''}
 • Produto/Serviço: ${(targetSale.productName || 'Produto Registrado').toUpperCase()}${contractImei ? `\n• IMEI do Aparelho: ${contractImei}` : ''}
 • Valor Total: ${money(targetSale.total)}${targetSale.downPayment ? ` (Entrada: ${money(targetSale.downPayment)})` : ''}
@@ -1063,7 +1064,9 @@ Autenticação: ${targetSale.id.toUpperCase()}`;
 
     const matchesSearch =
       !searchTerm ||
-      [s.client, s.productName, s.productImei, s.status].some((v) => (v || '').toLowerCase().includes(searchLower));
+      [s.client, s.clientCpf, s.clientRg, s.productName, s.productImei, s.status].some((v) =>
+        (v || '').toLowerCase().includes(searchLower)
+      );
 
     if (filterStatus === 'Atrasados') {
       const hasOverdue = sInsts.some((i) => {

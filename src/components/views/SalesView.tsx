@@ -252,6 +252,7 @@ export function SalesView({
               client: (f.client?.value || saleToEdit?.client || '').trim(),
               clientPhone: (f.clientPhone?.value || saleToEdit?.clientPhone || '').trim(),
               clientCpf: (f.clientCpf?.value || saleToEdit?.clientCpf || '').trim(),
+              clientRg: (f.clientRg?.value !== undefined ? f.clientRg.value : saleToEdit?.clientRg || '').trim(),
               clientAddress: (f.clientAddress?.value || saleToEdit?.clientAddress || '').trim(),
               installments: parsedInst,
               saleDate:
@@ -364,8 +365,8 @@ export function SalesView({
           </div>
 
           {/* Dados do Comprador */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="flex flex-col gap-1.5 md:col-span-1">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="flex flex-col gap-1.5">
               <label className="text-xs font-medium text-zinc-400">Nome do Comprador</label>
               <input
                 name="client"
@@ -381,6 +382,16 @@ export function SalesView({
                 name="clientCpf"
                 defaultValue={saleToEdit?.clientCpf || ''}
                 placeholder="000.000.000-00"
+                className="fintech-input"
+              />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs font-medium text-zinc-400">RG</label>
+              <input
+                name="clientRg"
+                maxLength={40}
+                defaultValue={saleToEdit?.clientRg || ''}
+                placeholder="Ex: 00.000.000-0 (Opcional)"
                 className="fintech-input"
               />
             </div>
