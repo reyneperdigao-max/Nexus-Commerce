@@ -36,11 +36,13 @@ import {
   Download,
   ShieldCheck,
   ArrowUpRight,
-  X
+  X,
+  Briefcase
 } from 'lucide-react';
 import {
   computeOpenCycleMetrics,
   resolveClosingSummary,
+  computeCapitalYieldMetrics,
   CycleFinancialMetrics,
   ResolvedClosingSummary
 } from '../lib/closingUtils';
@@ -359,6 +361,10 @@ export function MonthlyInstallmentsReport({
       totalRemainingReceivables
     };
   }, [sales, fullyPaidSaleIds, activeInstallments]);
+
+  const capitalYield = useMemo(() => {
+    return computeCapitalYieldMetrics(sales, installments, selectedMonth);
+  }, [sales, installments, selectedMonth]);
 
   // Filtered installments based on search and status filter
   const filteredMonthInstallments = useMemo(() => {
@@ -741,6 +747,128 @@ export function MonthlyInstallmentsReport({
                 </span>
               </div>
             </div>
+          </div>
+
+          {/* PAINEL EXECUTIVO: LUCRO QUE O CAPITAL INVESTIDO ESTÁ GERANDO */}
+          <div className="glass-card p-5 sm:p-6 border border-gold/25 bg-[#0d111a]/95 flex flex-col gap-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3.5 border-b border-white/[0.07]">
+              <div>
+                <span className="text-[10px] font-bold uppercase tracking-widest text-gold block">
+                  Rentabilidade da Carteira
+                </span>
+                <h3 className="text-base sm:text-lg font-bold text-white mt-0.5 flex items-center gap-2">
+                  <Briefcase size={16} className="text-gold shrink-0" />
+                  <span>Lucro Gerado pelo Capital Investido</span>
+                </h3>
+                <p className="text-xs text-zinc-400 mt-0.5">
+                  Separação entre capital aplicado em giro e o lucro líquido gerado nas operações ativas e no mês
+                </p>
+              </div>
+
+              <div className="px-3.5 py-2 rounded-xl bg-emerald-500/10 border border-emerald-500/30 shrink-0 self-start sm:self-center">
+                <span className="text-[10px] uppercase tracking-wider text-emerald-300/80 block">
+                  Rendimento Mensal
+                </span>
+                <strong className="text-sm font-bold text-emerald-400 tabular-figure block">
+                  +{capitalYield.monthlyRoiPct.toFixed(1)}% a.m. sobre o capital
+                </strong>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3.5">
+              {/* 1. Capital Investido Ativo */}
+              <div className="p-4 rounded-xl bg-[#07090e] border border-white/[0.08] flex flex-col justify-between gap-2">
+                <span className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400">
+                  Capital Investido Ativo
+                </span>
+                <strong className="text-xl font-bold text-white tabular-figure">
+                  {money(capitalYield.activeRemainingInvested)}
+                </strong>
+                <span className="text-[11px] text-zinc-400 tabular-figure pt-1.5 border-t border-white/[0.06] block">
+                  {capitalYield.activeCostedCount}{' '}
+                  {capitalYield.activeCostedCount === 1 ? 'operação em aberto' : 'operações em aberto'} · Aplicado:{' '}
+                  {money(capitalYield.totalInvestedAllTime)}
+                </span>
+              </div>
+
+              {/* 2. Lucro Mensal Gerado pelo Capital */}
+              <div className="p-4 rounded-xl bg-[#07090e] border border-emerald-500/30 flex flex-col justify-between gap-2">
+                <span className="text-[11px] font-semibold uppercase tracking-wider text-emerald-300/90">
+                  Lucro Mensal Gerado
+                </span>
+                <strong className="text-xl font-bold text-emerald-400 tabular-figure">
+                  {money(capitalYield.activeMonthlyProfit)}
+                  <span className="text-xs font-medium text-emerald-400/80">/mês</span>
+                </strong>
+                <span className="text-[11px] text-emerald-300/80 tabular-figure pt-1.5 border-t border-white/[0.06] block">
+                  Retorno de {capitalYield.monthlyRoiPct.toFixed(1)}% a.m. sobre o capital ativo
+                </span>
+              </div>
+
+              {/* 3. Lucro no Mês Selecionado */}
+              <div className="p-4 rounded-xl bg-[#07090e] border border-gold/30 flex flex-col justify-between gap-2">
+                <span className="text-[11px] font-semibold uppercase tracking-wider text-gold/90">
+                  Lucro em {MONTH_NAMES[selectedMonthIndex]}
+                </span>
+                <strong className="text-xl font-bold text-gold tabular-figure">
+                  {money(capitalYield.monthExpectedProfit)}
+                </strong>
+                <span className="text-[11px] text-zinc-400 tabular-figure pt-1.5 border-t border-white/[0.06] block">
+                  Realizado: {money(capitalYield.monthRealizedProfit)} · Capital:{' '}
+                  {money(capitalYield.monthExpectedCapital)}
+                </span>
+              </div>
+
+              {/* 4. Lucro Já Realizado & A Gerar */}
+              <div className="p-4 rounded-xl bg-[#07090e] border border-white/[0.08] flex flex-col justify-between gap-2">
+                <span className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400">
+                  Lucro Total Já Realizado
+                </span>
+                <strong className="text-xl font-bold text-emerald-400 tabular-figure">
+                  {money(capitalYield.totalRealizedProfitAllTime)}
+                </strong>
+                <span className="text-[11px] text-zinc-400 tabular-figure pt-1.5 border-t border-white/[0.06] block">
+                  A gerar nas futuras: +{money(capitalYield.pendingPortfolioProfit)}
+                </span>
+              </div>
+            </div>
+
+            {/* Decomposição Visual das Parcelas do Mês Selecionado: Capital vs Lucro */}
+            {monthStats.totalExpected > 0 && (
+              <div className="p-3.5 rounded-xl bg-[#07090e]/90 border border-white/[0.06] flex flex-col gap-2">
+                <div className="flex flex-wrap items-center justify-between gap-2 text-[11px]">
+                  <span className="font-semibold text-zinc-300">
+                    Composição de {MONTH_NAMES[selectedMonthIndex]} ({money(monthStats.totalExpected)} previstos)
+                  </span>
+                  <div className="flex flex-wrap items-center gap-4 tabular-figure">
+                    <span className="inline-flex items-center gap-1.5 text-zinc-300">
+                      <span className="w-2 h-2 rounded-full bg-zinc-400" />
+                      Retorno de Capital: {money(capitalYield.monthExpectedCapital)} (
+                      {((capitalYield.monthExpectedCapital / monthStats.totalExpected) * 100).toFixed(1)}%)
+                    </span>
+                    <span className="inline-flex items-center gap-1.5 text-emerald-400 font-semibold">
+                      <span className="w-2 h-2 rounded-full bg-emerald-400" />
+                      Lucro Gerado: {money(capitalYield.monthExpectedProfit)} (
+                      {((capitalYield.monthExpectedProfit / monthStats.totalExpected) * 100).toFixed(1)}%)
+                    </span>
+                  </div>
+                </div>
+                <div className="w-full h-2.5 rounded-full bg-white/[0.05] overflow-hidden flex">
+                  <div
+                    className="h-full bg-zinc-400/75 transition-all duration-500"
+                    style={{
+                      width: `${Math.min(100, (capitalYield.monthExpectedCapital / monthStats.totalExpected) * 100)}%`,
+                    }}
+                  />
+                  <div
+                    className="h-full bg-emerald-500 transition-all duration-500"
+                    style={{
+                      width: `${Math.min(100, (capitalYield.monthExpectedProfit / monthStats.totalExpected) * 100)}%`,
+                    }}
+                  />
+                </div>
+              </div>
+            )}
           </div>
 
           {/* ========================================================================= */}
@@ -2060,6 +2188,38 @@ export function MonthlyInstallmentsReport({
               <span className="text-[8px] text-red-900 font-bold uppercase tracking-widest block mb-1">Em Atraso</span>
               <strong className="text-base font-black text-red-700">{money(monthStats.totalOverdue)}</strong>
               <span className="text-[8px] text-red-700 font-bold block mt-0.5">{monthStats.countOverdue} atrasadas</span>
+            </div>
+          </div>
+
+          {/* Lucro Gerado pelo Capital Investido */}
+          <div className="p-4 rounded-xl border border-emerald-300 bg-emerald-50/40 flex flex-col gap-2.5">
+            <div className="flex justify-between items-center border-b border-emerald-200 pb-1.5">
+              <span className="text-[10px] font-black uppercase text-emerald-900 tracking-wider">
+                Lucro Gerado pelo Capital Investido
+              </span>
+              <span className="text-[9px] font-bold text-emerald-800">
+                Rendimento Mensal: +{capitalYield.monthlyRoiPct.toFixed(1)}% a.m.
+              </span>
+            </div>
+            <div className="grid grid-cols-4 gap-3 text-center">
+              <div>
+                <span className="text-[8px] text-zinc-500 font-bold uppercase block">Capital Ativo</span>
+                <strong className="text-sm font-black text-zinc-900">{money(capitalYield.activeRemainingInvested)}</strong>
+              </div>
+              <div>
+                <span className="text-[8px] text-emerald-800 font-bold uppercase block">Lucro Mensal Gerado</span>
+                <strong className="text-sm font-black text-emerald-700">{money(capitalYield.activeMonthlyProfit)}/mês</strong>
+              </div>
+              <div>
+                <span className="text-[8px] text-amber-900 font-bold uppercase block">
+                  Lucro em {MONTH_NAMES[selectedMonthIndex]}
+                </span>
+                <strong className="text-sm font-black text-amber-800">{money(capitalYield.monthExpectedProfit)}</strong>
+              </div>
+              <div>
+                <span className="text-[8px] text-zinc-600 font-bold uppercase block">Lucro Futuro Carteira</span>
+                <strong className="text-sm font-black text-emerald-800">+{money(capitalYield.pendingPortfolioProfit)}</strong>
+              </div>
             </div>
           </div>
 
