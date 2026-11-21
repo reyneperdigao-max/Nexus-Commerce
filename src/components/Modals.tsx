@@ -1,6 +1,8 @@
-import type { Dispatch, SetStateAction } from 'react';
+import { useEffect, useState, type Dispatch, type SetStateAction } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import {
+  Calendar,
+  Check,
   Copy,
   DollarSign,
   Download,
@@ -19,7 +21,7 @@ import {
   Zap,
 } from 'lucide-react';
 import { Installment, Product, Sale, Settings } from '../types';
-import { extractDueDay, formatLocalDateBR } from '../lib/dateUtils';
+import { extractDueDay, formatLocalDateBR, getLocalDateString, parseDateSafe, parseDateToMidnight } from '../lib/dateUtils';
 import { getSystemSellerName } from '../lib/pdfGenerator';
 import { SignatureAuditModal } from './SignatureAuditModal';
 import { ShareSigningLinkModal } from './ShareSigningLinkModal';
@@ -72,6 +74,15 @@ interface AppModalsProps {
   amortizationAmount: string;
   setAmortizationAmount: (v: string) => void;
   onConfirmPaymentSubmit: (isAmortizing: boolean) => Promise<void>;
+
+  // Edit Installment Due Date Modal
+  selectedInstallmentForDueDate: Installment | null;
+  setSelectedInstallmentForDueDate: (inst: Installment | null) => void;
+  onUpdateInstallmentDueDate: (
+    installmentId: string,
+    newDueDateStr: string,
+    scope: 'single' | 'following'
+  ) => Promise<{ success: boolean; updatedCount: number }>;
 
   // Advance Installments Modal
   selectedSaleForAdvance: Sale | null;
@@ -179,6 +190,9 @@ export function AppModals(props: AppModalsProps) {
     amortizationAmount,
     setAmortizationAmount,
     onConfirmPaymentSubmit,
+    selectedInstallmentForDueDate,
+    setSelectedInstallmentForDueDate,
+    onUpdateInstallmentDueDate,
     selectedSaleForAdvance,
     setSelectedSaleForAdvance,
     advancePendingInsts,
@@ -1313,10 +1327,38 @@ export function AppModals(props: AppModalsProps) {
                       ? 'Confirmar Juros e Renovar'
                       : 'Confirmar Recebimento'}
                 </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    const instToEdit = selectedInstallmentForPayment;
+                    setSelectedInstallmentForPayment(null);
+                    setSelectedInstallmentForDueDate(instToEdit);
+                  }}
+                  className="w-full h-10 mt-2.5 rounded-xl bg-white/[0.03] hover:bg-gold/10 border border-white/[0.08] hover:border-gold/30 text-zinc-300 hover:text-gold text-xs font-semibold transition-all flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  <Calendar size={14} className="text-gold" />
+                  <span>Alterar prazo de vencimento desta parcela</span>
+                </button>
               </motion.div>
             </div>
           );
         })()}
+
+      {/* Modal: Alterar Prazo de Vencimento */}
+      {selectedInstallmentForDueDate && (
+        <div key={`modal-edit-due-${selectedInstallmentForDueDate.id}`}>
+          <EditInstallmentDueDateModal
+            installment={selectedInstallmentForDueDate}
+            allInstallments={installments}
+            sale={sales.find((s) => s.id === selectedInstallmentForDueDate.saleId)}
+            money={money}
+            onClose={() => setSelectedInstallmentForDueDate(null)}
+            onConfirm={onUpdateInstallmentDueDate}
+            showToast={showToast}
+          />
+        </div>
+      )}
 
       {/* Modal: Antecipação de Parcelas */}
       {selectedSaleForAdvance && (
@@ -1864,5 +1906,261 @@ export function AppModals(props: AppModalsProps) {
         </motion.div>
       )}
     </AnimatePresence>
+  );
+}
+
+function EditInstallmentDueDateModal({
+  installment,
+  allInstallments,
+  sale,
+  money,
+  onClose,
+  onConfirm,
+  showToast,
+}: {
+  installment: Installment;
+  allInstallments: Installment[];
+  sale?: Sale;
+  money: (val: number) => string;
+  onClose: () => void;
+  onConfirm: (
+    installmentId: string,
+    newDueDateStr: string,
+    scope: 'single' | 'following'
+  ) => Promise<{ success: boolean; updatedCount: number }>;
+  showToast: (msg: string, type?: 'success' | 'error') => void;
+}) {
+  const originalDateStr = getLocalDateString(installment.dueDate);
+  const [newDateStr, setNewDateStr] = useState<string>(originalDateStr);
+  const [scope, setScope] = useState<'single' | 'following'>('single');
+  const [isSaving, setIsSaving] = useState(false);
+
+  useEffect(() => {
+    setNewDateStr(getLocalDateString(installment.dueDate));
+    setScope('single');
+    setIsSaving(false);
+  }, [installment.id, installment.dueDate]);
+
+  const followingPendingCount = allInstallments.filter(
+    (i) => i.saleId === installment.saleId && i.status === 'Pendente' && i.number > installment.number
+  ).length;
+
+  const todayMidnight = parseDateToMidnight(new Date());
+  const dueMidnight = parseDateToMidnight(installment.dueDate);
+  const isOverdue = installment.status !== 'Pago' && dueMidnight < todayMidnight;
+  const todayStr = getLocalDateString(new Date());
+
+  const addDaysToOriginal = (days: number): string => {
+    const parsed = parseDateSafe(installment.dueDate);
+    const base = parsed
+      ? new Date(parsed.year, parsed.month - 1, parsed.day, 12, 0, 0)
+      : new Date();
+    base.setDate(base.getDate() + days);
+    return getLocalDateString(base);
+  };
+
+  const addOneMonthToOriginal = (): string => {
+    const parsed = parseDateSafe(installment.dueDate);
+    if (!parsed) return addDaysToOriginal(30);
+    const targetMonthIndex = parsed.month; // 0-indexed next month = (parsed.month - 1) + 1
+    const lastDay = new Date(parsed.year, targetMonthIndex + 1, 0).getDate();
+    const clampedDay = Math.min(parsed.day, lastDay);
+    return getLocalDateString(new Date(parsed.year, targetMonthIndex, clampedDay, 12, 0, 0));
+  };
+
+  const quickPresets: { label: string; value: string }[] = [
+    ...(isOverdue ? [{ label: 'Hoje', value: todayStr }] : []),
+    { label: '+5 dias', value: addDaysToOriginal(5) },
+    { label: '+10 dias', value: addDaysToOriginal(10) },
+    { label: '+15 dias', value: addDaysToOriginal(15) },
+    { label: '+1 mês', value: addOneMonthToOriginal() },
+  ];
+
+  const newDueDay = extractDueDay(newDateStr);
+  const effectiveScope = followingPendingCount > 0 ? scope : 'single';
+  const totalAffected = effectiveScope === 'following' ? 1 + followingPendingCount : 1;
+
+  const handleSubmit = async () => {
+    if (!newDateStr || !/^\d{4}-\d{2}-\d{2}$/.test(newDateStr)) {
+      showToast('Selecione uma nova data de vencimento válida.', 'error');
+      return;
+    }
+    setIsSaving(true);
+    const res = await onConfirm(installment.id, newDateStr, effectiveScope);
+    setIsSaving(false);
+    if (res.success) {
+      onClose();
+      showToast(
+        res.updatedCount > 1
+          ? `Prazo atualizado em ${res.updatedCount} parcelas para todo dia ${newDueDay}!`
+          : `Vencimento da parcela ${installment.number}/${installment.total} alterado para ${formatLocalDateBR(newDateStr)}.`
+      );
+    } else {
+      showToast('Não foi possível salvar a alteração de vencimento.', 'error');
+    }
+  };
+
+  return (
+    <div key="modal-edit-due-date" className="fixed inset-0 z-[265] flex items-center justify-center p-4 overflow-y-auto">
+      <div className="fixed inset-0 bg-black/85 backdrop-blur-md" onClick={onClose} />
+      <motion.div
+        initial={{ opacity: 0, scale: 0.96, y: 12 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.96 }}
+        className="relative w-full max-w-md glass-card p-6 sm:p-7 bg-[#0d111a] border border-gold/30 shadow-2xl z-10 text-left my-auto"
+      >
+        <div className="flex items-start justify-between pb-4 border-b border-white/[0.08] mb-5">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-gold/15 border border-gold/35 flex items-center justify-center text-gold shrink-0">
+              <Calendar size={18} />
+            </div>
+            <div>
+              <h3 className="text-base font-bold text-white leading-tight">Alterar Prazo de Vencimento</h3>
+              <p className="text-[11px] text-zinc-400 mt-0.5">
+                {installment.client} · Parcela {installment.number}/{installment.total}
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="w-8 h-8 rounded-lg bg-white/[0.04] hover:bg-white/[0.09] text-zinc-400 hover:text-white flex items-center justify-center cursor-pointer transition-colors"
+          >
+            <X size={16} />
+          </button>
+        </div>
+
+        <div className="p-3.5 rounded-xl bg-[#07090e] border border-white/[0.06] mb-4 space-y-1.5">
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-zinc-400">Aparelho / Contrato</span>
+            <span className="text-zinc-200 font-semibold truncate max-w-[60%]">
+              {installment.productName || sale?.productName || 'Produto Registrado'}
+            </span>
+          </div>
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-zinc-400">Valor da Parcela</span>
+            <span className="text-gold font-bold tabular-figure">{money(installment.value)}</span>
+          </div>
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-zinc-400">Vencimento Atual</span>
+            <span className="text-zinc-200 font-semibold tabular-figure">
+              {formatLocalDateBR(installment.dueDate)}
+            </span>
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-2 mb-4">
+          <label className="text-xs font-medium text-zinc-300">Nova Data de Vencimento</label>
+          <input
+            type="date"
+            value={newDateStr}
+            onChange={(e) => setNewDateStr(e.target.value)}
+            className="w-full h-11 bg-[#07090e] border border-white/[0.12] focus:border-gold rounded-xl px-3.5 text-sm font-semibold text-white outline-none transition-colors [color-scheme:dark]"
+          />
+          <div className="flex flex-wrap gap-1.5 pt-1">
+            {quickPresets.map((preset) => {
+              const isSelected = newDateStr === preset.value;
+              return (
+                <button
+                  key={preset.label}
+                  type="button"
+                  onClick={() => setNewDateStr(preset.value)}
+                  className={`h-8 px-2.5 rounded-lg text-[11px] font-semibold border transition-all cursor-pointer ${
+                    isSelected
+                      ? 'bg-gold/20 border-gold/50 text-gold'
+                      : 'bg-white/[0.03] border-white/[0.08] text-zinc-300 hover:border-gold/30 hover:text-gold'
+                  }`}
+                >
+                  {preset.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {followingPendingCount > 0 && (
+          <div className="flex flex-col gap-2 mb-5">
+            <label className="text-xs font-medium text-zinc-300">Aplicar alteração em</label>
+            <div className="grid grid-cols-1 gap-2">
+              <button
+                type="button"
+                onClick={() => setScope('single')}
+                className={`p-3 rounded-xl border text-left transition-all cursor-pointer flex items-center justify-between gap-2 ${
+                  scope === 'single'
+                    ? 'bg-gold/10 border-gold/45 text-white'
+                    : 'bg-[#07090e] border-white/[0.08] text-zinc-400 hover:border-white/[0.18]'
+                }`}
+              >
+                <div>
+                  <span className="text-xs font-bold block text-white">Somente esta parcela ({installment.number}/{installment.total})</span>
+                  <span className="text-[11px] text-zinc-400">
+                    Prorroga apenas este vencimento para {formatLocalDateBR(newDateStr)}
+                  </span>
+                </div>
+                <span
+                  className={`w-4 h-4 rounded-full border flex items-center justify-center shrink-0 ${
+                    scope === 'single' ? 'border-gold bg-gold text-[#07090e]' : 'border-zinc-600'
+                  }`}
+                >
+                  {scope === 'single' && <Check size={11} strokeWidth={3} />}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setScope('following')}
+                className={`p-3 rounded-xl border text-left transition-all cursor-pointer flex items-center justify-between gap-2 ${
+                  scope === 'following'
+                    ? 'bg-gold/10 border-gold/45 text-white'
+                    : 'bg-[#07090e] border-white/[0.08] text-zinc-400 hover:border-white/[0.18]'
+                }`}
+              >
+                <div>
+                  <span className="text-xs font-bold block text-white">
+                    Esta e próximas {followingPendingCount} pendente{followingPendingCount > 1 ? 's' : ''}
+                  </span>
+                  <span className="text-[11px] text-zinc-400">
+                    Reajusta as {1 + followingPendingCount} parcelas para todo dia {newDueDay} a partir desta data
+                  </span>
+                </div>
+                <span
+                  className={`w-4 h-4 rounded-full border flex items-center justify-center shrink-0 ${
+                    scope === 'following' ? 'border-gold bg-gold text-[#07090e]' : 'border-zinc-600'
+                  }`}
+                >
+                  {scope === 'following' && <Check size={11} strokeWidth={3} />}
+                </span>
+              </button>
+            </div>
+          </div>
+        )}
+
+        <div className="grid grid-cols-2 gap-3 pt-1">
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={isSaving}
+            className="h-11 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.08] text-xs font-semibold text-zinc-300 cursor-pointer transition-colors disabled:opacity-50"
+          >
+            Cancelar
+          </button>
+          <button
+            type="button"
+            onClick={handleSubmit}
+            disabled={isSaving || !newDateStr}
+            className="h-11 rounded-xl bg-gold hover:brightness-110 text-[#07090e] text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer transition-all shadow-lg disabled:opacity-50"
+          >
+            <Check size={15} />
+            <span>
+              {isSaving
+                ? 'Salvando...'
+                : totalAffected > 1
+                  ? `Salvar (${totalAffected}x)`
+                  : 'Salvar Prazo'}
+            </span>
+          </button>
+        </div>
+      </motion.div>
+    </div>
   );
 }

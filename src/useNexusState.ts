@@ -1543,6 +1543,83 @@ export function useNexusState(user: User | null) {
     }
   };
 
+  const updateInstallmentDueDate = async (
+    installmentId: string,
+    newDueDateStr: string,
+    scope: 'single' | 'following' = 'single'
+  ): Promise<{ success: boolean; updatedCount: number }> => {
+    if (!uid) return { success: false, updatedCount: 0 };
+    const target = installments.find((i) => i.id === installmentId);
+    if (!target || target.status !== 'Pendente') {
+      return { success: false, updatedCount: 0 };
+    }
+
+    const parsed = parseDateSafe(newDueDateStr);
+    if (!parsed) {
+      return { success: false, updatedCount: 0 };
+    }
+
+    const buildClampedIso = (year: number, month1Based: number, day: number): string => {
+      const lastDay = new Date(year, month1Based, 0).getDate();
+      const safeDay = Math.min(Math.max(1, day), lastDay);
+      return new Date(year, month1Based - 1, safeDay, 12, 0, 0).toISOString();
+    };
+
+    const updatesMap = new Map<string, string>();
+
+    if (scope === 'following' && target.saleId) {
+      const subsequentPending = installments
+        .filter(
+          (i) =>
+            i.saleId === target.saleId &&
+            i.status === 'Pendente' &&
+            i.number >= target.number
+        )
+        .sort((a, b) => a.number - b.number);
+
+      subsequentPending.forEach((inst, idx) => {
+        const monthCursor = new Date(parsed.year, parsed.month - 1 + idx, 1);
+        updatesMap.set(
+          inst.id,
+          buildClampedIso(monthCursor.getFullYear(), monthCursor.getMonth() + 1, parsed.day)
+        );
+      });
+    } else {
+      updatesMap.set(target.id, buildClampedIso(parsed.year, parsed.month, parsed.day));
+    }
+
+    if (updatesMap.size === 0) {
+      return { success: false, updatedCount: 0 };
+    }
+
+    const prevInstallments = installments;
+    const nextInstallments = installments.map((inst) =>
+      updatesMap.has(inst.id) ? { ...inst, dueDate: updatesMap.get(inst.id)! } : inst
+    );
+    setInstallments(nextInstallments);
+    saveUserCached(uid, 'installments', nextInstallments);
+
+    try {
+      const batch = writeBatch(db);
+      updatesMap.forEach((isoDate, instId) => {
+        batch.update(doc(db, 'users', uid, 'installments', instId), {
+          dueDate: isoDate,
+        });
+      });
+      await batch.commit();
+      return { success: true, updatedCount: updatesMap.size };
+    } catch (err: any) {
+      console.error('Erro ao alterar vencimento da parcela:', err);
+      if (err?.code !== 'unavailable') {
+        setInstallments(prevInstallments);
+        saveUserCached(uid, 'installments', prevInstallments);
+        handleFirestoreError(err, OperationType.UPDATE, `users/${uid}/installments/${installmentId}`);
+        return { success: false, updatedCount: 0 };
+      }
+      return { success: true, updatedCount: updatesMap.size };
+    }
+  };
+
   const updateSaleFull = async (
     id: string,
     data: {
@@ -2214,6 +2291,7 @@ export function useNexusState(user: User | null) {
     payInstallment,
     amortizeSale,
     advanceInstallments,
+    updateInstallmentDueDate,
     updateSaleFull,
     updateSaleCostPrice,
     updateProduct,

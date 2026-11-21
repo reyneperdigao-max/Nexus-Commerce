@@ -66,6 +66,7 @@ interface MonthlyInstallmentsReportProps {
   settings: SettingsType;
   money: (val: number) => string;
   onPayInstallment: (installment: Installment) => void;
+  onEditDueDate?: (installment: Installment) => void;
   onViewReceipt: (installment: Installment) => void;
   onDownloadPDF: () => void;
   onCloseRegister: (
@@ -145,6 +146,7 @@ export function MonthlyInstallmentsReport({
   settings,
   money,
   onPayInstallment,
+  onEditDueDate,
   onViewReceipt,
   onDownloadPDF,
   onCloseRegister,
@@ -1077,7 +1079,19 @@ export function MonthlyInstallmentsReport({
                             >
                               {money(Number(inst.value) || 0)}
                             </strong>
-                            <span className="text-[11px] text-zinc-400 tabular-figure">{formatDateBR(inst.dueDate)}</span>
+                            {!isPaid && onEditDueDate ? (
+                              <button
+                                type="button"
+                                onClick={() => onEditDueDate(inst)}
+                                title="Alterar prazo de vencimento"
+                                className="inline-flex items-center gap-1 text-[11px] text-zinc-300 hover:text-gold transition-colors tabular-figure cursor-pointer mt-0.5"
+                              >
+                                <Calendar size={10} className="text-gold/80" />
+                                <span className="underline decoration-dotted underline-offset-2">{formatDateBR(inst.dueDate)}</span>
+                              </button>
+                            ) : (
+                              <span className="text-[11px] text-zinc-400 tabular-figure">{formatDateBR(inst.dueDate)}</span>
+                            )}
                           </div>
                         </div>
 
@@ -1102,9 +1116,20 @@ export function MonthlyInstallmentsReport({
                             )}
                           </div>
 
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-1.5">
                             {!isPaid ? (
                               <>
+                                {onEditDueDate && (
+                                  <button
+                                    type="button"
+                                    onClick={() => onEditDueDate(inst)}
+                                    title="Alterar prazo de vencimento"
+                                    className="h-9 px-2.5 rounded-lg bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.1] text-zinc-200 hover:text-gold text-xs font-semibold flex items-center gap-1 cursor-pointer transition-colors"
+                                  >
+                                    <Calendar size={13} className="text-gold" />
+                                    <span className="hidden xs:inline">Prazo</span>
+                                  </button>
+                                )}
                                 <button
                                   type="button"
                                   onClick={() => sendWhatsAppReminder(inst)}
@@ -1196,7 +1221,19 @@ export function MonthlyInstallmentsReport({
                             </td>
 
                             <td className="p-4 text-xs text-zinc-300 font-medium text-center tabular-figure">
-                              {formatDateBR(inst.dueDate)}
+                              {!isPaid && onEditDueDate ? (
+                                <button
+                                  type="button"
+                                  onClick={() => onEditDueDate(inst)}
+                                  title="Clique para alterar o prazo de vencimento"
+                                  className="inline-flex items-center justify-center gap-1.5 px-2.5 py-1 rounded-lg hover:bg-gold/10 hover:text-gold transition-colors cursor-pointer group"
+                                >
+                                  <Calendar size={12} className="text-zinc-500 group-hover:text-gold transition-colors" />
+                                  <span>{formatDateBR(inst.dueDate)}</span>
+                                </button>
+                              ) : (
+                                formatDateBR(inst.dueDate)
+                              )}
                             </td>
 
                             <td className="p-4 text-center font-bold text-sm tabular-figure">
@@ -1232,6 +1269,16 @@ export function MonthlyInstallmentsReport({
                               <div className="flex items-center justify-end gap-2">
                                 {!isPaid ? (
                                   <>
+                                    {onEditDueDate && (
+                                      <button
+                                        type="button"
+                                        onClick={() => onEditDueDate(inst)}
+                                        title="Alterar prazo de vencimento"
+                                        className="w-8 h-8 rounded-lg bg-white/[0.04] hover:bg-gold/15 border border-white/[0.08] hover:border-gold/35 text-zinc-300 hover:text-gold flex items-center justify-center transition-all cursor-pointer"
+                                      >
+                                        <Calendar size={13} />
+                                      </button>
+                                    )}
                                     <button
                                       type="button"
                                       onClick={() => sendWhatsAppReminder(inst)}

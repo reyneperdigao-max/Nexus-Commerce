@@ -65,6 +65,7 @@ interface SalesViewProps {
   onDownloadContract: (sale: Sale) => void;
   onDeleteSale: (sale: Sale) => void;
   onPayInstallment: (inst: Installment) => void;
+  onEditDueDate: (inst: Installment) => void;
   onViewReceipt: (inst: Installment) => void;
   onShareInstallmentWhatsApp: (sale: Sale, inst: Installment) => void;
   onShareSaleTableWhatsApp: (sale: Sale) => void;
@@ -112,6 +113,7 @@ export function SalesView({
   onDownloadContract,
   onDeleteSale,
   onPayInstallment,
+  onEditDueDate,
   onViewReceipt,
   onShareInstallmentWhatsApp,
   onShareSaleTableWhatsApp,
@@ -1253,19 +1255,35 @@ export function SalesView({
                                               </span>
                                               {isPaid ? (
                                                 <Check size={12} className="text-emerald-400" />
-                                              ) : isOverdue ? (
-                                                <AlertCircle size={12} className="text-red-400" />
                                               ) : (
-                                                <Clock size={12} className="text-zinc-500" />
+                                                <button
+                                                  type="button"
+                                                  onClick={() => onEditDueDate(inst)}
+                                                  className="w-6 h-6 rounded-md bg-white/[0.04] hover:bg-gold/15 border border-white/[0.08] hover:border-gold/35 text-zinc-400 hover:text-gold grid place-items-center transition-colors cursor-pointer"
+                                                  title="Alterar prazo de vencimento"
+                                                >
+                                                  <Calendar size={11} />
+                                                </button>
                                               )}
                                             </div>
                                             <p className="text-sm font-bold text-white tabular-figure mt-1">
                                               {money(inst.value)}
                                             </p>
-                                            <span className="text-[11px] text-zinc-400 tabular-figure block mt-0.5">
-                                              {formatLocalDateBR(inst.dueDate)}
-                                              {isOverdue ? ' · Atrasada' : isDueToday ? ' · Hoje' : ''}
-                                            </span>
+                                            {isPaid ? (
+                                              <span className="text-[11px] text-zinc-400 tabular-figure block mt-0.5">
+                                                {formatLocalDateBR(inst.dueDate)}
+                                              </span>
+                                            ) : (
+                                              <button
+                                                type="button"
+                                                onClick={() => onEditDueDate(inst)}
+                                                className="mt-0.5 inline-flex items-center gap-1 text-[11px] text-zinc-300 hover:text-gold transition-colors cursor-pointer tabular-figure"
+                                                title="Clique para alterar o prazo de vencimento"
+                                              >
+                                                <span>{formatLocalDateBR(inst.dueDate)}</span>
+                                                {isOverdue ? ' · Atrasada' : isDueToday ? ' · Hoje' : ''}
+                                              </button>
+                                            )}
                                           </div>
 
                                           {isPaid ? (

@@ -20,6 +20,7 @@ import {
   AlertCircle,
   X,
   Briefcase,
+  Calendar,
 } from 'lucide-react';
 import { Installment, Sale } from '../../types';
 import { formatLocalDateBR, parseDateToMidnight } from '../../lib/dateUtils';
@@ -46,6 +47,7 @@ interface ClientsViewProps {
   onEditSale: (sale: Sale) => void;
   onDeleteSale: (sale: Sale) => void;
   onPayInstallment: (inst: Installment) => void;
+  onEditDueDate: (inst: Installment) => void;
   onViewReceipt: (inst: Installment) => void;
   onShareInstallmentWhatsApp: (sale: Sale, inst: Installment) => void;
   onShareSaleTableWhatsApp: (sale: Sale) => void;
@@ -74,6 +76,7 @@ export function ClientsView({
   onEditSale,
   onDeleteSale,
   onPayInstallment,
+  onEditDueDate,
   onViewReceipt,
   onShareInstallmentWhatsApp,
   onShareSaleTableWhatsApp,
@@ -611,16 +614,33 @@ export function ClientsView({
                                         <strong className="text-sm font-bold text-white tabular-figure block mt-0.5">
                                           {money(inst.value)}
                                         </strong>
-                                        <span className="text-[11px] text-zinc-400 tabular-figure">
-                                          {formatLocalDateBR(inst.dueDate)}
-                                        </span>
+                                        {isPaid ? (
+                                          <span className="text-[11px] text-zinc-400 tabular-figure">
+                                            {formatLocalDateBR(inst.dueDate)}
+                                          </span>
+                                        ) : (
+                                          <button
+                                            type="button"
+                                            onClick={() => onEditDueDate(inst)}
+                                            className="mt-0.5 inline-flex items-center gap-1 text-[11px] font-medium text-zinc-300 hover:text-gold transition-colors cursor-pointer tabular-figure"
+                                            title="Alterar prazo de vencimento"
+                                          >
+                                            <span>{formatLocalDateBR(inst.dueDate)}</span>
+                                            <Calendar size={11} className="text-gold/80 shrink-0" />
+                                          </button>
+                                        )}
                                       </div>
                                       {isPaid ? (
                                         <Check size={13} className="text-emerald-400 shrink-0" />
-                                      ) : isOverdue ? (
-                                        <AlertCircle size={13} className="text-red-400 shrink-0" />
                                       ) : (
-                                        <Clock size={13} className="text-zinc-500 shrink-0" />
+                                        <button
+                                          type="button"
+                                          onClick={() => onEditDueDate(inst)}
+                                          className="w-7 h-7 rounded-lg bg-white/[0.04] hover:bg-gold/15 border border-white/[0.08] hover:border-gold/35 text-zinc-400 hover:text-gold grid place-items-center transition-colors cursor-pointer shrink-0"
+                                          title="Alterar prazo de vencimento"
+                                        >
+                                          <Calendar size={12} />
+                                        </button>
                                       )}
                                     </div>
 

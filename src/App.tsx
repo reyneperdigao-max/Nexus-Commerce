@@ -64,6 +64,7 @@ export default function App() {
     updateSaleFull,
     updateSaleCostPrice,
     payInstallment,
+    updateInstallmentDueDate,
     amortizeSale,
     advanceInstallments,
     closeMonthlyRegister,
@@ -330,6 +331,7 @@ export default function App() {
   }, [sales, selectedClient]);
 
   const [selectedInstallmentForPayment, setSelectedInstallmentForPayment] = useState<Installment | null>(null);
+  const [selectedInstallmentForDueDate, setSelectedInstallmentForDueDate] = useState<Installment | null>(null);
   const [paymentType, setPaymentType] = useState<'interest' | 'amortization'>('interest');
   const [paymentMethod, setPaymentMethod] = useState<
     'Pix' | 'Cartão de Crédito' | 'Cartão de Débito' | 'Dinheiro' | 'Transferência'
@@ -1457,6 +1459,7 @@ Autenticação: ${targetSale.id.toUpperCase()}`;
                     setAmortizationAmount('');
                     setSelectedInstallmentForPayment(inst);
                   }}
+                  onEditDueDate={(inst) => setSelectedInstallmentForDueDate(inst)}
                   onViewReceipt={(inst) => setSelectedInstallmentForReceipt(inst)}
                   onShareInstallmentWhatsApp={shareInstallmentWhatsApp}
                   onShareSaleTableWhatsApp={shareSaleTableWhatsApp}
@@ -1477,6 +1480,7 @@ Autenticação: ${targetSale.id.toUpperCase()}`;
                     setAmortizationAmount('');
                     setSelectedInstallmentForPayment(inst);
                   }}
+                  onEditDueDate={(inst) => setSelectedInstallmentForDueDate(inst)}
                   onViewReceipt={(inst) => setSelectedInstallmentForReceipt(inst)}
                   onDownloadPDF={handleDownloadReportPDF}
                   onCloseRegister={closeMonthlyRegister}
@@ -1531,6 +1535,7 @@ Autenticação: ${targetSale.id.toUpperCase()}`;
                     setAmortizationAmount('');
                     setSelectedInstallmentForPayment(inst);
                   }}
+                  onEditDueDate={(inst) => setSelectedInstallmentForDueDate(inst)}
                   onViewReceipt={(inst) => setSelectedInstallmentForReceipt(inst)}
                   onShareInstallmentWhatsApp={shareInstallmentWhatsApp}
                   onShareSaleTableWhatsApp={shareSaleTableWhatsApp}
@@ -1629,6 +1634,9 @@ Autenticação: ${targetSale.id.toUpperCase()}`;
           amortizationAmount={amortizationAmount}
           setAmortizationAmount={setAmortizationAmount}
           onConfirmPaymentSubmit={handleUnifiedPaymentSubmit}
+          selectedInstallmentForDueDate={selectedInstallmentForDueDate}
+          setSelectedInstallmentForDueDate={setSelectedInstallmentForDueDate}
+          onUpdateInstallmentDueDate={updateInstallmentDueDate}
           selectedSaleForAdvance={selectedSaleForAdvance}
           setSelectedSaleForAdvance={setSelectedSaleForAdvance}
           advancePendingInsts={advancePendingInsts}
